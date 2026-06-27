@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>Neyropedagogika — Miya va Ta'lim Ilmi</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -15,8 +15,7 @@
   <nav class="navbar" id="navbar">
     <div class="nav-container">
       <a href="#" class="logo" onclick="showPublicSection('home')">
-        <span class="logo-icon">🧠</span>
-        <span class="logo-text">Neyro<strong>Pedagogika</strong></span>
+        NeyroПedagogika
       </a>
       <ul class="nav-links">
         <li><a href="#" onclick="showPublicSection('home')">Bosh sahifa</a></li>
@@ -25,8 +24,8 @@
         <li><a href="#" onclick="showPublicSection('public-contact')">Aloqa</a></li>
       </ul>
       <div class="nav-auth">
-        <button class="btn-outline-light" onclick="openAuthModal('register')">Ro'yxatdan o'tish</button>
-        <button class="btn-nav" onclick="openAuthModal('login')">Kirish</button>
+        <button class="btn-nav" onclick="openAuthModal('register')">Ro'yxatdan o'tish</button>
+        <button class="btn-primary" onclick="openAuthModal('login')">Kirish</button>
       </div>
     </div>
   </nav>
@@ -39,16 +38,13 @@
       <div class="hero">
         <div class="hero-bg"></div>
         <div class="hero-content">
-          <span class="hero-badge">🔬 Ilmiy yondashuv</span>
-          <h1 class="hero-title">Miya imkoniyatlarini<br/><span class="gradient-text">ta'lim orqali</span><br/>ochib bering</h1>
-          <p class="hero-desc">Neyropedagogika — neyrologiya va pedagogikaning tutashgan nuqtasida yuzaga kelgan fan. Ta'lim platformamizga qo'shiling va 10 ta maxsus modul orqali bilimlaringizni oshiring.</p>
+          <span class="hero-badge">Ilmiy Yondashuv · 10 ta Modul</span>
+          <h1 class="hero-title">Miya imkoniyatlarini<br/><em>ta'lim orqali</em><br/>ochib bering</h1>
+          <p class="hero-desc">Neyropedagogika — neyrologiya va pedagogikaning tutashgan nuqtasida yuzaga kelgan fan. O'qituvchilar, ota-onalar va talabalar uchun maxsus ta'lim platformasi.</p>
           <div class="hero-buttons">
-            <button class="btn-primary" onclick="openAuthModal('register')">Platformaga qo'shilish</button>
-            <button class="btn-outline" onclick="showPublicSection('public-modules')">Modullar bilan tanishish</button>
+            <button class="btn-primary" onclick="openAuthModal('register')">Platformaga Qo'shilish</button>
+            <button class="btn-outline" onclick="showPublicSection('public-modules')">Modullar Bilan Tanishish</button>
           </div>
-        </div>
-        <div class="hero-image-wrap">
-          <img src="assets/hero_brain.png" alt="Brain" class="hero-image" onerror="this.src='https://images.unsplash.com/photo-1559757175-5700dde675bc?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'" />
         </div>
       </div>
     </section>
