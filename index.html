@@ -35,18 +35,100 @@
     
     <!-- HOME SECTION -->
     <section id="home" class="public-section active">
+
+      <!-- HERO -->
       <div class="hero">
         <div class="hero-bg"></div>
+        <div class="hero-overlay"></div>
         <div class="hero-content">
-          <span class="hero-badge">Ilmiy Yondashuv · 10 ta Modul</span>
+          <span class="hero-badge">Ilmiy Yondashuv &middot; 10 ta Modul</span>
           <h1 class="hero-title">Miya imkoniyatlarini<br/><em>ta'lim orqali</em><br/>ochib bering</h1>
-          <p class="hero-desc">Neyropedagogika — neyrologiya va pedagogikaning tutashgan nuqtasida yuzaga kelgan fan. O'qituvchilar, ota-onalar va talabalar uchun maxsus ta'lim platformasi.</p>
+          <p class="hero-desc">Neyropedagogika &mdash; neyrologiya va pedagogikaning tutashgan nuqtasida yuzaga kelgan fan. O'qituvchilar, ota-onalar va talabalar uchun maxsus ta'lim platformasi.</p>
           <div class="hero-buttons">
             <button class="btn-primary" onclick="openAuthModal('register')">Platformaga Qo'shilish</button>
-            <button class="btn-outline" onclick="showPublicSection('public-modules')">Modullar Bilan Tanishish</button>
+            <button class="btn-outline-white" onclick="showPublicSection('public-modules')">Modullar Bilan Tanishish</button>
           </div>
         </div>
       </div>
+
+      <!-- STATS BAR -->
+      <div class="stats-bar">
+        <div class="stat-item"><span class="stat-num">10</span><span class="stat-label">Ta'lim Moduli</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat-item"><span class="stat-num">500+</span><span class="stat-label">O'qituvchi tayyorlangan</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat-item"><span class="stat-num">12</span><span class="stat-label">Yillik Tajriba</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat-item"><span class="stat-num">98%</span><span class="stat-label">Mamnunlik darajasi</span></div>
+      </div>
+
+      <!-- ABOUT -->
+      <div class="home-about">
+        <div class="container">
+          <div class="about-grid">
+            <div class="about-img-wrap">
+              <img src="https://images.unsplash.com/photo-1629709305580-5a833dc72d4a?w=700&auto=format&fit=crop" alt="Miya va ta'lim" onerror="this.src='https://images.unsplash.com/photo-1559757175-5700dde675bc?w=700&auto=format&fit=crop'" />
+            </div>
+            <div class="about-text">
+              <span class="section-tag">Biz Haqimizda</span>
+              <h2 class="section-title">Neyropedagogika nima?</h2>
+              <p>Neyropedagogika &mdash; bu miya ilmi (neyrologiya) bilan pedagogikani birlashtiruvchi zamonaviy fan. U bolalar va kattalar miyasining ishlash mexanizmlarini o'rganib, eng samarali o'qitish usullarini taklif etadi.</p>
+              <p style="margin-top:15px">Bizning platformamiz orqali siz neyropedagogikaning asosiy tamoyillarini o'rganasiz va ularni amalda qo'llashni o'rganasiz.</p>
+              <div class="about-features">
+                <div class="feat-item"><span class="feat-check">&#10003;</span> Ilmiy asoslangan metodologiya</div>
+                <div class="feat-item"><span class="feat-check">&#10003;</span> Amaliy mashg'ulotlar va seminarlar</div>
+                <div class="feat-item"><span class="feat-check">&#10003;</span> Individual yondashuv</div>
+                <div class="feat-item"><span class="feat-check">&#10003;</span> 10 ta chuqurlashtirilgan modul</div>
+              </div>
+              <button class="btn-primary" style="margin-top:30px" onclick="openAuthModal('register')">Boshlash</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEATURES -->
+      <div class="home-features">
+        <div class="container">
+          <div class="section-header">
+            <span class="section-tag">Xizmatlarimiz</span>
+            <h2 class="section-title">Nima taklif etamiz?</h2>
+            <p class="section-desc">O'qituvchilardan tortib ota-onalargacha &mdash; har bir guruh uchun maxsus dasturlar</p>
+          </div>
+          <div class="features-grid">
+            <div class="feat-card">
+              <div class="feat-icon">&#127979;</div>
+              <h3>O'qituvchilar uchun</h3>
+              <p>Miya asosida o'qitish strategiyalari, e'tiborni boshqarish usullari va xotira mexanizmlari.</p>
+            </div>
+            <div class="feat-card">
+              <div class="feat-icon">&#128106;</div>
+              <h3>Ota-onalar maktabi</h3>
+              <p>Farzandingizning miyasi qanday rivojlanadi? Ilmiy javoblar va amaliy maslahatlar.</p>
+            </div>
+            <div class="feat-card">
+              <div class="feat-icon">&#128187;</div>
+              <h3>Online kurslar</h3>
+              <p>Qulay vaqtda, o'z sur'atingizda onlayn formatda o'rganish. Video darslar va sertifikat.</p>
+            </div>
+            <div class="feat-card">
+              <div class="feat-icon">&#128300;</div>
+              <h3>Ilmiy tadqiqotlar</h3>
+              <p>O'zbek ta'lim muhitida neyropedagogik tadqiqotlar olib borish va nashr etish.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- QUOTE -->
+      <div class="home-quote">
+        <div class="container">
+          <blockquote>
+            &ldquo;Miya o'rganishga tayyorlanib tug'iladi. Bizning vazifamiz &mdash; unga to'g'ri yo'l ko'rsatish.&rdquo;
+            <cite>&mdash; Neyropedagogika asoschilaridan</cite>
+          </blockquote>
+        </div>
+      </div>
+
     </section>
 
     <!-- MODULES INFO SECTION -->
