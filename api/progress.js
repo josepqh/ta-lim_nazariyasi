@@ -15,9 +15,9 @@ module.exports = async (req, res) => {
       const { user_id, module_id } = req.query;
       let query;
       if (module_id) {
-         query = sql`SELECT * FROM progress WHERE user_id=${user_id} AND module_id=${module_id}`;
+         query = sql`SELECT * FROM np_progress WHERE user_id=${user_id} AND module_id=${module_id}`;
       } else {
-         query = sql`SELECT * FROM progress WHERE user_id=${user_id}`;
+         query = sql`SELECT * FROM np_progress WHERE user_id=${user_id}`;
       }
       const rows = await query;
       return res.json(rows);
@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const { user_id, module_id, step_type, score } = req.body;
       // Get current progress
-      const current = await sql`SELECT completed_steps, total_score FROM progress WHERE user_id=${user_id} AND module_id=${module_id}`;
+      const current = await sql`SELECT completed_steps, total_score FROM np_progress WHERE user_id=${user_id} AND module_id=${module_id}`;
       
       let steps = [];
       let newScore = score || 0;
@@ -44,7 +44,7 @@ module.exports = async (req, res) => {
       }
 
       const rows = await sql`
-        INSERT INTO progress(user_id, module_id, completed_steps, total_score)
+        INSERT INTO np_progress(user_id, module_id, completed_steps, total_score)
         VALUES(${user_id}, ${module_id}, ${steps}, ${newScore})
         ON CONFLICT(user_id, module_id) DO UPDATE
           SET completed_steps=${steps}, total_score=${newScore}, updated_at=NOW()

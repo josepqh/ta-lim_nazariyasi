@@ -101,10 +101,10 @@ async function handleLogin(e) {
 
 async function handleRegister(e) {
   e.preventDefault();
-  const role = document.querySelector('#registerForm .role-tab.active').dataset.regRole;
+  const role = document.getElementById('regRole').value;
   const login = document.getElementById('regLogin').value;
-  const pass = "123"; // Simplification for demo
-  const name = "Yangi " + role;
+  const pass = document.getElementById('regPass').value; 
+  const name = document.getElementById('regName').value;
   
   const user = await fetchAPI('/auth', 'POST', { action: 'register', login, password: pass, role, name });
   if (user) startSession(user);

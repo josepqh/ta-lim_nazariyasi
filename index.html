@@ -216,10 +216,7 @@
 
     <!-- Register Form -->
     <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
-      <div class="role-tabs">
-        <div class="role-tab active" data-reg-role="student" onclick="selectRegRole('student', this)">👨‍🎓 Talaba sifatida</div>
-        <div class="role-tab" data-reg-role="teacher" onclick="selectRegRole('teacher', this)">👩‍🏫 O'qituvchi sifatida</div>
-      </div>
+      <input type="hidden" id="regRole" value="student" />
       <div class="form-group">
         <label>F.I.Sh</label>
         <input type="text" id="regName" placeholder="To'liq ismingiz" required/>

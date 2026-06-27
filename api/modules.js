@@ -12,14 +12,14 @@ module.exports = async (req, res) => {
 
   try {
     if (req.method === 'GET') {
-      const modules = await sql`SELECT * FROM modules ORDER BY order_num`;
+      const modules = await sql`SELECT * FROM np_modules ORDER BY order_num`;
       return res.json(modules);
     }
 
     if (req.method === 'POST') {
       const { title, description, order_num, created_by } = req.body;
       const rows = await sql`
-        INSERT INTO modules(order_num, title, description, created_by)
+        INSERT INTO np_modules(order_num, title, description, created_by)
         VALUES(${order_num}, ${title}, ${description}, ${created_by})
         ON CONFLICT(order_num) DO UPDATE SET title=${title}, description=${description}
         RETURNING *`;

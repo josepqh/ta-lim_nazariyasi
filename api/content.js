@@ -13,14 +13,14 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const { module_id } = req.query;
-      const rows = await sql`SELECT * FROM module_content WHERE module_id=${module_id} ORDER BY step_order`;
+      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${module_id} ORDER BY step_order`;
       return res.json(rows);
     }
 
     if (req.method === 'POST') {
       const { module_id, step_type, content, updated_by } = req.body;
       const rows = await sql`
-        INSERT INTO module_content(module_id, step_type, content, updated_by)
+        INSERT INTO np_module_content(module_id, step_type, content, updated_by)
         VALUES(${module_id}, ${step_type}, ${JSON.stringify(content)}, ${updated_by})
         ON CONFLICT(module_id, step_type) DO UPDATE
           SET content=${JSON.stringify(content)}, updated_by=${updated_by}, updated_at=NOW()

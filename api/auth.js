@@ -14,15 +14,15 @@ module.exports = async (req, res) => {
 
   try {
     if (action === 'login') {
-      const rows = await sql`SELECT id, name, login, role FROM users WHERE login=${login} AND password=${password}`;
+      const rows = await sql`SELECT id, name, login, role FROM np_users WHERE login=${login} AND password=${password}`;
       if (!rows.length) return res.status(401).json({ error: "Login yoki parol noto'g'ri" });
       return res.json(rows[0]);
     }
 
     if (action === 'register') {
-      const exists = await sql`SELECT id FROM users WHERE login=${login}`;
+      const exists = await sql`SELECT id FROM np_users WHERE login=${login}`;
       if (exists.length) return res.status(400).json({ error: 'Bu login band, boshqa tanlang' });
-      const rows = await sql`INSERT INTO users(name,login,password,role) VALUES(${name},${login},${password},${role||'student'}) RETURNING id,name,login,role`;
+      const rows = await sql`INSERT INTO np_users(name,login,password,role) VALUES(${name},${login},${password},${role||'student'}) RETURNING id,name,login,role`;
       return res.json(rows[0]);
     }
 
