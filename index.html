@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Neyropedagogika Platformasi</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<!-- ════════ LOGIN ════════ -->
+<div id="screen-login" class="screen active">
+  <div class="login-bg"><div class="login-blob b1"></div><div class="login-blob b2"></div></div>
+  <div class="login-card">
+    <div class="login-logo">🧠</div>
+    <h1 class="login-title">NeyroПedagogika</h1>
+    <p class="login-sub">Ta'lim platformasiga xush kelibsiz</p>
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="student" onclick="selectRole('student',this)">👨‍🎓 Talaba</button>
+      <button class="role-tab" data-role="teacher" onclick="selectRole('teacher',this)">👩‍🏫 O'qituvchi</button>
+      <button class="role-tab" data-role="admin" onclick="selectRole('admin',this)">⚙️ Admin</button>
+    </div>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>Login</label>
+        <input type="text" id="loginUser" placeholder="Loginингизни киритинг" required/>
+      </div>
+      <div class="form-group">
+        <label>Parol</label>
+        <input type="password" id="loginPass" placeholder="Parolni kiriting" required/>
+      </div>
+      <div id="loginError" class="login-error"></div>
+      <button type="submit" class="btn-login">Kirish →</button>
+    </form>
+    <div class="login-hint">
+      <small>Demo: student/123 | teacher/123 | admin/123</small>
+    </div>
+  </div>
+</div>
+
+<!-- ════════ MAIN APP ════════ -->
+<div id="screen-app" class="screen">
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <span class="s-icon">🧠</span>
+      <span class="s-title">NeyroP</span>
+    </div>
+    <nav id="sidebarNav"></nav>
+    <div class="sidebar-user" id="sidebarUser"></div>
+    <button class="btn-logout" onclick="logout()">⬅ Chiqish</button>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="mainContent">
+    <!-- TOP BAR -->
+    <div class="topbar">
+      <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
+      <h2 id="pageTitle">Bosh sahifa</h2>
+      <div id="topbarUser" class="topbar-user"></div>
+    </div>
+
+    <!-- PAGES -->
+    <div id="pageContainer"></div>
+  </main>
+</div>
+
+<!-- ════════ MODALS ════════ -->
+<!-- Module Step Modal -->
+<div id="stepModal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modalTitle">Qadam</h3>
+      <button onclick="closeStepModal()" class="modal-close">✕</button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div id="confirmModal" class="modal-overlay" onclick="closeModal(event)">
+  <div class="modal-box small" onclick="event.stopPropagation()">
+    <div id="confirmContent"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
