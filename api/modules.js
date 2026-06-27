@@ -1,0 +1,33 @@
+const sql = require('./_db');
+
+const cors = (res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+};
+
+module.exports = async (req, res) => {
+  cors(res);
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  try {
+    if (req.method === 'GET') {
+      const modules = await sql`SELECT * FROM modules ORDER BY order_num`;
+      return res.json(modules);
+    }
+
+    if (req.method === 'POST') {
+      const { title, description, order_num, created_by } = req.body;
+      const rows = await sql`
+        INSERT INTO modules(order_num, title, description, created_by)
+        VALUES(${order_num}, ${title}, ${description}, ${created_by})
+        ON CONFLICT(order_num) DO UPDATE SET title=${title}, description=${description}
+        RETURNING *`;
+      return res.json(rows[0]);
+    }
+
+    return res.status(405).end();
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+};
