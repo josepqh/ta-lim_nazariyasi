@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
     `;
     await sql`
       INSERT INTO np_users(name, login, password, role) 
-      VALUES('Bosh O\'qituvchi', 'teacher', 'teacher123', 'teacher')
+      VALUES('Bosh Oqituvchi', 'teacher', 'teacher123', 'teacher')
       ON CONFLICT(login) DO NOTHING;
     `;
 
