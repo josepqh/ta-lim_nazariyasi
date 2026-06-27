@@ -1,13 +1,12 @@
-// ===== STATE MANAGEMENT =====
-let currentUser = null; // { role: 'student'|'teacher'|'admin', name: '' }
+// ===== DATA & STATE =====
+let currentUser = null; 
 let currentModuleId = null;
 
-// Mock Database
 const MOCK_DB = {
   modules: Array.from({length: 10}, (_, i) => ({
     id: i + 1,
     title: `Modul ${i + 1}: ${['Neyroanatomiya asoslari', 'Miya plastikasi', 'Diqqat va Xotira', 'Emotsiya va O\'rganish', 'Nutq rivojlanishi', 'Harakat va Kognitsiya', 'Uyquning o\'rni', 'Stress va Ta\'lim', 'Neyromiflar', 'Amaliy Neyropedagogika'][i]}`,
-    desc: 'O\'qituvchi tomonidan kiritilgan modul ta\'rifi.',
+    desc: 'O\'qituvchi tomonidan kiritilgan modul ta\'rifi. Ushbu modul orqali neyropedagogikaning asosiy tamoyillarini o\'rganasiz.',
     steps: [
       { id: 'diag', title: '1. Diagnostika testi', type: 'quiz' },
       { id: 'video', title: '2. Video dars', type: 'video' },
@@ -17,46 +16,115 @@ const MOCK_DB = {
       { id: 'refl', title: '6. Refleksiv hisobot', type: 'text' }
     ]
   })),
-  progress: {}, // { moduleId: { diag: true, video: true, score: 85 } }
+  progress: {}, 
   news: [
-    { id: 1, title: 'Yangi kurs boshlandi', date: '2026-06-20', content: 'Barcha talabalar uchun yangi neyropedagogika kursi ochildi.' }
+    { id: 1, title: 'Yangi kurs boshlandi', date: '2026-06-20', content: 'Barcha talabalar uchun yangi neyropedagogika kursi ochildi. Modullarni bajarishni boshlashingiz mumkin.' },
+    { id: 2, title: 'Amaliy mashg\'ulotlar', date: '2026-06-25', content: 'Kelasi haftadan amaliy mashg\'ulotlar uchun qo\'shimcha materiallar yuklanadi.' }
   ]
 };
 
-// Initialize empty progress for current user
-function initProgress() {
-  MOCK_DB.modules.forEach(m => {
-    if(!MOCK_DB.progress[m.id]) MOCK_DB.progress[m.id] = { completedSteps: [], score: null };
-  });
+// ===== PUBLIC WEBSITE LOGIC =====
+function initPublicSite() {
+  // Populate Public Modules
+  const modContainer = document.getElementById('publicModulesList');
+  if(modContainer) {
+    modContainer.innerHTML = MOCK_DB.modules.slice(0, 6).map(m => `
+      <div class="info-card">
+        <h3>${m.title}</h3>
+        <p>${m.desc}</p>
+      </div>
+    `).join('') + `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha 10 ta modulni ko'rish →</div>`;
+  }
+
+  // Populate Public News
+  const newsContainer = document.getElementById('publicNewsList');
+  if(newsContainer) {
+    newsContainer.innerHTML = MOCK_DB.news.map(n => `
+      <div class="info-card">
+        <h3>${n.title}</h3>
+        <p style="font-size:12px; color:gray; margin-bottom:10px">${n.date}</p>
+        <p>${n.content}</p>
+      </div>
+    `).join('');
+  }
 }
 
-// ===== AUTH & ROUTING =====
+function showPublicSection(sectionId) {
+  document.querySelectorAll('.public-section').forEach(s => s.classList.remove('active'));
+  document.getElementById(sectionId).classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ===== AUTH MODAL LOGIC =====
+function openAuthModal(type) {
+  document.getElementById('authModal').classList.add('active');
+  switchAuth(type);
+}
+
+function closeAuthModal(e) {
+  if(e.target.id === 'authModal') e.target.classList.remove('active');
+}
+
+function switchAuth(type) {
+  document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+  if (type === 'login') {
+    document.getElementById('authTitle').textContent = 'Tizimga Kirish';
+    document.getElementById('authSubtitle').textContent = "Platformadan foydalanish uchun rolingizni tanlang";
+    document.getElementById('loginForm').classList.add('active');
+  } else {
+    document.getElementById('authTitle').textContent = "Ro'yxatdan o'tish";
+    document.getElementById('authSubtitle').textContent = "Yangi hisob yarating";
+    document.getElementById('registerForm').classList.add('active');
+  }
+}
+
 function selectRole(role, btn) {
-  document.querySelectorAll('.role-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#loginForm .role-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
+function selectRegRole(role, btn) {
+  document.querySelectorAll('#registerForm .role-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ===== LOGIN & REGISTER HANDLING =====
 function handleLogin(e) {
   e.preventDefault();
-  const role = document.querySelector('.role-tab.active').dataset.role;
+  const role = document.querySelector('#loginForm .role-tab.active').dataset.role;
   const login = document.getElementById('loginUser').value;
   const pass = document.getElementById('loginPass').value;
   
-  // Simple mock validation
   if (pass !== '123') {
-    document.getElementById('loginError').textContent = 'Parol noto\'g\'ri! (Parol: 123)';
+    document.getElementById('loginError').textContent = 'Parol noto\'g\'ri! (Demo parol: 123)';
     return;
   }
 
+  startSession(role, login);
+}
+
+function handleRegister(e) {
+  e.preventDefault();
+  const role = document.querySelector('#registerForm .role-tab.active').dataset.regRole;
+  const login = document.getElementById('regLogin').value;
+  startSession(role, login);
+}
+
+function startSession(role, login) {
   let name = '';
   if (role === 'student') name = 'Talaba ' + login;
   if (role === 'teacher') name = 'O\'qituvchi ' + login;
   if (role === 'admin') name = 'Admin ' + login;
 
   currentUser = { role, name };
-  initProgress();
   
-  document.getElementById('screen-login').classList.remove('active');
+  // Init progress for student
+  MOCK_DB.modules.forEach(m => {
+    if(!MOCK_DB.progress[m.id]) MOCK_DB.progress[m.id] = { completedSteps: [], score: null };
+  });
+  
+  document.getElementById('authModal').classList.remove('active');
+  document.getElementById('public-website').style.display = 'none';
   document.getElementById('screen-app').classList.add('active');
   
   document.getElementById('sidebarUser').textContent = currentUser.name;
@@ -69,16 +137,20 @@ function handleLogin(e) {
 function logout() {
   currentUser = null;
   document.getElementById('screen-app').classList.remove('active');
-  document.getElementById('screen-login').classList.add('active');
+  document.getElementById('public-website').style.display = 'block';
   document.getElementById('loginForm').reset();
+  document.getElementById('registerForm').reset();
   document.getElementById('loginError').textContent = '';
+  showPublicSection('home');
 }
 
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+function returnToWebsite() {
+  document.getElementById('screen-app').classList.remove('active');
+  document.getElementById('public-website').style.display = 'block';
+  showPublicSection('home');
 }
 
-// ===== NAVIGATION =====
+// ===== PRIVATE SYSTEM NAVIGATION =====
 const NAV_MENU = {
   student: [
     { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
@@ -117,16 +189,17 @@ function buildSidebar() {
   });
 }
 
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+
 function navigate(pageId, title = 'Bosh sahifa') {
   document.getElementById('pageTitle').textContent = title;
   const container = document.getElementById('pageContainer');
   
-  // Highlight nav
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const activeNav = document.getElementById('nav-' + (pageId === 'module-view' ? 'modules' : pageId));
   if(activeNav) activeNav.classList.add('active');
 
-  container.innerHTML = ''; // Clear content
+  container.innerHTML = '';
   
   switch(pageId) {
     case 'home': renderHome(container); break;
@@ -140,11 +213,9 @@ function navigate(pageId, title = 'Bosh sahifa') {
   }
 }
 
-// ===== RENDER PAGES =====
-
+// ===== RENDER SYSTEM PAGES =====
 function renderHome(container) {
   let html = `<div class="dashboard-grid">`;
-  
   if (currentUser.role === 'student') {
     const completed = Object.values(MOCK_DB.progress).filter(p => p.completedSteps.length === 6).length;
     html += `
@@ -240,7 +311,6 @@ function renderModuleView(container) {
   container.innerHTML = html;
 }
 
-// ===== TEACHER PAGES =====
 function renderManageModules(container) {
   let html = `<div class="card"><h3 class="card-title">Modullarga material biriktirish</h3>
   <p style="color:gray;margin-bottom:15px">O'qituvchi sifatida barcha elementlarni shu yerdan yuklaysiz.</p>`;
@@ -249,10 +319,10 @@ function renderManageModules(container) {
     html += `
       <div style="border:1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
         <strong>${m.title}</strong>
-        <div style="margin-top: 10px; display:flex; gap: 10px;">
-          <button class="btn btn-outline btn-sm">Test kiritish</button>
-          <button class="btn btn-outline btn-sm">Video yuklash</button>
-          <button class="btn btn-outline btn-sm">Fayl biriktirish</button>
+        <div style="margin-top: 10px; display:flex; gap: 10px; flex-wrap:wrap">
+          <button class="btn btn-outline" style="padding:6px 10px; font-size:12px">Test kiritish</button>
+          <button class="btn btn-outline" style="padding:6px 10px; font-size:12px">Video yuklash</button>
+          <button class="btn btn-outline" style="padding:6px 10px; font-size:12px">Fayl biriktirish</button>
         </div>
       </div>
     `;
@@ -274,7 +344,6 @@ function renderResults(container) {
   `;
 }
 
-// ===== NEWS & CONTACT =====
 function renderNews(container) {
   let html = '';
   MOCK_DB.news.forEach(n => {
@@ -299,108 +368,66 @@ function renderContact(container) {
 
 // ===== STEP MODAL LOGIC =====
 let currentStepId = null;
-let currentStepType = null;
 
 function openStep(id, type, title) {
   currentStepId = id;
-  currentStepType = type;
   document.getElementById('modalTitle').textContent = title;
   
   const body = document.getElementById('modalBody');
   const footer = document.getElementById('modalFooter');
-  body.innerHTML = '';
-  footer.innerHTML = '';
-
   const isDone = MOCK_DB.progress[currentModuleId].completedSteps.includes(id);
 
   if (type === 'quiz') {
-    body.innerHTML = `
-      <div class="quiz-question">1. Neyropedagogika nima?</div>
+    body.innerHTML = `<div class="quiz-question">1. Neyropedagogika nima?</div>
       <div class="quiz-options">
-        <div class="quiz-option" onclick="selectOption(this)">A) Faqat psixologiya</div>
-        <div class="quiz-option" onclick="selectOption(this)">B) Miya ishlashi va ta'lim sintezi</div>
-        <div class="quiz-option" onclick="selectOption(this)">C) Tibbiyot yo'nalishi</div>
-      </div>
-    `;
+        <div class="quiz-option" onclick="this.parentElement.querySelectorAll('.quiz-option').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">A) Faqat psixologiya</div>
+        <div class="quiz-option" onclick="this.parentElement.querySelectorAll('.quiz-option').forEach(o=>o.classList.remove('selected')); this.classList.add('selected')">B) Miya ishlashi va ta'lim sintezi</div>
+      </div>`;
     footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Javobni tasdiqlash</button>`;
-  } 
-  else if (type === 'video') {
-    body.innerHTML = `
-      <div class="video-container">
-        <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe>
-      </div>
-      <p>Videoni to'liq ko'rgach "Bajarildi" tugmasini bosing.</p>
-    `;
+  } else if (type === 'video') {
+    body.innerHTML = `<div class="video-container"><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" frameborder="0" allowfullscreen></iframe></div><p>Videoni to'liq ko'rgach "Bajarildi" tugmasini bosing.</p>`;
     footer.innerHTML = `<button class="btn btn-success" onclick="completeStep()">Ko'rib bo'ldim (Bajarildi)</button>`;
-  }
-  else if (type === 'doc') {
-    body.innerHTML = `
-      <div style="text-align:center; padding: 40px 0;">
-        <div style="font-size: 40px; margin-bottom: 10px;">📄</div>
-        <button class="btn btn-outline">Materialni yuklab olish</button>
-      </div>
-    `;
+  } else if (type === 'doc') {
+    body.innerHTML = `<div style="text-align:center; padding: 40px 0;"><div style="font-size: 40px; margin-bottom: 10px;">📄</div><button class="btn btn-outline">Materialni yuklab olish</button></div>`;
     footer.innerHTML = `<button class="btn btn-success" onclick="completeStep()">O'qib chiqdim (Bajarildi)</button>`;
-  }
-  else if (type === 'upload') {
-    body.innerHTML = `
-      <p style="margin-bottom:15px">O'qituvchi bergan amaliy topshiriqni shu yerga yuklang:</p>
-      <input type="file" style="margin-bottom: 20px" />
-    `;
+  } else if (type === 'upload') {
+    body.innerHTML = `<p style="margin-bottom:15px">O'qituvchi bergan amaliy topshiriqni shu yerga yuklang:</p><input type="file" style="margin-bottom: 20px" />`;
     footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Yuklash va Topshirish</button>`;
-  }
-  else if (type === 'text') {
-    body.innerHTML = `
-      <p style="margin-bottom:15px">Ushbu moduldan nimalarni o'rgandingiz? Refleksiv hisobot yozing:</p>
-      <textarea rows="6" style="width:100%; padding: 10px; border:1px solid #ccc; border-radius:8px"></textarea>
-    `;
+  } else if (type === 'text') {
+    body.innerHTML = `<p style="margin-bottom:15px">Ushbu moduldan nimalarni o'rgandingiz? Refleksiv hisobot yozing:</p><textarea rows="6" style="width:100%; padding: 10px; border:1px solid #ccc; border-radius:8px"></textarea>`;
     footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Hisobotni yuborish</button>`;
   }
 
-  if (isDone) {
-    footer.innerHTML = `<button class="btn btn-outline" disabled>Siz bu qadamni bajargansiz ✅</button>`;
-  }
+  if (isDone) footer.innerHTML = `<button class="btn btn-outline" disabled>Siz bu qadamni bajargansiz ✅</button>`;
 
   document.getElementById('stepModal').classList.add('active');
 }
 
-function selectOption(el) {
-  document.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
-}
-
-function closeStepModal() {
-  document.getElementById('stepModal').classList.remove('active');
-}
-
-function closeModal(e) {
-  if (e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('active');
-  }
+function closeModal(e, id) {
+  if (e.target.id === id) e.target.classList.remove('active');
 }
 
 function completeStep() {
   const prog = MOCK_DB.progress[currentModuleId];
   if (!prog.completedSteps.includes(currentStepId)) {
     prog.completedSteps.push(currentStepId);
-    
-    // Simulate scoring for test, task, reflection
     if (['diag', 'task', 'refl'].includes(currentStepId)) {
       if(!prog.score) prog.score = 0;
-      prog.score += Math.floor(Math.random() * 20 + 13); // random score part (out of 33 roughly)
+      prog.score += Math.floor(Math.random() * 20 + 13);
       if (prog.completedSteps.length === 6 && prog.score > 100) prog.score = 100;
     }
-
     showToast('Qadam bajarildi! ✅');
   }
-  closeStepModal();
-  renderModuleView(document.getElementById('pageContainer')); // refresh view
+  document.getElementById('stepModal').classList.remove('active');
+  renderModuleView(document.getElementById('pageContainer'));
 }
 
-// ===== TOAST =====
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
 }
+
+// INITIALIZATION
+window.onload = initPublicSite;

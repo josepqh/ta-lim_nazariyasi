@@ -1,47 +1,167 @@
 <!DOCTYPE html>
 <html lang="uz">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Neyropedagogika Platformasi</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Neyropedagogika — Miya va Ta'lim Ilmi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
 
-<!-- ════════ LOGIN ════════ -->
-<div id="screen-login" class="screen active">
-  <div class="login-bg"><div class="login-blob b1"></div><div class="login-blob b2"></div></div>
-  <div class="login-card">
-    <div class="login-logo">🧠</div>
-    <h1 class="login-title">NeyroПedagogika</h1>
-    <p class="login-sub">Ta'lim platformasiga xush kelibsiz</p>
-    <div class="role-tabs">
-      <button class="role-tab active" data-role="student" onclick="selectRole('student',this)">👨‍🎓 Talaba</button>
-      <button class="role-tab" data-role="teacher" onclick="selectRole('teacher',this)">👩‍🏫 O'qituvchi</button>
-      <button class="role-tab" data-role="admin" onclick="selectRole('admin',this)">⚙️ Admin</button>
+<!-- ════════ PUBLIC WEBSITE ════════ -->
+<div id="public-website">
+  <!-- NAVBAR -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-container">
+      <a href="#" class="logo" onclick="showPublicSection('home')">
+        <span class="logo-icon">🧠</span>
+        <span class="logo-text">Neyro<strong>Pedagogika</strong></span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#" onclick="showPublicSection('home')">Bosh sahifa</a></li>
+        <li><a href="#" onclick="showPublicSection('public-modules')">Modullar</a></li>
+        <li><a href="#" onclick="showPublicSection('public-news')">Yangiliklar</a></li>
+        <li><a href="#" onclick="showPublicSection('public-contact')">Aloqa</a></li>
+      </ul>
+      <div class="nav-auth">
+        <button class="btn-outline-light" onclick="openAuthModal('register')">Ro'yxatdan o'tish</button>
+        <button class="btn-nav" onclick="openAuthModal('login')">Kirish</button>
+      </div>
     </div>
-    <form id="loginForm" onsubmit="handleLogin(event)">
+  </nav>
+
+  <!-- SECTIONS -->
+  <main class="public-content">
+    
+    <!-- HOME SECTION -->
+    <section id="home" class="public-section active">
+      <div class="hero">
+        <div class="hero-bg"></div>
+        <div class="hero-content">
+          <span class="hero-badge">🔬 Ilmiy yondashuv</span>
+          <h1 class="hero-title">Miya imkoniyatlarini<br/><span class="gradient-text">ta'lim orqali</span><br/>ochib bering</h1>
+          <p class="hero-desc">Neyropedagogika — neyrologiya va pedagogikaning tutashgan nuqtasida yuzaga kelgan fan. Ta'lim platformamizga qo'shiling va 10 ta maxsus modul orqali bilimlaringizni oshiring.</p>
+          <div class="hero-buttons">
+            <button class="btn-primary" onclick="openAuthModal('register')">Platformaga qo'shilish</button>
+            <button class="btn-outline" onclick="showPublicSection('public-modules')">Modullar bilan tanishish</button>
+          </div>
+        </div>
+        <div class="hero-image-wrap">
+          <img src="assets/hero_brain.png" alt="Brain" class="hero-image" onerror="this.src='https://images.unsplash.com/photo-1559757175-5700dde675bc?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'" />
+        </div>
+      </div>
+    </section>
+
+    <!-- MODULES INFO SECTION -->
+    <section id="public-modules" class="public-section">
+      <div class="container section">
+        <div class="section-header">
+          <span class="section-tag">O'quv Dasturi</span>
+          <h2 class="section-title">Neyropedagogika Modullari</h2>
+          <p class="section-desc">Platformamizda jami 10 ta chuqurlashtirilgan modul mavjud. Har bir modul nazariy va amaliy qismlarni o'z ichiga oladi.</p>
+        </div>
+        <div class="public-grid" id="publicModulesList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- NEWS SECTION -->
+    <section id="public-news" class="public-section">
+      <div class="container section">
+        <div class="section-header">
+          <span class="section-tag">Yangiliklar</span>
+          <h2 class="section-title">So'nggi Yangiliklar</h2>
+        </div>
+        <div class="public-grid" id="publicNewsList">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTACT SECTION -->
+    <section id="public-contact" class="public-section">
+      <div class="container section">
+        <div class="section-header">
+          <span class="section-tag">Aloqa</span>
+          <h2 class="section-title">Biz bilan bog'laning</h2>
+        </div>
+        <div class="contact-wrap">
+          <div class="contact-info">
+            <p>📍 Toshkent sh., Mirzo Ulug'bek ko'chasi, 45-uy</p>
+            <p>📞 +998 90 123 45 67</p>
+            <p>✉️ info@neyropedagogika.uz</p>
+          </div>
+          <form class="contact-form" onsubmit="event.preventDefault(); alert('Xabar yuborildi!'); this.reset();">
+            <input type="text" placeholder="Ismingiz" required />
+            <input type="email" placeholder="Emailingiz" required />
+            <textarea rows="4" placeholder="Xabaringiz..." required></textarea>
+            <button type="submit" class="btn-primary">Yuborish</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ════════ AUTH MODAL ════════ -->
+<div id="authModal" class="modal-overlay" onclick="closeAuthModal(event)">
+  <div class="auth-card" onclick="event.stopPropagation()">
+    <button class="modal-close-btn" onclick="document.getElementById('authModal').classList.remove('active')">✕</button>
+    
+    <div class="auth-header">
+      <h2 id="authTitle" class="gradient-text">Tizimga Kirish</h2>
+      <p id="authSubtitle">Platformadan foydalanish uchun o'z rolingizni tanlang</p>
+    </div>
+
+    <!-- Login Form -->
+    <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
+      <div class="role-tabs">
+        <div class="role-tab active" data-role="student" onclick="selectRole('student', this)">👨‍🎓 Talaba</div>
+        <div class="role-tab" data-role="teacher" onclick="selectRole('teacher', this)">👩‍🏫 O'qituvchi</div>
+        <div class="role-tab" data-role="admin" onclick="selectRole('admin', this)">⚙️ Admin</div>
+      </div>
       <div class="form-group">
         <label>Login</label>
-        <input type="text" id="loginUser" placeholder="Loginингизни киритинг" required/>
+        <input type="text" id="loginUser" placeholder="Loginni kiriting" required/>
       </div>
       <div class="form-group">
         <label>Parol</label>
         <input type="password" id="loginPass" placeholder="Parolni kiriting" required/>
       </div>
-      <div id="loginError" class="login-error"></div>
-      <button type="submit" class="btn-login">Kirish →</button>
+      <div id="loginError" class="error-msg"></div>
+      <button type="submit" class="btn-primary btn-full">Kirish</button>
+      <div class="auth-switch">Hisobingiz yo'qmi? <span onclick="switchAuth('register')">Ro'yxatdan o'tish</span></div>
     </form>
-    <div class="login-hint">
-      <small>Demo: student/123 | teacher/123 | admin/123</small>
-    </div>
+
+    <!-- Register Form -->
+    <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
+      <div class="role-tabs">
+        <div class="role-tab active" data-reg-role="student" onclick="selectRegRole('student', this)">👨‍🎓 Talaba sifatida</div>
+        <div class="role-tab" data-reg-role="teacher" onclick="selectRegRole('teacher', this)">👩‍🏫 O'qituvchi sifatida</div>
+      </div>
+      <div class="form-group">
+        <label>F.I.Sh</label>
+        <input type="text" id="regName" placeholder="To'liq ismingiz" required/>
+      </div>
+      <div class="form-group">
+        <label>Login yaratish</label>
+        <input type="text" id="regLogin" placeholder="Yangi login" required/>
+      </div>
+      <div class="form-group">
+        <label>Parol yaratish</label>
+        <input type="password" id="regPass" placeholder="Yangi parol" required/>
+      </div>
+      <button type="submit" class="btn-primary btn-full">Ro'yxatdan o'tish</button>
+      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kirish</span></div>
+    </form>
   </div>
 </div>
 
-<!-- ════════ MAIN APP ════════ -->
+<!-- ════════ PRIVATE PLATFORM SYSTEM ════════ -->
 <div id="screen-app" class="screen">
-  <!-- SIDEBAR -->
   <aside id="sidebar">
     <div class="sidebar-logo">
       <span class="s-icon">🧠</span>
@@ -52,41 +172,32 @@
     <button class="btn-logout" onclick="logout()">⬅ Chiqish</button>
   </aside>
 
-  <!-- MAIN -->
   <main id="mainContent">
-    <!-- TOP BAR -->
     <div class="topbar">
       <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
       <h2 id="pageTitle">Bosh sahifa</h2>
-      <div id="topbarUser" class="topbar-user"></div>
+      <div class="topbar-right">
+        <button class="btn-outline-light" style="color:var(--text-main); border-color:#ccc; padding:6px 12px;" onclick="returnToWebsite()">Saytga qaytish</button>
+        <div id="topbarUser" class="topbar-user"></div>
+      </div>
     </div>
-
-    <!-- PAGES -->
     <div id="pageContainer"></div>
   </main>
 </div>
 
-<!-- ════════ MODALS ════════ -->
-<!-- Module Step Modal -->
-<div id="stepModal" class="modal-overlay" onclick="closeModal(event)">
+<!-- MODULE STEP MODAL -->
+<div id="stepModal" class="modal-overlay" onclick="closeModal(event, 'stepModal')">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modalTitle">Qadam</h3>
-      <button onclick="closeStepModal()" class="modal-close">✕</button>
+      <button onclick="document.getElementById('stepModal').classList.remove('active')" class="modal-close-btn">✕</button>
     </div>
     <div id="modalBody" class="modal-body"></div>
     <div class="modal-footer" id="modalFooter"></div>
   </div>
 </div>
 
-<!-- Confirm Modal -->
-<div id="confirmModal" class="modal-overlay" onclick="closeModal(event)">
-  <div class="modal-box small" onclick="event.stopPropagation()">
-    <div id="confirmContent"></div>
-  </div>
-</div>
-
-<!-- Toast -->
+<!-- TOAST -->
 <div id="toast" class="toast"></div>
 
 <script src="app.js"></script>
