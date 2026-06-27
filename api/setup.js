@@ -51,16 +51,16 @@ module.exports = async (req, res) => {
       );
     `;
     
-    // 5. Insert default Admin and Teacher if not exist
+    // 5. Insert default Admin and Teacher if not exist, force update password if exists
     await sql`
       INSERT INTO np_users(name, login, password, role) 
       VALUES('Asosiy Admin', 'admin', 'admin123', 'admin')
-      ON CONFLICT(login) DO NOTHING;
+      ON CONFLICT(login) DO UPDATE SET password = EXCLUDED.password, role = EXCLUDED.role;
     `;
     await sql`
       INSERT INTO np_users(name, login, password, role) 
       VALUES('Bosh Oqituvchi', 'teacher', 'teacher123', 'teacher')
-      ON CONFLICT(login) DO NOTHING;
+      ON CONFLICT(login) DO UPDATE SET password = EXCLUDED.password, role = EXCLUDED.role;
     `;
 
     return res.status(200).json({ message: "Database schema setup successfully." });
