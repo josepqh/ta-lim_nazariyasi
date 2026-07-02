@@ -26,6 +26,13 @@ async function fetchAPI(endpoint, method = 'GET', body = null) {
   }
 }
 
+const NEWS_DATA = [
+  { title: "Ta'lim nazariyasida yangi yondashuvlar", date: "2026-07-01", desc: "Zamonaviy ta'lim metodikalari va ularning amaliyotdagi o'rni haqida batafsil ma'lumotlar e'lon qilindi." },
+  { title: "Xalqaro ta'lim konferensiyasi", date: "2026-06-25", desc: "Toshkent shahrida bo'lib o'tgan xalqaro konferensiyada qatnashgan mutaxassislar fikrlari bilan tanishing." },
+  { title: "O'qituvchilar uchun yangi modullar", date: "2026-06-10", desc: "Platformamizda o'qituvchilar malakasini oshirish uchun mo'ljallangan 5 ta yangi modul qo'shildi." },
+  { title: "Talabalar faolligi oshmoqda", date: "2026-05-28", desc: "O'tgan oy davomida platformamizdan foydalanuvchi talabalar soni 2 barobarga ortdi. Statistika va tahlillar." }
+];
+
 // ===== PUBLIC WEBSITE LOGIC =====
 async function initPublicSite() {
   const res = await fetchAPI('/modules');
@@ -40,6 +47,18 @@ async function initPublicSite() {
         </div>
       `).join('') + `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha modullarni ko'rish →</div>`;
     }
+  }
+
+  const newsContainer = document.getElementById('publicNewsList');
+  if(newsContainer) {
+    newsContainer.innerHTML = NEWS_DATA.map(n => `
+      <div class="info-card">
+        <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">📅 ${n.date}</div>
+        <h3>${n.title}</h3>
+        <p>${n.desc}</p>
+        <button class="btn-outline-light" style="margin-top:10px; padding:5px 10px; font-size:12px; border-color:var(--primary); color:var(--primary);" onclick="showToast('Tez orada batafsil sahifa qo\\'shiladi!')">Batafsil</button>
+      </div>
+    `).join('');
   }
 }
 
@@ -317,17 +336,34 @@ async function renderModuleView(container) {
 }
 
 // ===== TEACHER MANAGEMENT =====
+let editModuleId = null;
+
 async function renderManageModules(container) {
+  let formTitle = editModuleId ? "Modulni tahrirlash" : "Yangi modul qo'shish";
+  let mOrder = modulesCache.length + 1;
+  let mTitle = "";
+  let mDesc = "";
+
+  if(editModuleId) {
+     const em = modulesCache.find(x => x.id === editModuleId);
+     if(em) {
+       mOrder = em.order_num;
+       mTitle = em.title;
+       mDesc = em.description || '';
+     }
+  }
+
   let html = `
     <div class="card">
-      <h3 class="card-title">Yangi modul qo'shish</h3>
-      <div class="form-group"><label>Modul tartib raqami (masalan: 1)</label><input type="number" id="newModOrder" value="${modulesCache.length + 1}"/></div>
-      <div class="form-group"><label>Modul sarlavhasi</label><input type="text" id="newModTitle" placeholder="Masalan: Ta'lim turlari"/></div>
-      <div class="form-group"><label>Ta'rif</label><input type="text" id="newModDesc" /></div>
-      <button class="btn-primary" onclick="addModule()">Saqlash</button>
+      <h3 class="card-title">${formTitle}</h3>
+      <div class="form-group"><label>Modul tartib raqami</label><input type="number" id="newModOrder" value="${mOrder}"/></div>
+      <div class="form-group"><label>Modul sarlavhasi</label><input type="text" id="newModTitle" placeholder="Masalan: Ta'lim turlari" value="${mTitle}"/></div>
+      <div class="form-group"><label>Ta'rif</label><input type="text" id="newModDesc" value="${mDesc}" /></div>
+      <button class="btn-primary" onclick="addModule()">${editModuleId ? "O'zgarishlarni saqlash" : "Saqlash"}</button>
+      ${editModuleId ? `<button class="btn-outline-light" style="color:#666; border-color:#ccc;" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))">Bekor qilish</button>` : ''}
     </div>
     
-    <div class="card"><h3 class="card-title">Modullarga material biriktirish</h3>
+    <div class="card"><h3 class="card-title">Modullarni boshqarish va material biriktirish</h3>
   `;
   
   if(!modulesCache.length) {
@@ -336,11 +372,14 @@ async function renderManageModules(container) {
     modulesCache.forEach(m => {
       html += `
         <div style="border:1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-          <strong>${m.order_num}. ${m.title}</strong>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong>${m.order_num}. ${m.title}</strong>
+            <button class="btn-outline-light" style="padding:4px 8px; font-size:12px; color:var(--primary); border-color:var(--primary);" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">✏️ Tahrirlash</button>
+          </div>
           <div style="margin-top: 10px; display:flex; gap: 10px; flex-wrap:wrap">
-            <button class="btn btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'video')">Video (URL) kiritish</button>
-            <button class="btn btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'diag')">Test savoli</button>
-            <button class="btn btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'doc')">Matn/Ssilka</button>
+            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'video')">Video (URL) kiritish</button>
+            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'diag')">Test savoli</button>
+            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'doc')">Matn/Ssilka</button>
           </div>
         </div>
       `;
@@ -357,9 +396,13 @@ async function addModule() {
   
   if(!title || !order_num) return showToast("Iltimos, maydonlarni to'ldiring");
   
-  const res = await fetchAPI('/modules', 'POST', { order_num, title, description, created_by: currentUser.id });
+  const payload = { order_num, title, description, created_by: currentUser.id };
+  if(editModuleId) payload.id = editModuleId;
+
+  const res = await fetchAPI('/modules', 'POST', payload);
   if(res) {
-    showToast("Modul saqlandi!");
+    showToast(editModuleId ? "Modul yangilandi!" : "Modul saqlandi!");
+    editModuleId = null;
     const mods = await fetchAPI('/modules');
     if(mods) modulesCache = mods;
     navigate('manage-modules', 'Modullarni boshqarish');

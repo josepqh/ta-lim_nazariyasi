@@ -17,12 +17,20 @@ module.exports = async (req, res) => {
     }
 
     if (req.method === 'POST') {
-      const { title, description, order_num, created_by } = req.body;
-      const rows = await sql`
-        INSERT INTO np_modules(order_num, title, description, created_by)
-        VALUES(${order_num}, ${title}, ${description}, ${created_by})
-        ON CONFLICT(order_num) DO UPDATE SET title=${title}, description=${description}
-        RETURNING *`;
+      const { id, title, description, order_num, created_by } = req.body;
+      let rows;
+      if (id) {
+        rows = await sql`
+          UPDATE np_modules 
+          SET order_num=${order_num}, title=${title}, description=${description} 
+          WHERE id=${id} RETURNING *`;
+      } else {
+        rows = await sql`
+          INSERT INTO np_modules(order_num, title, description, created_by)
+          VALUES(${order_num}, ${title}, ${description}, ${created_by})
+          ON CONFLICT(order_num) DO UPDATE SET title=${title}, description=${description}
+          RETURNING *`;
+      }
       return res.json(rows[0]);
     }
 
