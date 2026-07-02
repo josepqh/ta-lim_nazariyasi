@@ -289,6 +289,8 @@ const STEP_TYPES = [
   { id: 'refl', title: '6. Refleksiv hisobot', type: 'text' }
 ];
 
+let currentStepContents = {};
+
 async function renderModuleView(container) {
   const m = modulesCache.find(x => x.id === currentModuleId);
   const prog = progressCache[m.id] || { completed_steps: [] };
@@ -296,6 +298,7 @@ async function renderModuleView(container) {
   
   // Fetch specific content uploaded by teacher
   const contentRows = await fetchAPI(`/content?module_id=${m.id}`);
+  currentStepContents = {};
   
   let html = `
     <div class="back-btn" onclick="navigate('modules')">← Ortga qaytish</div>
@@ -309,6 +312,7 @@ async function renderModuleView(container) {
     const isCompleted = currentUser.role !== 'student' ? true : completed.includes(step.id);
     const isLocked = currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx-1].id);
     const customContent = contentRows ? contentRows.find(c => c.step_type === step.id) : null;
+    currentStepContents[step.id] = customContent ? customContent.content : {};
     
     let icon = '📄';
     if(step.type === 'video') icon = '▶️';
@@ -316,12 +320,9 @@ async function renderModuleView(container) {
     if(step.type === 'upload') icon = '📤';
     if(step.type === 'text') icon = '✍️';
 
-    // Store custom content in a global obj or data attribute for the modal
-    const contentStr = customContent ? JSON.stringify(customContent.content).replace(/'/g, "&apos;") : '{}';
-
     html += `
       <div class="step-item ${isCompleted ? 'completed' : ''} ${isLocked ? 'disabled' : ''}" 
-           onclick="${isLocked ? '' : `openStep('${step.id}', '${step.type}', '${step.title}', '${contentStr}')`}">
+           onclick="${isLocked ? '' : `openStep('${step.id}', '${step.type}', '${step.title}')`}">
         <div class="step-info">
           <span class="step-icon">${isLocked ? '🔒' : icon}</span>
           <span>${step.title}</span>
@@ -454,7 +455,7 @@ async function saveTeacherContent() {
 // ===== STEP MODAL LOGIC (Student) =====
 let currentStepId = null;
 
-function openStep(id, type, title, customContentStr) {
+function openStep(id, type, title) {
   currentStepId = id;
   document.getElementById('modalTitle').textContent = title;
   
@@ -464,8 +465,7 @@ function openStep(id, type, title, customContentStr) {
   const prog = progressCache[currentModuleId] || { completed_steps: [] };
   const isDone = (prog.completed_steps || []).includes(id);
 
-  let customContent = {};
-  try { customContent = JSON.parse(customContentStr); } catch(e){}
+  const customContent = currentStepContents[id] || {};
 
   if (type === 'quiz') {
     const q = customContent.value || "O'qituvchi hali savol kiritmagan.";
