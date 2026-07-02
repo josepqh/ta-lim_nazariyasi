@@ -23,9 +23,13 @@
         <li><a href="#" onclick="showPublicSection('public-news')">Yangiliklar</a></li>
         <li><a href="#" onclick="showPublicSection('public-contact')">Aloqa</a></li>
       </ul>
-      <div class="nav-auth">
+      <div class="nav-auth" id="navAuth">
         <button class="btn-nav" onclick="openAuthModal('register')">Ro'yxatdan o'tish</button>
         <button class="btn-primary" onclick="openAuthModal('login')">Kirish</button>
+      </div>
+      <div class="nav-user" id="navUser" style="display:none; align-items:center; gap:15px;">
+        <span id="navUserName" style="font-weight:500; color:var(--text-main);"></span>
+        <button class="btn-primary" onclick="logout()" style="padding:6px 12px; font-size:14px;">Chiqish</button>
       </div>
     </div>
   </nav>
@@ -142,6 +146,13 @@
         <div class="public-grid" id="publicModulesList">
           <!-- Populated by JS -->
         </div>
+      </div>
+    </section>
+
+    <!-- STUDENT MODULE VIEW SECTION -->
+    <section id="public-module-view" class="public-section">
+      <div class="container section" id="publicModuleViewContainer">
+        <!-- RENDERED BY JS -->
       </div>
     </section>
 
@@ -275,6 +286,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast"></div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 </body>
 </html>

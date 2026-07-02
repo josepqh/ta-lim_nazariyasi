@@ -38,16 +38,51 @@ async function initPublicSite() {
   const res = await fetchAPI('/modules');
   if (res) {
     modulesCache = res;
-    const modContainer = document.getElementById('publicModulesList');
-    if(modContainer && modulesCache.length > 0) {
-      modContainer.innerHTML = modulesCache.map(m => `
-        <div class="info-card">
+    renderPublicModules();
+  }
+
+  const newsContainer = document.getElementById('publicNewsList');
+  if(newsContainer) {
+    newsContainer.innerHTML = NEWS_DATA.map(n => `
+      <div class="info-card">
+        <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">📅 ${n.date}</div>
+        <h3>${n.title}</h3>
+        <p>${n.desc}</p>
+        <button class="btn-outline-light" style="margin-top:10px; padding:5px 10px; font-size:12px; border-color:var(--primary); color:var(--primary);" onclick="showToast('Tez orada batafsil sahifa qo\\'shiladi!')">Batafsil</button>
+      </div>
+    `).join('');
+  }
+}
+
+function renderPublicModules() {
+  const modContainer = document.getElementById('publicModulesList');
+  if(modContainer && modulesCache.length > 0) {
+    modContainer.innerHTML = modulesCache.map(m => {
+      let progText = '';
+      let isStudent = currentUser && currentUser.role === 'student';
+      if(isStudent) {
+         const prog = progressCache[m.id] || { completed_steps: [] };
+         const stepCount = prog.completed_steps ? prog.completed_steps.length : 0;
+         progText = `<div style="margin-top:10px; font-size:13px; color:var(--primary); font-weight:bold;">✅ ${stepCount}/6 qadam bajarildi</div>`;
+      }
+      return `
+        <div class="info-card" ${isStudent ? `style="cursor:pointer" onclick="openStudentModule(${m.id})"` : ''}>
           <h3>${m.title}</h3>
           <p>${m.description || "Ta'lim nazariyasi moduli"}</p>
+          ${progText}
+          ${isStudent ? `<button class="btn-outline" style="margin-top:15px; padding:6px 12px; font-size:12px;">Modulni ochish</button>` : ''}
         </div>
-      `).join('') + `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha modullarni ko'rish →</div>`;
-    }
+      `;
+    }).join('') + (currentUser && currentUser.role === 'student' ? '' : `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha modullarni ko'rish →</div>`);
   }
+}
+
+async function openStudentModule(id) {
+  currentModuleId = id;
+  showPublicSection('public-module-view');
+  document.getElementById('publicModuleViewContainer').innerHTML = '<div style="text-align:center; padding:40px;">Yuklanmoqda...</div>';
+  await renderModuleView(document.getElementById('publicModuleViewContainer'), true);
+}
 
   const newsContainer = document.getElementById('publicNewsList');
   if(newsContainer) {
@@ -132,16 +167,6 @@ async function handleRegister(e) {
 async function startSession(user) {
   currentUser = user;
   
-  document.getElementById('authModal').classList.remove('active');
-  document.getElementById('public-website').style.display = 'none';
-  document.getElementById('screen-app').classList.add('active');
-  
-  document.getElementById('sidebarUser').textContent = currentUser.name || currentUser.login;
-  let icon = currentUser.role === 'student' ? '👨‍🎓' : currentUser.role === 'teacher' ? '👩‍🏫' : '⚙️';
-  document.getElementById('topbarUser').textContent = icon + ' ' + currentUser.role.toUpperCase();
-  
-  buildSidebar();
-  
   // Preload modules
   const mods = await fetchAPI('/modules');
   if (mods) modulesCache = mods;
@@ -155,18 +180,43 @@ async function startSession(user) {
          progressCache[p.module_id] = p;
        });
     }
+    
+    document.getElementById('authModal').classList.remove('active');
+    
+    // Update navbar for student
+    document.getElementById('navAuth').style.display = 'none';
+    document.getElementById('navUser').style.display = 'flex';
+    document.getElementById('navUserName').textContent = '👨‍🎓 ' + (currentUser.name || currentUser.login);
+    
+    renderPublicModules();
+    showPublicSection('home');
+  } else {
+    document.getElementById('authModal').classList.remove('active');
+    document.getElementById('public-website').style.display = 'none';
+    document.getElementById('screen-app').classList.add('active');
+    
+    document.getElementById('sidebarUser').textContent = currentUser.name || currentUser.login;
+    let icon = currentUser.role === 'teacher' ? '👩‍🏫' : '⚙️';
+    document.getElementById('topbarUser').textContent = icon + ' ' + currentUser.role.toUpperCase();
+    
+    buildSidebar();
+    navigate('home');
   }
-  
-  navigate('home');
 }
 
 function logout() {
   currentUser = null;
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('public-website').style.display = 'block';
+  
+  document.getElementById('navAuth').style.display = 'flex';
+  document.getElementById('navUser').style.display = 'none';
+
   document.getElementById('loginForm').reset();
   document.getElementById('registerForm').reset();
   document.getElementById('loginError').textContent = '';
+  
+  renderPublicModules();
   showPublicSection('home');
 }
 
@@ -291,7 +341,7 @@ const STEP_TYPES = [
 
 let currentStepContents = {};
 
-async function renderModuleView(container) {
+async function renderModuleView(container, isPublic = false) {
   const m = modulesCache.find(x => x.id === currentModuleId);
   const prog = progressCache[m.id] || { completed_steps: [] };
   const completed = prog.completed_steps || [];
@@ -301,7 +351,7 @@ async function renderModuleView(container) {
   currentStepContents = {};
   
   let html = `
-    <div class="back-btn" onclick="navigate('modules')">← Ortga qaytish</div>
+    <div class="back-btn" style="cursor:pointer; color:var(--primary); margin-bottom:20px; font-weight:500;" onclick="${isPublic ? `showPublicSection('public-modules')` : `navigate('modules')`}">← Ortga qaytish</div>
     <div class="card">
       <h3 class="card-title">${m.title}</h3>
       <p style="color:var(--text-muted); margin-bottom: 20px;">${m.description}</p>
@@ -523,7 +573,9 @@ async function completeStep() {
   }
   
   document.getElementById('stepModal').classList.remove('active');
-  renderModuleView(document.getElementById('pageContainer'));
+  
+  const container = document.getElementById(currentUser.role === 'student' ? 'publicModuleViewContainer' : 'pageContainer');
+  renderModuleView(container, currentUser.role === 'student');
 }
 
 function showToast(msg) {
