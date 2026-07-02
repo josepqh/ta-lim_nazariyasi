@@ -84,18 +84,6 @@ async function openStudentModule(id) {
   await renderModuleView(document.getElementById('publicModuleViewContainer'), true);
 }
 
-  const newsContainer = document.getElementById('publicNewsList');
-  if(newsContainer) {
-    newsContainer.innerHTML = NEWS_DATA.map(n => `
-      <div class="info-card">
-        <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">📅 ${n.date}</div>
-        <h3>${n.title}</h3>
-        <p>${n.desc}</p>
-        <button class="btn-outline-light" style="margin-top:10px; padding:5px 10px; font-size:12px; border-color:var(--primary); color:var(--primary);" onclick="showToast('Tez orada batafsil sahifa qo\\'shiladi!')">Batafsil</button>
-      </div>
-    `).join('');
-  }
-}
 
 function showPublicSection(sectionId) {
   document.querySelectorAll('.public-section').forEach(s => s.classList.remove('active'));
