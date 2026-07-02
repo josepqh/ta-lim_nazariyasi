@@ -251,7 +251,7 @@ async function renderModules(container) {
       <div class="module-card" onclick="currentModuleId=${m.id}; navigate('module-view', '${m.title}')">
         <div class="mod-info">
           <h4>${m.title}</h4>
-          <p>${currentUser.role === 'student' ? stepCount + '/6 qadam bajarildi' : 'Materiallarni ko\\'rish'}</p>
+          <p>${currentUser.role === 'student' ? stepCount + '/6 qadam bajarildi' : "Materiallarni ko'rish"}</p>
         </div>
         <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">${isDone || currentUser.role !== 'student' ? '✅' : '▶️'}</div>
       </div>
