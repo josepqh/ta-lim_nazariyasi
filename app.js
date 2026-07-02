@@ -33,7 +33,7 @@ async function initPublicSite() {
     modulesCache = res;
     const modContainer = document.getElementById('publicModulesList');
     if(modContainer && modulesCache.length > 0) {
-      modContainer.innerHTML = modulesCache.slice(0, 6).map(m => `
+      modContainer.innerHTML = modulesCache.map(m => `
         <div class="info-card">
           <h3>${m.title}</h3>
           <p>${m.description || "Ta'lim nazariyasi moduli"}</p>
@@ -165,10 +165,12 @@ const NAV_MENU = {
   ],
   teacher: [
     { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
-    { id: 'manage-modules', title: 'Modullarni boshqarish', icon: '✏️' }
+    { id: 'manage-modules', title: 'Modullarni boshqarish', icon: '✏️' },
+    { id: 'modules', title: 'Modullar', icon: '📚' }
   ],
   admin: [
-    { id: 'home', title: 'Bosh sahifa', icon: '🏠' }
+    { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
+    { id: 'modules', title: 'Modullar', icon: '📚' }
   ]
 };
 
@@ -249,9 +251,9 @@ async function renderModules(container) {
       <div class="module-card" onclick="currentModuleId=${m.id}; navigate('module-view', '${m.title}')">
         <div class="mod-info">
           <h4>${m.title}</h4>
-          <p>${stepCount}/6 qadam bajarildi</p>
+          <p>${currentUser.role === 'student' ? stepCount + '/6 qadam bajarildi' : 'Materiallarni ko\\'rish'}</p>
         </div>
-        <div class="mod-status ${isDone ? 'done' : ''}">${isDone ? '✅' : '▶️'}</div>
+        <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">${isDone || currentUser.role !== 'student' ? '✅' : '▶️'}</div>
       </div>
     `;
   });
@@ -285,8 +287,8 @@ async function renderModuleView(container) {
   `;
 
   STEP_TYPES.forEach((step, idx) => {
-    const isCompleted = completed.includes(step.id);
-    const isLocked = idx > 0 && !completed.includes(STEP_TYPES[idx-1].id);
+    const isCompleted = currentUser.role !== 'student' ? true : completed.includes(step.id);
+    const isLocked = currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx-1].id);
     const customContent = contentRows ? contentRows.find(c => c.step_type === step.id) : null;
     
     let icon = '📄';
@@ -449,7 +451,11 @@ function openStep(id, type, title, customContentStr) {
     footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Hisobotni yuborish</button>`;
   }
 
-  if (isDone) footer.innerHTML = `<button class="btn btn-outline" disabled>Siz bu qadamni bajargansiz ✅</button>`;
+  if (currentUser.role !== 'student') {
+    footer.innerHTML = `<button class="btn btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')">Yopish</button>`;
+  } else if (isDone) {
+    footer.innerHTML = `<button class="btn btn-outline" disabled>Siz bu qadamni bajargansiz ✅</button>`;
+  }
 
   document.getElementById('stepModal').classList.add('active');
 }
