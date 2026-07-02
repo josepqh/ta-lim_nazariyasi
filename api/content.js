@@ -13,7 +13,7 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const { module_id } = req.query;
-      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${module_id} ORDER BY step_order`;
+      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${module_id}`;
       return res.json(rows);
     }
 

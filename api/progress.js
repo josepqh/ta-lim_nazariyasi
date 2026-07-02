@@ -45,9 +45,9 @@ module.exports = async (req, res) => {
 
       const rows = await sql`
         INSERT INTO np_progress(user_id, module_id, completed_steps, total_score)
-        VALUES(${user_id}, ${module_id}, ${steps}, ${newScore})
+        VALUES(${user_id}, ${module_id}, ${JSON.stringify(steps)}, ${newScore})
         ON CONFLICT(user_id, module_id) DO UPDATE
-          SET completed_steps=${steps}, total_score=${newScore}, updated_at=NOW()
+          SET completed_steps=${JSON.stringify(steps)}, total_score=${newScore}, updated_at=NOW()
         RETURNING *`;
       return res.json(rows[0]);
     }
