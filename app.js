@@ -36,7 +36,7 @@ async function initPublicSite() {
       modContainer.innerHTML = modulesCache.slice(0, 6).map(m => `
         <div class="info-card">
           <h3>${m.title}</h3>
-          <p>${m.description || 'Neyropedagogika moduli'}</p>
+          <p>${m.description || "Ta'lim nazariyasi moduli"}</p>
         </div>
       `).join('') + `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha modullarni ko'rish →</div>`;
     }
@@ -228,7 +228,7 @@ function renderHome(container) {
   html += `</div>
   <div class="card">
     <h3 class="card-title">Xush kelibsiz, ${currentUser.name || currentUser.login}!</h3>
-    <p>Neyropedagogika platformasi orqali miya va ta'lim sirlarini o'rganing.</p>
+    <p>Ta'lim nazariyasi platformasi orqali ta'lim sirlarini o'rganing.</p>
   </div>`;
   container.innerHTML = html;
 }
@@ -320,7 +320,7 @@ async function renderManageModules(container) {
     <div class="card">
       <h3 class="card-title">Yangi modul qo'shish</h3>
       <div class="form-group"><label>Modul tartib raqami (masalan: 1)</label><input type="number" id="newModOrder" value="${modulesCache.length + 1}"/></div>
-      <div class="form-group"><label>Modul sarlavhasi</label><input type="text" id="newModTitle" placeholder="Masalan: Miya anatomiyasi"/></div>
+      <div class="form-group"><label>Modul sarlavhasi</label><input type="text" id="newModTitle" placeholder="Masalan: Ta'lim turlari"/></div>
       <div class="form-group"><label>Ta'rif</label><input type="text" id="newModDesc" /></div>
       <button class="btn-primary" onclick="addModule()">Saqlash</button>
     </div>

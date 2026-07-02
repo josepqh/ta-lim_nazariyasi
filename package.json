@@ -1,7 +1,7 @@
 {
-  "name": "neuropedagogika",
+  "name": "talimnazariyasi",
   "version": "1.0.0",
-  "description": "Neuropedagogika ta'lim platformasi",
+  "description": "Ta'lim nazariyasi platformasi",
   "dependencies": {
     "@neondatabase/serverless": "^0.9.0"
   }
