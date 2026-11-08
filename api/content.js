@@ -27,9 +27,12 @@ module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
       const moduleId = Number(req.query.module_id);
-      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
 
-      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${moduleId}`;
+      const rows = await sql`
+        SELECT c.* FROM np_module_content c
+        JOIN np_modules m ON m.id = c.module_id
+        WHERE c.module_id=${moduleId} AND m.deleted_at IS NULL`;
       const user = await getSessionUser(req);
       if (user && ['teacher', 'admin'].includes(user.role)) return res.json(rows);
 
@@ -51,12 +54,15 @@ module.exports = async (req, res) => {
       const stepType = body.step_type;
       const value = typeof body.content?.value === 'string' ? body.content.value.trim() : '';
       const answer = typeof body.content?.answer === 'string' ? body.content.answer.trim() : '';
-      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
-      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
-      if (value.length > 30000) return res.status(400).json({ error: 'Material 30 000 belgidan oşmasin.' });
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
+      if (value.length > 30000) return res.status(400).json({ error: 'Material 30 000 belgidan oshmasin.' });
       if (!FILE_REQUIRED_STEPS.has(stepType) && !value) return res.status(400).json({ error: 'Material matnini kiriting.' });
-      if (stepType === 'diag' && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigança).' });
+      if (stepType === 'diag' && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigancha).' });
       if (stepType === 'video' && !isYouTubeUrl(value)) return res.status(400).json({ error: 'HTTPS YouTube havolasini kiriting.' });
+
+      const active = await sql`SELECT 1 FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
+      if (!active.length) return res.status(404).json({ error: 'Modul topilmadi.' });
 
       const fileId = body.content?.file_id ?? null;
       let file = null;
@@ -88,18 +94,18 @@ module.exports = async (req, res) => {
 
       const moduleId = Number(req.query.module_id || req.body?.module_id);
       const stepType = req.query.step_type || req.body?.step_type;
-      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
-      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
 
       await sql`DELETE FROM np_module_content WHERE module_id=${moduleId} AND step_type=${stepType}`;
       if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, null);
       return res.json({ ok: true });
     }
 
-    return res.status(405).json({ error: 'Ruxsat etilmagan sörov.' });
+    return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
   } catch (error) {
     if (error.code === '23503') return res.status(404).json({ error: 'Modul topilmadi.' });
     console.error(error);
-    return res.status(500).json({ error: 'Serverda içki xato yuz berdi.' });
+    return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

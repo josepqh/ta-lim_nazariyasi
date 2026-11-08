@@ -9,11 +9,11 @@ function escapeLike(value) {
 }
 
 async function getProfile(res, id) {
-  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Foydalanuvçi raqami nötöğri.' });
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Foydalanuvchi raqami noto‘g‘ri.' });
   const rows = await sql`
     SELECT id, name, login, role, status, created_at, last_login_at
     FROM np_users WHERE id=${id} AND deleted_at IS NULL LIMIT 1`;
-  if (!rows.length) return res.status(404).json({ error: 'Foydalanuvçi topilmadi.' });
+  if (!rows.length) return res.status(404).json({ error: 'Foydalanuvchi topilmadi.' });
 
   const modulesCreated = await sql`
     SELECT id, order_num, title FROM np_modules
@@ -23,7 +23,7 @@ async function getProfile(res, id) {
 
 async function listUsers(req, res) {
   const role = req.query.role || null;
-  if (role !== null && !['student', 'teacher'].includes(role)) return res.status(400).json({ error: 'Rol nötöğri.' });
+  if (role !== null && !['student', 'teacher'].includes(role)) return res.status(400).json({ error: 'Rol noto‘g‘ri.' });
 
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(req.query.page_size, 10) || DEFAULT_PAGE_SIZE));
@@ -42,7 +42,9 @@ async function listUsers(req, res) {
       SELECT user_id, COUNT(*)::int AS modules_started,
              (COUNT(*) FILTER (WHERE jsonb_array_length(completed_steps) >= 6))::int AS modules_finished,
              SUM(total_score)::int AS total_score
-      FROM np_progress WHERE deleted_at IS NULL GROUP BY user_id
+      FROM np_progress
+      WHERE deleted_at IS NULL AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)
+      GROUP BY user_id
     ) p ON p.user_id = u.id
     LEFT JOIN (
       SELECT created_by, COUNT(*)::int AS modules_created
@@ -71,13 +73,13 @@ async function listUsers(req, res) {
 module.exports = async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Ruxsat etilmagan sörov.' });
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
     const admin = await requireUser(req, res, ['admin']);
     if (!admin) return;
     if (req.query.id !== undefined) return await getProfile(res, Number(req.query.id));
     return await listUsers(req, res);
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Serverda içki xato yuz berdi.' });
+    return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

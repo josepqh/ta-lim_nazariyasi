@@ -672,3 +672,6 @@ button, a, [role="button"], input, textarea, select { touch-action: manipulation
 .modal-body, .modal-overlay { overscroll-behavior: contain; }
 .leaderboard-table td { font-variant-numeric: tabular-nums; }
 .mobile-bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(64px + env(safe-area-inset-bottom)); }
+
+.deleted-module { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.deleted-module .btn-outline { padding: 8px 16px; }

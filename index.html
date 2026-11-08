@@ -12,10 +12,10 @@
   <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js" integrity="sha384-zYPBGXwO4633CABX/5Spf6emCKUJCfoOkhOMYyxMsatqQZPnDblmmOewfjsIVWCM" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="style.css?v=12"/>
+  <link rel="stylesheet" href="style.css?v=13"/>
 </head>
 <body>
-<a class="skip-link" href="#mainContent">Asosiy mazmunga ötiş</a>
+<a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
 
 <!-- ════════ PUBLIC WEBSITE ════════ -->
 <div id="public-website">
@@ -29,27 +29,27 @@
           <span class="brand-tagline">Neyropedagogik Platforma</span>
         </div>
       </a>
-      <button class="mobile-menu-btn" type="button" aria-label="Menyuni oçiş" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
+      <button class="mobile-menu-btn" type="button" aria-label="Menyuni ochish" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
         <i data-lucide="menu"></i>
       </button>
       <ul class="nav-links" id="mainNav">
-        <li><a href="#" onclick="showPublicSection('home')"><i data-lucide="home"></i> Boş sahifa</a></li>
+        <li><a href="#" onclick="showPublicSection('home')"><i data-lucide="home"></i> Bosh sahifa</a></li>
         <li><a href="#" onclick="showPublicSection('public-modules')"><i data-lucide="layers"></i> Modullar</a></li>
         <li><a href="#" onclick="showPublicSection('public-news')"><i data-lucide="newspaper"></i> Maqolalar</a></li>
         <li><a href="#" onclick="showPublicSection('public-contact')"><i data-lucide="mail"></i> Aloqa</a></li>
       </ul>
       <div class="nav-auth" id="navAuth">
         <button class="btn-nav" onclick="openAuthModal('register')">
-          <i data-lucide="user-plus"></i> Röyxatdan ötış
+          <i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish
         </button>
         <button class="btn-primary" onclick="openAuthModal('login')">
-          <i data-lucide="log-in"></i> Kiriş
+          <i data-lucide="log-in"></i> Kirish
         </button>
       </div>
       <div class="nav-user" id="navUser" style="display:none; align-items:center; gap:15px;">
         <span id="navUserName" style="font-weight:500; color:var(--text-main); display:inline-flex; align-items:center; gap:6px;"></span>
         <button class="btn-primary" onclick="logout()" style="padding:6px 14px; font-size:12px; gap:6px;">
-          <i data-lucide="log-out"></i> Çiqiş
+          <i data-lucide="log-out"></i> Chiqish
         </button>
       </div>
     </div>
@@ -66,15 +66,15 @@
         <div class="hero-bg"></div>
         <div class="hero-overlay"></div>
         <div class="hero-content">
-          <span class="hero-badge"><i data-lucide="brain" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Ilmiy yondaşuv &middot; 6 qadamli kurslar</span>
-          <h1 class="hero-title">Ta'limning ilğor<br/><span>usullarini</span><br/>kaşf eting</h1>
-          <p class="hero-desc">Ta'lim nazariyasini örganiş, öquv materiallari bilan işlaş va bilimni amaliyotda sinaş uçun zamonaviy platforma.</p>
+          <span class="hero-badge"><i data-lucide="brain" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Ilmiy yondashuv &middot; 6 qadamli kurslar</span>
+          <h1 class="hero-title">Ta'limning ilg‘or<br/><span>usullarini</span><br/>kashf eting</h1>
+          <p class="hero-desc">Ta'lim nazariyasini o‘rganish, o‘quv materiallari bilan ishlash va bilimni amaliyotda sinash uchun zamonaviy platforma.</p>
           <div class="hero-buttons">
             <button class="btn-primary" onclick="openAuthModal('register')">
-              <i data-lucide="arrow-right-circle"></i> Platformaga Qöşiliş
+              <i data-lucide="arrow-right-circle"></i> Platformaga Qo‘shilish
             </button>
             <button class="btn-outline-white" onclick="showPublicSection('public-modules')">
-              <i data-lucide="library"></i> Modullar Bilan Tanişiş
+              <i data-lucide="library"></i> Modullar Bilan Tanishish
             </button>
           </div>
         </div>
@@ -84,11 +84,11 @@
       <div class="stats-bar">
         <div class="stat-item"><span class="stat-num">6</span><span class="stat-label">Har bir moduldagi qadam</span></div>
         <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">3</span><span class="stat-label">Foydalanuvçi roli</span></div>
+        <div class="stat-item"><span class="stat-num">3</span><span class="stat-label">Foydalanuvchi roli</span></div>
         <div class="stat-divider"></div>
         <div class="stat-item"><span class="stat-num">1</span><span class="stat-label">Yagona platforma</span></div>
         <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">Öz</span><span class="stat-label">sur'atingizda örganing</span></div>
+        <div class="stat-item"><span class="stat-num">O‘z</span><span class="stat-label">sur'atingizda o‘rganing</span></div>
       </div>
 
       <!-- ABOUT -->
@@ -96,21 +96,21 @@
         <div class="container">
           <div class="about-grid">
             <div class="about-img-wrap">
-              <img src="assets/about_team.png?v=2" alt="Ta'lim nazariyasi — dars jarayoni va birgalikda örganiş" loading="lazy" />
+              <img src="assets/about_team.png?v=2" alt="Ta'lim nazariyasi — dars jarayoni va birgalikda o‘rganish" loading="lazy" />
             </div>
             <div class="about-text">
               <span class="section-tag">Biz Haqimizda</span>
               <h2 class="section-title">Ta'lim nazariyasi nima?</h2>
-              <p>Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va şakllarini örganuvçi fan. U ta'lim-tarbiya jarayonini eng samarali taşkil etiş yöllarini taklif etadi.</p>
-              <p style="margin-top:15px">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini örganasiz va ularni amalda qöllaşni özlaştirasiz.</p>
+              <p>Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va shakllarini o‘rganuvchi fan. U ta'lim-tarbiya jarayonini eng samarali tashkil etish yo‘llarini taklif etadi.</p>
+              <p style="margin-top:15px">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini o‘rganasiz va ularni amalda qo‘llashni o‘zlashtirasiz.</p>
               <div class="about-features">
                 <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Ilmiy asoslangan metodologiya</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Bosqiçma-bosqiç öquv jarayoni</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Özlaştiriş jarayoni saqlanadi</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Öqituvçi qöşgan materiallar</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Bosqichma-bosqich o‘quv jarayoni</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> O‘zlashtirish jarayoni saqlanadi</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> O‘qituvchi qo‘shgan materiallar</div>
               </div>
               <button class="btn-primary" style="margin-top:30px" onclick="openAuthModal('register')">
-                <i data-lucide="arrow-right"></i> Boşlaş
+                <i data-lucide="arrow-right"></i> Boshlash
               </button>
             </div>
           </div>
@@ -123,23 +123,23 @@
           <div class="section-header">
             <span class="section-tag">Xizmatlarimiz</span>
             <h2 class="section-title">Nima taklif etamiz?</h2>
-            <p class="section-desc">Talabalar bilimni örganadi, öqituvçilar esa kurs materiallari, grafik tahlillar va javoblarni boşqaradi.</p>
+            <p class="section-desc">Talabalar bilimni o‘rganadi, o‘qituvchilar esa kurs materiallari, grafik tahlillar va javoblarni boshqaradi.</p>
           </div>
           <div class="features-grid">
             <div class="feat-card">
               <div class="feat-icon"><i data-lucide="graduation-cap"></i></div>
-              <h3>Öqituvçilar uçun</h3>
-              <p>Modullarni boşqaring, video va matnli materiallar qöşing, talabalar topşiriqlarini tekşiring.</p>
+              <h3>O‘qituvchilar uchun</h3>
+              <p>Modullarni boshqaring, video va matnli materiallar qo‘shing, talabalar topshiriqlarini tekshiring.</p>
             </div>
             <div class="feat-card">
               <div class="feat-icon"><i data-lucide="users"></i></div>
-              <h3>Talabalar uçun</h3>
-              <p>Modullarni ketma-ket örganing, savollarga javob bering va özlaştiriş jarayonini kuzating.</p>
+              <h3>Talabalar uchun</h3>
+              <p>Modullarni ketma-ket o‘rganing, savollarga javob bering va o‘zlashtirish jarayonini kuzating.</p>
             </div>
             <div class="feat-card">
               <div class="feat-icon"><i data-lucide="monitor-play"></i></div>
               <h3>Online kurslar</h3>
-              <p>Öqituvçi kiritgan video darslar, taqdimotlar va amaliy topşiriqlar majmuasi.</p>
+              <p>O‘qituvchi kiritgan video darslar, taqdimotlar va amaliy topshiriqlar majmuasi.</p>
             </div>
             <div class="feat-card">
               <div class="feat-icon"><i data-lucide="bar-chart-2"></i></div>
@@ -153,7 +153,7 @@
       <!-- QUOTE -->
       <div class="home-quote">
         <div class="container">
-          <p class="quote-text">Ta'lim inson kamolotiga yöl oçadi.</p>
+          <p class="quote-text">Ta'lim inson kamolotiga yo‘l ochadi.</p>
         </div>
       </div>
 
@@ -163,9 +163,9 @@
     <section id="public-modules" class="public-section">
       <div class="container section">
         <div class="section-header">
-          <span class="section-tag">Öquv Dasturi</span>
+          <span class="section-tag">O‘quv Dasturi</span>
           <h2 class="section-title">Ta'lim Nazariyasi Modullari</h2>
-          <p class="section-desc">Har bir modul nazariy va amaliy qismlarni öz içiga oladi. Öquv jarayoni bosqiçma-bosqiç taşkil etilgan.</p>
+          <p class="section-desc">Har bir modul nazariy va amaliy qismlarni o‘z ichiga oladi. O‘quv jarayoni bosqichma-bosqich tashkil etilgan.</p>
         </div>
         <div class="public-grid" id="publicModulesList">
           <!-- Populated by JS -->
@@ -185,7 +185,7 @@
       <div class="container section">
         <div class="section-header">
           <span class="section-tag">Foydali mavzular</span>
-          <h2 class="section-title">Öqitiş va örganiş böyiça tavsiyalar</h2>
+          <h2 class="section-title">O‘qitish va o‘rganish bo‘yicha tavsiyalar</h2>
         </div>
         <div class="public-grid" id="publicNewsList">
           <!-- Populated by JS -->
@@ -198,20 +198,20 @@
       <div class="container section">
         <div class="section-header">
           <span class="section-tag">Aloqa</span>
-          <h2 class="section-title">Biz bilan boğlaning</h2>
+          <h2 class="section-title">Biz bilan bog‘laning</h2>
         </div>
         <div class="contact-wrap">
           <div class="contact-info">
-            <p><i data-lucide="map-pin"></i> Toşkent ş., Mirzo Uluğbek köçasi, 45-uy</p>
+            <p><i data-lucide="map-pin"></i> Toshkent sh., Mirzo Ulug‘bek ko‘chasi, 45-uy</p>
             <p><i data-lucide="phone"></i> +998 90 123 45 67</p>
             <p><i data-lucide="mail"></i> info@talimnazariyasi.uz</p>
           </div>
           <form class="contact-form" onsubmit="sendContactMessage(event)">
-            <input type="text" id="contactName" placeholder="İsmingiz" autocomplete="name" required />
+            <input type="text" id="contactName" placeholder="Ismingiz" autocomplete="name" required />
             <input type="email" id="contactEmail" placeholder="Emailingiz" autocomplete="email" required />
             <textarea id="contactMessage" rows="4" placeholder="Xabaringiz..." required></textarea>
             <button type="submit" class="btn-primary">
-              <i data-lucide="send"></i> Email orqali yuboriş
+              <i data-lucide="send"></i> Email orqali yuborish
             </button>
           </form>
         </div>
@@ -227,8 +227,8 @@
     <button class="modal-close-btn" aria-label="Yopish" onclick="document.getElementById('authModal').classList.remove('active')">&times;</button>
     
     <div class="auth-header">
-      <h2 id="authTitle" class="gradient-text">Tizimga Kiriş</h2>
-      <p id="authSubtitle">Platformadan foydalaniş uçun öz rolingizni tanlang</p>
+      <h2 id="authTitle" class="gradient-text">Tizimga Kirish</h2>
+      <p id="authSubtitle">Platformadan foydalanish uchun o‘z rolingizni tanlang</p>
     </div>
 
     <!-- Login Form -->
@@ -238,7 +238,7 @@
           <i data-lucide="user"></i> Talaba
         </div>
         <div class="role-tab" data-role="teacher" onclick="selectRole('teacher', this)">
-          <i data-lucide="graduation-cap"></i> Öqituvçi
+          <i data-lucide="graduation-cap"></i> O‘qituvchi
         </div>
         <div class="role-tab" data-role="admin" onclick="selectRole('admin', this)">
           <i data-lucide="shield"></i> Administrator
@@ -254,9 +254,9 @@
       </div>
       <div id="loginError" class="error-msg" role="alert"></div>
       <button type="submit" class="btn-primary btn-full">
-        <i data-lucide="log-in"></i> Kiriş
+        <i data-lucide="log-in"></i> Kirish
       </button>
-      <div class="auth-switch">Hisobingiz yöqmi? <span onclick="switchAuth('register')">Röyxatdan ötış</span></div>
+      <div class="auth-switch">Hisobingiz yo‘qmi? <span onclick="switchAuth('register')">Ro‘yxatdan o‘tish</span></div>
     </form>
 
     <!-- Register Form -->
@@ -266,26 +266,26 @@
           <i data-lucide="user"></i> Talaba
         </div>
         <div class="role-tab" data-role="teacher" aria-pressed="false" onclick="selectRegisterRole('teacher', this)">
-          <i data-lucide="graduation-cap"></i> Öqituvçi
+          <i data-lucide="graduation-cap"></i> O‘qituvchi
         </div>
       </div>
       <div class="form-group">
-        <label for="regName">F.I.Ş (Familiya, İsm, Şarif)</label>
-        <input type="text" id="regName" placeholder="Töliq ismingiz" maxlength="100" autocomplete="name" required/>
+        <label for="regName">F.I.Sh (Familiya, Ism, Sharif)</label>
+        <input type="text" id="regName" placeholder="To‘liq ismingiz" maxlength="100" autocomplete="name" required/>
       </div>
       <div class="form-group">
-        <label for="regLogin">Login yaratış</label>
+        <label for="regLogin">Login yaratish</label>
         <input type="text" id="regLogin" spellcheck="false" autocapitalize="none" placeholder="Yangi login" minlength="3" maxlength="50" autocomplete="username" required/>
       </div>
       <div class="form-group">
-        <label for="regPass">Parol yaratış</label>
+        <label for="regPass">Parol yaratish</label>
         <input type="password" id="regPass" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
       </div>
       <div id="registerError" class="error-msg" role="alert"></div>
       <button type="submit" class="btn-primary btn-full">
-        <i data-lucide="user-plus"></i> Röyxatdan ötış
+        <i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish
       </button>
-      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kiriş</span></div>
+      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kirish</span></div>
     </form>
   </div>
 </div>
@@ -301,7 +301,7 @@
     <nav id="sidebarNav"></nav>
     <div class="sidebar-user" id="sidebarUser"></div>
     <button class="btn-logout" onclick="logout()">
-      <i data-lucide="log-out"></i> Çiqiş
+      <i data-lucide="log-out"></i> Chiqish
     </button>
   </aside>
 
@@ -311,11 +311,11 @@
         <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menyu">
           <i data-lucide="menu"></i>
         </button>
-        <h2 id="pageTitle">Boş sahifa</h2>
+        <h2 id="pageTitle">Bosh sahifa</h2>
       </div>
       <div class="topbar-right">
         <button class="btn-outline" style="padding:6px 14px; font-size:11px; gap:6px;" onclick="returnToWebsite()">
-          <i data-lucide="arrow-left"></i> Saytga qaytiş
+          <i data-lucide="arrow-left"></i> Saytga qaytish
         </button>
         <div id="topbarUser" class="topbar-user"></div>
       </div>
@@ -341,6 +341,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

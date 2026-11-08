@@ -1,7 +1,9 @@
 tests
-prisma
-database_schema.sql
+playwright.config.js
+test-results
+playwright-report
 run_setup.js
 README.md
 .github
 .claude
+.local-db

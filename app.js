@@ -8,7 +8,7 @@ let activeCharts = [];
 
 const API_BASE = '/api';
 
-// ===== STRING & INPUT HELPERS (YANGI TAHRIRDAGI O'ZBEK ALIFBOSI) =====
+// ===== STRING & INPUT HELPERS =====
 function escapeHTML(value) {
   return String(value ?? '').replace(/[&<>"']/g, (character) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -72,7 +72,7 @@ async function requestAPI(endpoint, method = 'GET', body = null) {
   try {
     res = await fetch(`${API_BASE}${endpoint}`, options);
   } catch {
-    throw new ApiError("Server bilan aloqa yöq. İnternetni tekşirib, qayta urinib köring.", 0);
+    throw new ApiError("Server bilan aloqa yo‘q. Internetni tekshirib, qayta urinib ko‘ring.", 0);
   }
   let data = null;
   try { data = await res.json(); } catch { /* non-JSON error page */ }
@@ -117,8 +117,8 @@ function base64ToBytes(value) {
 
 // Throws ApiError on failure so the caller can keep the form open.
 async function uploadFile(file, { moduleId, stepType, purpose }, onProgress) {
-  if (file.size > MAX_FILE_SIZE) throw new ApiError('Fayl hajmi 30 MB dan oşmasin.', 413);
-  if (file.size === 0) throw new ApiError("Fayl böş.", 400);
+  if (file.size > MAX_FILE_SIZE) throw new ApiError('Fayl hajmi 30 MB dan oshmasin.', 413);
+  if (file.size === 0) throw new ApiError("Fayl bo‘sh.", 400);
 
   const started = await requestAPI('/files', 'POST', {
     action: 'init', module_id: moduleId, step_type: stepType, purpose, filename: file.name, size: file.size
@@ -138,7 +138,7 @@ async function downloadFile(id, button) {
   if (!currentUser) {
     document.getElementById('stepModal').classList.remove('active');
     openAuthModal('login');
-    showToast('Faylni yuklab oliş uçun tizimga kiring.', 'warning');
+    showToast('Faylni yuklab olish uchun tizimga kiring.', 'warning');
     return;
   }
   const label = button?.querySelector('.file-card-meta');
@@ -176,7 +176,7 @@ function fileCardHtml(file) {
       <i data-lucide="download"></i>
       <span class="file-card-text">
         <span class="file-card-name">${escapeHTML(file.name)}</span>
-        <span class="file-card-meta">${formatFileSize(file.size)} &middot; Yuklab oliş</span>
+        <span class="file-card-meta">${formatFileSize(file.size)} &middot; Yuklab olish</span>
       </span>
     </button>`;
 }
@@ -205,18 +205,18 @@ async function runBusy(button, work) {
 }
 
 const GUIDE_DATA = [
-  { title: "Darsni rejalaştiriş", desc: "Aniq öquv maqsadini belgilang, mazmun va maşqlarni şu maqsadga moslang." },
-  { title: "Faol örganiş", desc: "Savol, bahs-munozara va amaliy maşqlar orqali öquvçini dars jarayoniga jalb qiling." },
-  { title: "Öquv natijalarini baholaş", desc: "Baholaş mezonlarini oldindan tuşuntiring va natijaga konstruktiv fikr-mulohaza qöşing." },
-  { title: "Refleksiya va öz-özini rivojlantiriş", desc: "Darsdan keyin nimalar samarali işlaganini körib çiqing va keyingi maşğulotni şunga qarab boyiting." }
+  { title: "Darsni rejalashtirish", desc: "Aniq o‘quv maqsadini belgilang, mazmun va mashqlarni shu maqsadga moslang." },
+  { title: "Faol o‘rganish", desc: "Savol, bahs-munozara va amaliy mashqlar orqali o‘quvchini dars jarayoniga jalb qiling." },
+  { title: "O‘quv natijalarini baholash", desc: "Baholash mezonlarini oldindan tushuntiring va natijaga konstruktiv fikr-mulohaza qo‘shing." },
+  { title: "Refleksiya va o‘z-o‘zini rivojlantirish", desc: "Darsdan keyin nimalar samarali ishlaganini ko‘rib chiqing va keyingi mashg‘ulotni shunga qarab boyiting." }
 ];
 
 const STEP_TYPES = [
   { id: 'diag', title: '1. Diagnostika testi', type: 'quiz', icon: 'help-circle' },
   { id: 'video', title: '2. Video dars', type: 'video', icon: 'play-circle' },
   { id: 'pres', title: '3. Taqdimot (Prezentatsiya)', type: 'doc', icon: 'presentation' },
-  { id: 'doc', title: '4. Qöşimça material', type: 'doc', icon: 'file-text' },
-  { id: 'task', title: '5. Amaliy topşiriq', type: 'upload', icon: 'upload-cloud' },
+  { id: 'doc', title: '4. Qo‘shimcha material', type: 'doc', icon: 'file-text' },
+  { id: 'task', title: '5. Amaliy topshiriq', type: 'upload', icon: 'upload-cloud' },
   { id: 'refl', title: '6. Refleksiv hisobot', type: 'text', icon: 'feather' }
 ];
 
@@ -266,7 +266,7 @@ function renderPublicModules() {
   if (!modContainer) return;
 
   if (!modulesCache.length) {
-    modContainer.innerHTML = '<div class="info-card"><p>Hozirça modullar qöşilmagan.</p></div>';
+    modContainer.innerHTML = '<div class="info-card"><p>Hozircha modullar qo‘shilmagan.</p></div>';
     refreshIcons();
     return;
   }
@@ -301,16 +301,16 @@ function renderPublicModules() {
         <p>${escapeHTML(m.description || "Ta'lim nazariyasi moduli")}</p>
         ${progBarHtml}
         <button class="btn-outline" style="margin-top:20px; padding:8px 18px; font-size:11px;" onclick="event.stopPropagation(); openStudentModule(${Number(m.id)})">
-          <i data-lucide="arrow-right"></i> Modulni örganiş &rarr;
+          <i data-lucide="arrow-right"></i> Modulni o‘rganish &rarr;
         </button>
       </div>
     `;
   }).join('') + (!currentUser ? `
     <div class="info-card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; background:rgba(168,155,140,0.06); border:2px dashed var(--primary);" onclick="openAuthModal('register')">
       <div style="margin-bottom:10px; color:var(--primary);"><i data-lucide="graduation-cap" style="width:36px;height:36px;"></i></div>
-      <h3 style="color:var(--text-main)">Barça modullarga kiriş</h3>
-      <p>Bepul röyxatdan ötib, darslarni özlaştirişni boşlang</p>
-      <button class="btn-primary" style="margin-top:15px; padding:10px 20px;"><i data-lucide="sparkles"></i> Röyxatdan ötış</button>
+      <h3 style="color:var(--text-main)">Barcha modullarga kirish</h3>
+      <p>Bepul ro‘yxatdan o‘tib, darslarni o‘zlashtirishni boshlang</p>
+      <button class="btn-primary" style="margin-top:15px; padding:10px 20px;"><i data-lucide="sparkles"></i> Ro‘yxatdan o‘tish</button>
     </div>` : '');
 
   refreshIcons();
@@ -346,7 +346,7 @@ function showPublicSection(sectionId) {
   document.getElementById('mainNav')?.classList.remove('open');
   const menuButton = document.querySelector('.mobile-menu-btn');
   menuButton?.setAttribute('aria-expanded', 'false');
-  menuButton?.setAttribute('aria-label', 'Menyuni oçiş');
+  menuButton?.setAttribute('aria-label', 'Menyuni ochish');
   window.scrollTo(0, 0);
   refreshIcons();
 }
@@ -366,11 +366,11 @@ function switchAuth(type) {
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
   document.getElementById('loginError').textContent = '';
   if (type === 'login') {
-    document.getElementById('authTitle').textContent = 'Tizimga Kiriş';
-    document.getElementById('authSubtitle').textContent = "Platformadan foydalaniş uçun öz rolingizni tanlang";
+    document.getElementById('authTitle').textContent = 'Tizimga Kirish';
+    document.getElementById('authSubtitle').textContent = "Platformadan foydalanish uchun o‘z rolingizni tanlang";
     document.getElementById('loginForm').classList.add('active');
   } else {
-    document.getElementById('authTitle').textContent = "Röyxatdan ötış";
+    document.getElementById('authTitle').textContent = "Ro‘yxatdan o‘tish";
     document.getElementById('authSubtitle').textContent = "Rolingizni tanlang va yangi hisob yarating";
     document.getElementById('registerForm').classList.add('active');
   }
@@ -401,13 +401,13 @@ async function handleLogin(e) {
     const user = await requestAPI('/auth', 'POST', { action: 'login', login, password: pass });
     if (user.role !== role) {
       await requestAPI('/auth', 'POST', { action: 'logout' });
-      errEl.textContent = `Bu hisob "${ROLE_LABELS[user.role] || user.role}" roliga tegişli. Iltimos, töğri rolni tanlang.`;
+      errEl.textContent = `Bu hisob "${ROLE_LABELS[user.role] || user.role}" roliga tegishli. Iltimos, to‘g‘ri rolni tanlang.`;
       return;
     }
-    showToast(`Xuş kelibsiz, ${user.name || user.login}!`);
+    showToast(`Xush kelibsiz, ${user.name || user.login}!`);
     await startSession(user);
   } catch (err) {
-    errEl.textContent = err.message || 'Kirişda xatolik yuz berdi.';
+    errEl.textContent = err.message || 'Kirishda xatolik yuz berdi.';
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = oldText;
@@ -427,14 +427,14 @@ async function handleRegister(e) {
   const submitBtn = e.target.querySelector('button[type="submit"]');
   const oldText = submitBtn.innerHTML;
   submitBtn.disabled = true;
-  submitBtn.textContent = 'Röyxatdan ötilmoqda...';
+  submitBtn.textContent = 'Ro‘yxatdan o‘tilmoqda...';
 
   try {
     const user = await requestAPI('/auth', 'POST', { action: 'register', login, password: pass, name, role });
-    showToast("Röyxatdan muvaffaqiyatli ötdingiz!");
+    showToast("Ro‘yxatdan muvaffaqiyatli o‘tdingiz!");
     await startSession(user);
   } catch (err) {
-    errEl.textContent = err.message || "Röyxatdan ötişda xatolik yuz berdi.";
+    errEl.textContent = err.message || "Ro‘yxatdan o‘tishda xatolik yuz berdi.";
   } finally {
     submitBtn.disabled = false;
     submitBtn.innerHTML = oldText;
@@ -469,7 +469,7 @@ async function startSession(user, modulesLoaded = false) {
   document.getElementById('navUser').style.display = 'flex';
 
   const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
-  const roleLabel = currentUser.role === 'student' ? 'TALABA' : (currentUser.role === 'teacher' ? 'ÖQITUVÇI' : 'ADMINISTRATOR');
+  const roleLabel = currentUser.role === 'student' ? 'TALABA' : (currentUser.role === 'teacher' ? 'O‘QITUVCHI' : 'ADMINISTRATOR');
 
   document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
   document.getElementById('sidebarUser').innerHTML = `<i data-lucide="user-check"></i> <span>${escapeHTML(currentUser.name || currentUser.login)}</span>`;
@@ -499,7 +499,7 @@ async function logout() {
 
   renderPublicModules();
   showPublicSection('home');
-  showToast("Tizimdan muvaffaqiyatli çiqildi.");
+  showToast("Tizimdan muvaffaqiyatli chiqildi.");
   refreshIcons();
 }
 
@@ -518,7 +518,7 @@ function returnToWebsite() {
 
 // ===== PRIVATE SYSTEM NAVIGATION =====
 const STAFF_ROLES = ['teacher', 'admin'];
-const ROLE_LABELS = { student: 'Talaba', teacher: 'Öqituvçi', admin: 'Administrator' };
+const ROLE_LABELS = { student: 'Talaba', teacher: 'O‘qituvchi', admin: 'Administrator' };
 const PAGE_ROLES = {
   analytics: STAFF_ROLES,
   submissions: STAFF_ROLES,
@@ -528,28 +528,28 @@ const PAGE_ROLES = {
   'user-profile': ['admin']
 };
 const STAFF_MENU = [
-  { id: 'home', title: 'Boş sahifa', icon: 'home' },
-  { id: 'manage-modules', title: 'Modullarni boşqariş', short: 'Modullar', icon: 'edit-3' },
-  { id: 'modules', title: 'Modullar körinişi', icon: 'book-open' },
+  { id: 'home', title: 'Bosh sahifa', icon: 'home' },
+  { id: 'manage-modules', title: 'Modullarni boshqarish', short: 'Modullar', icon: 'edit-3' },
+  { id: 'modules', title: 'Modullar ko‘rinishi', icon: 'book-open' },
   { id: 'analytics', title: 'Tahlil va Grafika', icon: 'bar-chart-3' },
   { id: 'submissions', title: 'Talaba javoblari', icon: 'clipboard-check' }
 ];
 const NAV_MENU = {
   student: [
-    { id: 'home', title: 'Boş sahifa', icon: 'home' },
+    { id: 'home', title: 'Bosh sahifa', icon: 'home' },
     { id: 'modules', title: 'Modullar', icon: 'book-open' }
   ],
   teacher: STAFF_MENU,
-  admin: [...STAFF_MENU, { id: 'users', title: 'Foydalanuvçilar', short: 'Röyxat', icon: 'users' }]
+  admin: [...STAFF_MENU, { id: 'users', title: 'Foydalanuvchilar', short: 'Ro‘yxat', icon: 'users' }]
 };
 
 function pageTitle(pageId) {
   if (pageId === 'module-view') {
     return modulesCache.find(x => Number(x.id) === Number(currentModuleId))?.title || 'Modul';
   }
-  if (pageId === 'student-detail') return 'Talaba işlari';
+  if (pageId === 'student-detail') return 'Talaba ishlari';
   if (pageId === 'user-profile') return 'Profil';
-  return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Boş sahifa';
+  return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Bosh sahifa';
 }
 
 // ===== SKELETON LOADER HELPER =====
@@ -690,7 +690,7 @@ function renderHome(container) {
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i data-lucide="award"></i></div>
-        <div class="stat-info"><h3>${totalScore} ball</h3><p>Töplangan ballar</p></div>
+        <div class="stat-info"><h3>${totalScore} ball</h3><p>To‘plangan ballar</p></div>
       </div>
     `;
   } else {
@@ -701,7 +701,7 @@ function renderHome(container) {
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i data-lucide="graduation-cap"></i></div>
-        <div class="stat-info"><h3>${currentUser.role === 'admin' ? 'Administrator' : 'Öqituvçi'}</h3><p>Sizning maqomingiz</p></div>
+        <div class="stat-info"><h3>${currentUser.role === 'admin' ? 'Administrator' : 'O‘qituvchi'}</h3><p>Sizning maqomingiz</p></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i data-lucide="bar-chart-2"></i></div>
@@ -711,10 +711,10 @@ function renderHome(container) {
   }
   html += `</div>
   <div class="card">
-    <h3 class="card-title">Xuş kelibsiz, ${escapeHTML(currentUser.name || currentUser.login)}!</h3>
+    <h3 class="card-title">Xush kelibsiz, ${escapeHTML(currentUser.name || currentUser.login)}!</h3>
     <p style="color:var(--text-muted); line-height: 1.8;">
       Platformada zamonaviy ta'lim nazariyalari, 6 qadamli didaktik modullar hamda talabalar monitoringi va interaktiv vizualizatsiyasi jamlangan. 
-      ${currentUser.role === 'student' ? "Çap menyudan 'Modullar' bölimiga ötib bilimlaringizni oşiring." : "Siz modullarni boşqarişingiz, materiallar kiritişingiz, 'Tahlil va Grafika' bölimida öquvçilar natijalarini tahlil qilişingiz mumkin."}
+      ${currentUser.role === 'student' ? "Chap menyudan 'Modullar' bo‘limiga o‘tib bilimlaringizni oshiring." : "Siz modullarni boshqarishingiz, materiallar kiritishingiz, 'Tahlil va Grafika' bo‘limida o‘quvchilar natijalarini tahlil qilishingiz mumkin."}
     </p>
   </div>`;
   container.innerHTML = html;
@@ -723,7 +723,7 @@ function renderHome(container) {
 
 async function renderModules(container) {
   if (!modulesCache.length) {
-    container.innerHTML = '<div class="card"><p>Hozirça modullar mavjud emas.</p></div>';
+    container.innerHTML = '<div class="card"><p>Hozircha modullar mavjud emas.</p></div>';
     refreshIcons();
     return;
   }
@@ -752,7 +752,7 @@ async function renderModules(container) {
               </div>
             </div>
           ` : `
-            <p style="margin-top:8px; font-size:12px; color:var(--primary); font-weight:500;">Materiallar va bosqiçlarni köriş &rarr;</p>
+            <p style="margin-top:8px; font-size:12px; color:var(--primary); font-weight:500;">Materiallar va bosqichlarni ko‘rish &rarr;</p>
           `}
         </div>
         <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">
@@ -772,7 +772,7 @@ async function renderAnalytics(container) {
 
   const rows = await fetchAPI('/progress');
   if (!rows) {
-    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bo‘lmadi.</div>';
     return;
   }
   const allProgress = rows;
@@ -814,14 +814,14 @@ async function renderAnalytics(container) {
 
   let html = `
     <div class="charts-grid">
-      <!-- Chart 1: Modullar özlaştiriş darajasi -->
+      <!-- Chart 1: Modullar o‘zlashtirish darajasi -->
       <div class="chart-card">
         <div class="chart-header">
-          <h4><i data-lucide="bar-chart-2"></i> Modullar böyiça özlaştiriş (%)</h4>
-          <p>Töliq yakunlaş koeffitsiyenti</p>
+          <h4><i data-lucide="bar-chart-2"></i> Modullar bo‘yicha o‘zlashtirish (%)</h4>
+          <p>To‘liq yakunlash koeffitsiyenti</p>
         </div>
         <div class="chart-wrapper">
-          ${hasModuleData ? '<canvas id="chartModules"></canvas>' : '<p class="muted-text empty-text">Hozirça ma\'lumot yöq.</p>'}
+          ${hasModuleData ? '<canvas id="chartModules"></canvas>' : '<p class="muted-text empty-text">Hozircha ma\'lumot yo‘q.</p>'}
         </div>
       </div>
 
@@ -829,10 +829,10 @@ async function renderAnalytics(container) {
       <div class="chart-card">
         <div class="chart-header">
           <h4><i data-lucide="pie-chart"></i> Qadamlar faolligi taqsimoti</h4>
-          <p>Didaktik bosqiçlar</p>
+          <p>Didaktik bosqichlar</p>
         </div>
         <div class="chart-wrapper">
-          ${hasStepData ? '<canvas id="chartSteps"></canvas>' : '<p class="muted-text empty-text">Hozirça ma\'lumot yöq.</p>'}
+          ${hasStepData ? '<canvas id="chartSteps"></canvas>' : '<p class="muted-text empty-text">Hozircha ma\'lumot yo‘q.</p>'}
         </div>
       </div>
     </div>
@@ -846,15 +846,15 @@ async function renderAnalytics(container) {
         <span class="badge badge-primary">Didaktik monitoring</span>
       </div>
       <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
-        Modullardagi 6 qadamli didaktik vazifalarni eng faol bajargan va eng yuqori natija körsatgan iqtidorli talabalar:
+        Modullardagi 6 qadamli didaktik vazifalarni eng faol bajargan va eng yuqori natija ko‘rsatgan iqtidorli talabalar:
       </p>
 
       <div style="overflow-x:auto;">
         <table class="leaderboard-table">
           <thead>
             <tr>
-              <th style="width:70px;">Örin</th>
-              <th>Talaba F.I.Ş</th>
+              <th style="width:70px;">O‘rin</th>
+              <th>Talaba F.I.Sh</th>
               <th>Bajarilgan qadamlar</th>
               <th>Tugatilgan modullar</th>
               <th>Toplangan ball</th>
@@ -865,7 +865,7 @@ async function renderAnalytics(container) {
   `;
 
   if (!leaderboard.length) {
-    html += `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Hozirça talabalar natijalari mavjud emas.</td></tr>`;
+    html += `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Hozircha talabalar natijalari mavjud emas.</td></tr>`;
   } else {
     leaderboard.forEach((st, idx) => {
       const rank = idx + 1;
@@ -875,14 +875,14 @@ async function renderAnalytics(container) {
       else if (rank === 3) rankBadgeClass = 'rank-3';
 
       html += `
-        <tr class="clickable-row" onclick="openStudentDetail(${Number(st.id)})" title="Bajargan işlarini köriş">
-          <td data-label="Örin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
+        <tr class="clickable-row" onclick="openStudentDetail(${Number(st.id)})" title="Bajargan ishlarini ko‘rish">
+          <td data-label="O‘rin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
           <td data-label="Talaba"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
           <td data-label="Qadamlar"><i data-lucide="check" style="width:14px;color:var(--success);"></i> ${st.completedSteps} ta qadam</td>
           <td data-label="Modullar"><span class="badge ${st.finishedModules > 0 ? 'badge-success' : 'badge-muted'}">${st.finishedModules} ta modul</span></td>
           <td data-label="Ball"><strong>${st.score} XP</strong></td>
           <td data-label="Holat">
-            ${st.finishedModules > 0 ? '<span class="badge badge-success"><i data-lucide="award"></i> A\'loçi</span>' : '<span class="badge badge-primary">Faol</span>'}
+            ${st.finishedModules > 0 ? '<span class="badge badge-success"><i data-lucide="award"></i> A\'lochi</span>' : '<span class="badge badge-primary">Faol</span>'}
           </td>
         </tr>
       `;
@@ -908,7 +908,7 @@ async function renderAnalytics(container) {
         data: {
           labels: moduleLabels,
           datasets: [{
-            label: 'Özlaştiriş darajasi (%)',
+            label: 'O‘zlashtirish darajasi (%)',
             data: moduleCompletion,
             backgroundColor: '#A89B8C',
             borderColor: '#8F8171',
@@ -935,7 +935,7 @@ async function renderAnalytics(container) {
       activeCharts.push(new Chart(ctxSteps, {
         type: 'doughnut',
         data: {
-          labels: ['Diagnostika', 'Video dars', 'Taqdimot', 'Material', 'Topşiriq', 'Refleksiya'],
+          labels: ['Diagnostika', 'Video dars', 'Taqdimot', 'Material', 'Topshiriq', 'Refleksiya'],
           datasets: [{
             data: [stepCounts.diag, stepCounts.video, stepCounts.pres, stepCounts.doc, stepCounts.task, stepCounts.refl],
             backgroundColor: ['#A89B8C', '#81987F', '#C9B99A', '#D4B896', '#7A7571', '#333130'],
@@ -972,7 +972,7 @@ async function renderModuleView(container, isPublic = false) {
   }
 
   if (!m) {
-    container.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Modul topilmadi yoki hali qöşilmagan.</p></div>';
+    container.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Modul topilmadi yoki hali qo‘shilmagan.</p></div>';
     refreshIcons();
     return;
   }
@@ -991,7 +991,7 @@ async function renderModuleView(container, isPublic = false) {
 
   let html = `
     <div class="back-btn" onclick="${isPublic ? `showPublicSection('public-modules')` : `navigate('modules', 'Modullar')`}">
-      <i data-lucide="arrow-left"></i> Modullar röyxatiga qaytiş
+      <i data-lucide="arrow-left"></i> Modullar ro‘yxatiga qaytish
     </div>
   `;
 
@@ -999,8 +999,8 @@ async function renderModuleView(container, isPublic = false) {
     html += `
       <div class="celebration-box">
         <div style="margin-bottom:8px; color:var(--primary);"><i data-lucide="award" style="width:48px;height:48px;"></i></div>
-        <h3>Tabriklaymiz! Siz uşbu modulni muvaffaqiyatli tamomladingiz!</h3>
-        <p style="color:var(--text-muted); font-size:13px;">Barça 6 ta didaktik qadam töliq yakunlandi va tizimda qayd etildi.</p>
+        <h3>Tabriklaymiz! Siz ushbu modulni muvaffaqiyatli tamomladingiz!</h3>
+        <p style="color:var(--text-muted); font-size:13px;">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
       </div>
     `;
   }
@@ -1039,12 +1039,12 @@ async function renderModuleView(container, isPublic = false) {
           <div>
             <div style="font-weight:500; color:var(--text-main);">${step.title}</div>
             <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
-              ${isLocked ? 'Avvalgi qadamni yakunlaş talab etiladi' : (hasContent ? 'Örganiş uçun tayyor' : 'Material hali qöşilmagan')}
+              ${isLocked ? 'Avvalgi qadamni yakunlash talab etiladi' : (hasContent ? 'O‘rganish uchun tayyor' : 'Material hali qo‘shilmagan')}
             </div>
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : '<span class="badge badge-primary">Boşlaş &rarr;</span>')}
+          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : '<span class="badge badge-primary">Boshlash &rarr;</span>')}
         </div>
       </div>
     `;
@@ -1059,7 +1059,7 @@ async function renderModuleView(container, isPublic = false) {
 let editModuleId = null;
 
 async function renderManageModules(container) {
-  const formTitle = editModuleId ? "Modulni tahrirlaş" : "Yangi modul qöşiş";
+  const formTitle = editModuleId ? "Modulni tahrirlash" : "Yangi modul qo‘shish";
   let mOrder = modulesCache.length + 1;
   let mTitle = "";
   let mDesc = "";
@@ -1087,14 +1087,14 @@ async function renderManageModules(container) {
         </div>
       </div>
       <div class="form-group">
-        <label>Modul haqida qisqaça ta'rif</label>
-        <input type="text" id="newModDesc" placeholder="Modul nimalarni örgatadi..." value="${escapeHTML(mDesc)}" />
+        <label>Modul haqida qisqacha ta'rif</label>
+        <input type="text" id="newModDesc" placeholder="Modul nimalarni o‘rgatadi..." value="${escapeHTML(mDesc)}" />
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
         <button class="btn-primary" onclick="addModule()">
-          <i data-lucide="save"></i> ${editModuleId ? "Özgarişlarni saqlaş" : "Modulni yaratış"}
+          <i data-lucide="save"></i> ${editModuleId ? "O‘zgarishlarni saqlash" : "Modulni yaratish"}
         </button>
-        ${editModuleId ? `<button class="btn-outline" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))"><i data-lucide="x"></i> Bekor qiliş</button>` : ''}
+        ${editModuleId ? `<button class="btn-outline" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))"><i data-lucide="x"></i> Bekor qilish</button>` : ''}
       </div>
     </div>
     
@@ -1103,7 +1103,7 @@ async function renderManageModules(container) {
   `;
 
   if (!modulesCache.length) {
-    html += `<p style="color:var(--text-muted)">Hozirça heç qanday modul yöq. Yuqoridagi şakl orqali modul qöşing.</p>`;
+    html += `<p style="color:var(--text-muted)">Hozircha hech qanday modul yo‘q. Yuqoridagi shakl orqali modul qo‘shing.</p>`;
   } else {
     modulesCache.forEach(m => {
       html += `
@@ -1116,22 +1116,22 @@ async function renderManageModules(container) {
             </div>
             <div style="display:flex; gap:8px;">
               <button class="btn-outline" style="padding:6px 12px; font-size:11px;" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">
-                <i data-lucide="edit-2"></i> Tahrirlaş
+                <i data-lucide="edit-2"></i> Tahrirlash
               </button>
               <button class="btn-danger" onclick="deleteModule(${m.id})">
-                <i data-lucide="trash-2"></i> Öçiriş
+                <i data-lucide="trash-2"></i> O‘chirish
               </button>
             </div>
           </div>
           
           <div style="margin-top: 15px; padding-top:15px; border-top:1px dashed var(--border-color);">
-            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">6 ta qadam materiallarini biriktiriş:</div>
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">6 ta qadam materiallarini biriktirish:</div>
             <div style="display:flex; gap: 8px; flex-wrap:wrap">
               <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'diag')"><i data-lucide="help-circle"></i> Test savoli</button>
               <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'video')"><i data-lucide="play-circle"></i> Video (URL)</button>
               <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'pres')"><i data-lucide="presentation"></i> Taqdimot</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'doc')"><i data-lucide="file-text"></i> Qöşimça matn</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'task')"><i data-lucide="upload-cloud"></i> Topşiriq</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'doc')"><i data-lucide="file-text"></i> Qo‘shimcha matn</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'task')"><i data-lucide="upload-cloud"></i> Topshiriq</button>
               <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'refl')"><i data-lucide="feather"></i> Refleksiya</button>
             </div>
           </div>
@@ -1139,9 +1139,38 @@ async function renderManageModules(container) {
       `;
     });
   }
-  html += `</div>`;
+  html += `</div><div id="deletedModules"></div>`;
   container.innerHTML = html;
   refreshIcons();
+  loadDeletedModules();
+}
+
+async function loadDeletedModules() {
+  const target = document.getElementById('deletedModules');
+  if (!target) return;
+  const rows = await fetchAPI('/modules?deleted=1');
+  if (!rows?.length || !document.getElementById('deletedModules')) return;
+  target.innerHTML = `
+    <div class="card">
+      <h3 class="card-title"><i data-lucide="archive"></i> O‘chirilgan modullar</h3>
+      <ul class="plain-list">
+        ${rows.map(m => `
+          <li class="deleted-module">
+            <span>№ ${Number(m.order_num)}. ${escapeHTML(m.title)}</span>
+            <button type="button" class="btn-outline" onclick="restoreModule(${Number(m.id)})"><i data-lucide="rotate-ccw"></i> Tiklash</button>
+          </li>`).join('')}
+      </ul>
+    </div>`;
+  refreshIcons();
+}
+
+async function restoreModule(id) {
+  const res = await fetchAPI('/modules', 'POST', { action: 'restore', id });
+  if (!res) return;
+  showToast('Modul tiklandi ✅');
+  const mods = await fetchAPI('/modules');
+  if (mods && Array.isArray(mods)) modulesCache = mods;
+  navigate('manage-modules');
 }
 
 async function addModule() {
@@ -1149,7 +1178,7 @@ async function addModule() {
   const title = document.getElementById('newModTitle').value.trim();
   const description = document.getElementById('newModDesc').value.trim();
 
-  if (!title || !order_num) return showToast("Iltimos, tartib raqami va modul nomini töldiring!");
+  if (!title || !order_num) return showToast("Iltimos, tartib raqami va modul nomini to‘ldiring!");
 
   const payload = { order_num: Number(order_num), title, description };
   if (editModuleId) payload.id = editModuleId;
@@ -1160,31 +1189,31 @@ async function addModule() {
     editModuleId = null;
     const mods = await fetchAPI('/modules');
     if (mods && Array.isArray(mods)) modulesCache = mods;
-    navigate('manage-modules', 'Modullarni boşqariş');
+    navigate('manage-modules', 'Modullarni boshqarish');
   }
 }
 
 async function deleteModule(id) {
   const m = modulesCache.find(x => Number(x.id) === Number(id));
   const title = m ? m.title : `Modul ${id}`;
-  if (!confirm(`Haqiqatan ham "${title}" modulini öçirmoqçimisiz?\nUşbu modulga tegişli barça materiallar va talaba javoblari öçiriladi.`)) {
+  if (!confirm(`Haqiqatan ham "${title}" modulini o‘chirmoqchimisiz?\nModul talabalarga ko‘rinmay qoladi, keyin uni tiklash mumkin.`)) {
     return;
   }
   const res = await fetchAPI(`/modules?id=${id}`, 'DELETE');
   if (res) {
-    showToast("Modul öçirildi.");
+    showToast("Modul o‘chirildi.");
     const mods = await fetchAPI('/modules');
     if (mods && Array.isArray(mods)) modulesCache = mods;
-    navigate('manage-modules', 'Modullarni boşqariş');
+    navigate('manage-modules', 'Modullarni boshqarish');
   }
 }
 
 let teacherUploadContext = {};
 const FILE_STEP_ACCEPT = { pres: '.pptx', doc: DOCUMENT_ACCEPT, task: DOCUMENT_ACCEPT };
 const FILE_STEP_HINT = {
-  pres: 'Faqat PowerPoint (.pptx), 30 MB gaça.',
-  doc: 'PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.',
-  task: 'İxtiyoriy: topşiriqqa ilova. PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.'
+  pres: 'Faqat PowerPoint (.pptx), 30 MB gacha.',
+  doc: 'PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gacha.',
+  task: 'Ixtiyoriy: topshiriqqa ilova. PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gacha.'
 };
 
 function teacherFileFieldHtml(stepType, existingFile) {
@@ -1194,10 +1223,10 @@ function teacherFileFieldHtml(stepType, existingFile) {
       ${existingFile ? `
         <div class="current-file" id="currentFileRow">
           ${fileCardHtml(existingFile)}
-          ${stepType === 'task' ? `<button type="button" class="btn-danger" onclick="removeTeacherFile()"><i data-lucide="trash-2"></i> Olib taşlaş</button>` : ''}
+          ${stepType === 'task' ? `<button type="button" class="btn-danger" onclick="removeTeacherFile()"><i data-lucide="trash-2"></i> Olib tashlash</button>` : ''}
         </div>` : ''}
       <input type="file" id="teacherUploadFile" class="file-input" accept="${FILE_STEP_ACCEPT[stepType]}" aria-describedby="teacherFileHint"/>
-      <small id="teacherFileHint" class="field-hint">${FILE_STEP_HINT[stepType]}${existingFile ? ' Yangi fayl tanlasangiz, eskisi almaştiriladi.' : ''}</small>
+      <small id="teacherFileHint" class="field-hint">${FILE_STEP_HINT[stepType]}${existingFile ? ' Yangi fayl tanlasangiz, eskisi almashtiriladi.' : ''}</small>
       ${UPLOAD_PROGRESS_HTML}
     </div>`;
 }
@@ -1209,8 +1238,8 @@ function removeTeacherFile() {
 
 async function openContentModal(moduleId, stepType) {
   teacherUploadContext = { moduleId, stepType, existingFile: null };
-  const stepMeta = STEP_TYPES.find(s => s.id === stepType) || { title: 'Material biriktiriş' };
-  document.getElementById('modalTitle').textContent = `${stepMeta.title} — Material biriktiriş`;
+  const stepMeta = STEP_TYPES.find(s => s.id === stepType) || { title: 'Material biriktirish' };
+  document.getElementById('modalTitle').textContent = `${stepMeta.title} — Material biriktirish`;
 
   const body = document.getElementById('modalBody');
   const footer = document.getElementById('modalFooter');
@@ -1243,26 +1272,26 @@ async function openContentModal(moduleId, stepType) {
         <textarea id="teacherUploadVal" rows="3" placeholder="Savol matnini kiriting...">${escapeHTML(existingVal)}</textarea>
       </div>
       <div class="form-group">
-        <label for="teacherUploadVal2">Töğri javob (Öquvçi tekşiruvi uçun)</label>
-        <input type="text" id="teacherUploadVal2" placeholder="Töğri javob sözi yoki jumlasi..." value="${escapeHTML(existingAns)}"/>
-        <small class="field-hint">Eslatma: Talaba javobi tekşirilganda katta-kiçik harflar farqlanmaydi.</small>
+        <label for="teacherUploadVal2">To‘g‘ri javob (O‘quvchi tekshiruvi uchun)</label>
+        <input type="text" id="teacherUploadVal2" placeholder="To‘g‘ri javob so‘zi yoki jumlasi..." value="${escapeHTML(existingAns)}"/>
+        <small class="field-hint">Eslatma: Talaba javobi tekshirilganda katta-kichik harflar farqlanmaydi.</small>
       </div>
     `;
   } else if (stepType === 'pres' || stepType === 'doc') {
     body.innerHTML = `
       ${teacherFileFieldHtml(stepType, teacherUploadContext.existingFile)}
       <div class="form-group">
-        <label for="teacherUploadVal">Qisqaça izoh (ixtiyoriy)</label>
+        <label for="teacherUploadVal">Qisqacha izoh (ixtiyoriy)</label>
         <textarea id="teacherUploadVal" rows="3" maxlength="30000" placeholder="Fayl haqida talabalarga izoh...">${escapeHTML(existingVal)}</textarea>
       </div>
     `;
   } else {
     const placeholder = stepType === 'task'
-      ? 'Talaba bajarişi kerak bölgan amaliy topşiriq matni...'
-      : 'Refleksiya uçun yönaltiruvçi savollar...';
+      ? 'Talaba bajarishi kerak bo‘lgan amaliy topshiriq matni...'
+      : 'Refleksiya uchun yo‘naltiruvchi savollar...';
     body.innerHTML = `
       <div class="form-group">
-        <label for="teacherUploadVal">Körsatma matni</label>
+        <label for="teacherUploadVal">Ko‘rsatma matni</label>
         <textarea id="teacherUploadVal" rows="6" placeholder="${placeholder}">${escapeHTML(existingVal)}</textarea>
       </div>
       ${stepType === 'task' ? teacherFileFieldHtml('task', teacherUploadContext.existingFile) : ''}
@@ -1270,8 +1299,8 @@ async function openContentModal(moduleId, stepType) {
   }
 
   footer.innerHTML = `
-    <button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Bekor qiliş</button>
-    <button class="btn-primary" id="teacherSaveBtn" onclick="saveTeacherContent()"><i data-lucide="save"></i> Saqlaş</button>
+    <button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Bekor qilish</button>
+    <button class="btn-primary" id="teacherSaveBtn" onclick="saveTeacherContent()"><i data-lucide="save"></i> Saqlash</button>
   `;
   refreshIcons();
 }
@@ -1288,10 +1317,10 @@ async function saveTeacherContent() {
   const content = { value: val };
   if (stepType === 'diag') {
     content.answer = document.getElementById('teacherUploadVal2')?.value.trim() || '';
-    if (!content.answer) return showToast('Testning töğri javobini kiriting.', 'warning');
+    if (!content.answer) return showToast('Testning to‘g‘ri javobini kiriting.', 'warning');
   }
   if (stepType === 'video' && !getYouTubeEmbedUrl(val)) {
-    return showToast('Nötöğri YouTube havolasi! Iltimos, töğri YouTube URL kiriting.', 'error');
+    return showToast('Noto‘g‘ri YouTube havolasi! Iltimos, to‘g‘ri YouTube URL kiriting.', 'error');
   }
 
   await runBusy(document.getElementById('teacherSaveBtn'), async () => {
@@ -1314,7 +1343,7 @@ async function saveTeacherContent() {
 // ===== SUBMISSIONS VIEW (FOR TEACHER / ADMIN) =====
 function renderSubmissions(container) {
   if (!modulesCache.length) {
-    container.innerHTML = '<div class="card">Javoblarni köriş uçun avval modullar qöşing.</div>';
+    container.innerHTML = '<div class="card">Javoblarni ko‘rish uchun avval modullar qo‘shing.</div>';
     refreshIcons();
     return;
   }
@@ -1345,12 +1374,12 @@ async function loadSubmissions() {
   list.innerHTML = '<div class="spinner"></div>';
   const rows = await fetchAPI(`/progress?module_id=${encodeURIComponent(moduleId)}`);
   if (!rows) {
-    list.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    list.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bo‘lmadi.</div>';
     return;
   }
 
   const responseLabels = {
-    task: '5. Amaliy topşiriq',
+    task: '5. Amaliy topshiriq',
     refl: '6. Refleksiv hisobot'
   };
 
@@ -1365,7 +1394,7 @@ async function loadSubmissions() {
   });
 
   if (!submissions.length) {
-    list.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Uşbu modul böyiça topşirilgan yozma topşiriqlar hozirça yöq.</p></div>';
+    list.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Ushbu modul bo‘yicha topshirilgan yozma topshiriqlar hozircha yo‘q.</p></div>';
     refreshIcons();
     return;
   }
@@ -1390,14 +1419,14 @@ async function loadSubmissions() {
         </div>
 
         <div class="teacher-review-box">
-          <h5><i data-lucide="message-square"></i> Öqituvçi fikri va bahosi</h5>
+          <h5><i data-lucide="message-square"></i> O‘qituvchi fikri va bahosi</h5>
           ${existingReview ? `
-            <p><strong>Tekşirildi:</strong> ${escapeHTML(existingReview)}</p>
+            <p><strong>Tekshirildi:</strong> ${escapeHTML(existingReview)}</p>
           ` : ''}
           <div style="display:flex; gap:10px; margin-top:8px;">
             <input type="text" id="review_input_${row.id}_${step}" aria-label="Fikr-mulohaza" placeholder="Fikr-mulohaza yoki baho yozing..." value="${escapeHTML(existingReview)}" class="review-input"/>
             <button class="btn-primary" style="padding:8px 16px; font-size:11px;" onclick="saveSubmissionReview(${row.id}, '${step}')">
-              <i data-lucide="check"></i> Baholaş
+              <i data-lucide="check"></i> Baholash
             </button>
           </div>
         </div>
@@ -1427,8 +1456,8 @@ async function saveSubmissionReview(progressId, step) {
 
 // ===== STEP MODAL LOGIC (STUDENT VIEW) =====
 let currentStepId = null;
-const NO_MATERIAL_HTML = '<p class="muted-text">Öqituvçi bu qadam uçun hali material qöşmagan.</p>';
-const CLOSE_STEP_BUTTON = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Yopiş</button>`;
+const NO_MATERIAL_HTML = '<p class="muted-text">O‘qituvchi bu qadam uchun hali material qo‘shmagan.</p>';
+const CLOSE_STEP_BUTTON = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Yopish</button>`;
 
 function openStep(stepIndex, isPublic = false) {
   const step = STEP_TYPES[stepIndex];
@@ -1454,9 +1483,9 @@ function openStep(stepIndex, isPublic = false) {
     body.innerHTML = hasMaterial ? `
       <div class="quiz-question">${escapeHTML(customContent.value)}</div>
       <label for="stepAnswer" class="step-label">Javobingiz</label>
-      <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni şu yerga yozing..." autocomplete="off"/>
+      <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni shu yerga yozing..." autocomplete="off"/>
     ` : NO_MATERIAL_HTML;
-    footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuboriş</button>` : CLOSE_STEP_BUTTON;
+    footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuborish</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'video') {
     const embed = customContent.value ? getYouTubeEmbedUrl(customContent.value) : null;
     body.innerHTML = embed
@@ -1464,52 +1493,52 @@ function openStep(stepIndex, isPublic = false) {
         <div class="video-container" style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; background:#000;">
           <iframe title="Video dars" loading="lazy" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" src="${embed}" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
         </div>
-        <p class="muted-text" style="margin-top:20px;">Videodarsni töliq körib bölgaç, quyidagi tugmani bosib qadamni yakunlang.</p>
+        <p class="muted-text" style="margin-top:20px;">Videodarsni to‘liq ko‘rib bo‘lgach, quyidagi tugmani bosib qadamni yakunlang.</p>
       `
       : NO_MATERIAL_HTML;
-    footer.innerHTML = embed ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Körib böldim ✅</button>` : CLOSE_STEP_BUTTON;
+    footer.innerHTML = embed ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Ko‘rib bo‘ldim ✅</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'doc') {
     body.innerHTML = hasMaterial ? `${fileCardHtml(customContent.file)}${noteHtml}` : NO_MATERIAL_HTML;
-    footer.innerHTML = hasMaterial ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Öqib çiqdim ✅</button>` : CLOSE_STEP_BUTTON;
+    footer.innerHTML = hasMaterial ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> O‘qib chiqdim ✅</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'upload') {
     body.innerHTML = `
-      <div class="step-text">${escapeHTML(customContent.value || 'Amaliy topşiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.')}</div>
+      <div class="step-text">${escapeHTML(customContent.value || 'Amaliy topshiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.')}</div>
       ${fileCardHtml(customContent.file)}
       ${isDone ? '' : `
-        <label for="stepResponse" class="step-label">Sizning yeçimingiz</label>
+        <label for="stepResponse" class="step-label">Sizning yechimingiz</label>
         <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Javobni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
         <label for="stepFile" class="step-label" style="margin-top:16px;">Yoki fayl biriktiring</label>
         <input type="file" id="stepFile" class="file-input" accept="${DOCUMENT_ACCEPT}" aria-describedby="stepFileHint"/>
-        <small id="stepFileHint" class="field-hint">PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.</small>
+        <small id="stepFileHint" class="field-hint">PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gacha.</small>
         ${UPLOAD_PROGRESS_HTML}
       `}
     `;
-    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Topşiriş</button>`;
+    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Topshirish</button>`;
   } else if (type === 'text') {
     body.innerHTML = `
-      <div class="step-text">${escapeHTML(customContent.value || 'Uşbu modul davomida nimalarni örgandingiz va ularni qanday qöllaşni rejalaştirdingiz?')}</div>
+      <div class="step-text">${escapeHTML(customContent.value || 'Ushbu modul davomida nimalarni o‘rgandingiz va ularni qanday qo‘llashni rejalashtirdingiz?')}</div>
       <label for="stepResponse" class="step-label">Refleksiya hisoboti</label>
       <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Refleksiyangizni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
     `;
-    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Hisobotni yuboriş</button>`;
+    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Hisobotni yuborish</button>`;
   }
 
   if (!currentUser) {
-    footer.innerHTML = `<button class="btn-primary" onclick="document.getElementById('stepModal').classList.remove('active'); openAuthModal('login')"><i data-lucide="log-in"></i> Davom etiş uçun kiring</button>`;
+    footer.innerHTML = `<button class="btn-primary" onclick="document.getElementById('stepModal').classList.remove('active'); openAuthModal('login')"><i data-lucide="log-in"></i> Davom etish uchun kiring</button>`;
   } else if (isDone && currentUser.role === 'student') {
     if (myResponse || myFile) {
       const isDiag = id === 'diag';
-      const diagBadge = isDiag ? (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">Töğri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>') : '';
+      const diagBadge = isDiag ? (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">To‘g‘ri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>') : '';
       body.innerHTML += `
         <div class="submitted-box">
-          <strong class="step-label">Siz topşirgan javob: ${diagBadge}</strong>
+          <strong class="step-label">Siz topshirgan javob: ${diagBadge}</strong>
           ${myResponse ? `<div style="font-size:14px; white-space:pre-wrap;">${escapeHTML(myResponse)}</div>` : ''}
           ${fileCardHtml(myFile)}
         </div>
         ${reviewBoxHtml(myReview)}
       `;
     }
-    footer.innerHTML = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="check"></i> Siz bu qadamni bajargansiz &middot; Yopiş</button>`;
+    footer.innerHTML = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="check"></i> Siz bu qadamni bajargansiz &middot; Yopish</button>`;
   } else if (currentUser.role !== 'student') {
     footer.innerHTML = CLOSE_STEP_BUTTON;
   }
@@ -1522,7 +1551,7 @@ function reviewBoxHtml(review) {
   if (!review?.feedback) return '';
   return `
     <div class="teacher-review-box">
-      <h5><i data-lucide="message-square"></i> Öqituvçi xulosasi (${escapeHTML(review.teacher_name || 'Ustoz')}):</h5>
+      <h5><i data-lucide="message-square"></i> O‘qituvchi xulosasi (${escapeHTML(review.teacher_name || 'Ustoz')}):</h5>
       <p>${escapeHTML(review.feedback)}</p>
     </div>`;
 }
@@ -1552,7 +1581,7 @@ async function completeStep(isPublic = false, button = null) {
       const res = await requestAPI('/progress', 'POST', payload);
       progressCache[currentModuleId] = res;
       if (currentStepId === 'diag') {
-        showToast(res.step_responses?.diag_correct ? 'Töğri javob! +15 ball ✅' : 'Javobingiz qabul qilindi (0 ball).', res.step_responses?.diag_correct ? 'success' : 'info');
+        showToast(res.step_responses?.diag_correct ? 'To‘g‘ri javob! +15 ball ✅' : 'Javobingiz qabul qilindi (0 ball).', res.step_responses?.diag_correct ? 'success' : 'info');
       } else {
         showToast('Qadam muvaffaqiyatli bajarildi! ✅');
       }
@@ -1572,7 +1601,7 @@ function toggleMobileNav(button) {
   const nav = document.getElementById('mainNav');
   const expanded = button.getAttribute('aria-expanded') === 'true';
   button.setAttribute('aria-expanded', String(!expanded));
-  button.setAttribute('aria-label', expanded ? 'Menyuni oçiş' : 'Menyuni yopiş');
+  button.setAttribute('aria-label', expanded ? 'Menyuni ochish' : 'Menyuni yopish');
   nav.classList.toggle('open', !expanded);
   refreshIcons();
 }
@@ -1583,7 +1612,7 @@ function sendContactMessage(event) {
   const email = document.getElementById('contactEmail').value.trim();
   const message = document.getElementById('contactMessage').value.trim();
   const subject = encodeURIComponent(`Ta'lim Nazariyasi murojaat: ${name}`);
-  const body = encodeURIComponent(`${message}\n\nYuboruvçi: ${name}\nEmail: ${email}`);
+  const body = encodeURIComponent(`${message}\n\nYuboruvchi: ${name}\nEmail: ${email}`);
   window.location.href = `mailto:info@talimnazariyasi.uz?subject=${subject}&body=${body}`;
 }
 
@@ -1596,7 +1625,7 @@ function showToast(msg, type = 'info') {
     const lower = String(msg).toLowerCase();
     if (msg.includes('✅') || lower.includes('muvaffaqiyatli') || lower.includes('saqlandi') || lower.includes('yaratildi')) {
       type = 'success';
-    } else if (lower.includes('xato') || lower.includes('nötöğri') || lower.includes('noto‘g‘ri') || lower.includes('öçirildi')) {
+    } else if (lower.includes('xato') || lower.includes('noto‘g‘ri') || lower.includes('noto‘g‘ri') || lower.includes('o‘chirildi')) {
       type = 'error';
     } else if (lower.includes('iltimos') || lower.includes('diqqat') || lower.includes('talab')) {
       type = 'warning';
@@ -1631,7 +1660,7 @@ function studentWorkHtml(rows) {
         <section class="card work-module">
           <div class="work-module-head">
             <h3>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</h3>
-            <span class="badge badge-muted">Boşlanmagan</span>
+            <span class="badge badge-muted">Boshlanmagan</span>
           </div>
         </section>`;
     }
@@ -1643,7 +1672,7 @@ function studentWorkHtml(rows) {
       const answer = responses[step.id];
       const file = step.id === 'task' ? responses.task_file : null;
       const verdict = step.id === 'diag' && done
-        ? (responses.diag_correct ? '<span class="badge badge-success">Töğri</span>' : '<span class="badge badge-muted">Nötöğri</span>')
+        ? (responses.diag_correct ? '<span class="badge badge-success">To‘g‘ri</span>' : '<span class="badge badge-muted">Noto‘g‘ri</span>')
         : '';
       return `
         <li class="work-step">
@@ -1670,16 +1699,16 @@ function studentWorkHtml(rows) {
 async function renderStudentDetail(container) {
   const rows = await fetchAPI(`/progress?user_id=${currentStudentId}`);
   if (!rows) {
-    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bo‘lmadi.</div>';
     return;
   }
   const name = rows[0]?.student_name || rows[0]?.student_login || 'Talaba';
   document.getElementById('pageTitle').textContent = name;
   container.innerHTML = `
-    <button type="button" class="back-btn" onclick="navigate('analytics')"><i data-lucide="arrow-left"></i> Tahlilga qaytiş</button>
+    <button type="button" class="back-btn" onclick="navigate('analytics')"><i data-lucide="arrow-left"></i> Tahlilga qaytish</button>
     <div class="card">
       <h3 class="card-title" style="margin-bottom:6px; border:none; padding:0;">${escapeHTML(name)}</h3>
-      <p class="muted-text">${escapeHTML(rows[0]?.student_login || '')} &middot; Modullar kesimida bajarilgan işlar</p>
+      <p class="muted-text">${escapeHTML(rows[0]?.student_login || '')} &middot; Modullar kesimida bajarilgan ishlar</p>
     </div>
     ${studentWorkHtml(rows)}
   `;
@@ -1730,13 +1759,13 @@ function renderUsers(container) {
   container.innerHTML = `
     <div class="card">
       <div class="users-toolbar">
-        <div class="segmented" role="group" aria-label="Rol böyiça filtr">
+        <div class="segmented" role="group" aria-label="Rol bo‘yicha filtr">
           <button type="button" id="usersTabStudent" aria-pressed="${usersFilter.role === 'student'}" onclick="setUsersRole('student')">Talabalar</button>
-          <button type="button" id="usersTabTeacher" aria-pressed="${usersFilter.role === 'teacher'}" onclick="setUsersRole('teacher')">Öqituvçilar</button>
+          <button type="button" id="usersTabTeacher" aria-pressed="${usersFilter.role === 'teacher'}" onclick="setUsersRole('teacher')">O‘qituvchilar</button>
         </div>
         <div class="users-search">
-          <label for="usersSearch" class="visually-hidden">İsm yoki login böyiça qidiriş</label>
-          <input id="usersSearch" type="search" placeholder="İsm yoki login böyiça qidiriş..." value="${escapeHTML(usersFilter.q)}" oninput="onUsersSearch(this.value)"/>
+          <label for="usersSearch" class="visually-hidden">Ism yoki login bo‘yicha qidirish</label>
+          <input id="usersSearch" type="search" placeholder="Ism yoki login bo‘yicha qidirish..." value="${escapeHTML(usersFilter.q)}" oninput="onUsersSearch(this.value)"/>
         </div>
       </div>
       <div id="usersTable" aria-live="polite"><div class="spinner"></div></div>
@@ -1753,16 +1782,16 @@ async function loadUsersTable() {
   const data = await fetchAPI(`/users?${params}`);
   if (!document.getElementById('usersTable')) return;
   if (!data) {
-    target.innerHTML = '<p class="muted-text">Ma\'lumotlarni yuklab bölmadi.</p>';
+    target.innerHTML = '<p class="muted-text">Ma\'lumotlarni yuklab bo‘lmadi.</p>';
     return;
   }
 
   document.getElementById('usersTabStudent').textContent = `Talabalar (${data.counts.student || 0})`;
-  document.getElementById('usersTabTeacher').textContent = `Öqituvçilar (${data.counts.teacher || 0})`;
+  document.getElementById('usersTabTeacher').textContent = `O‘qituvchilar (${data.counts.teacher || 0})`;
 
   if (!data.items.length) {
-    const label = usersFilter.role === 'student' ? 'talabalar' : 'öqituvçilar';
-    target.innerHTML = `<p class="muted-text empty-text">${usersFilter.q ? 'Qidiruv böyiça heç kim topilmadi.' : `Hozirça röyxatdan ötgan ${label} yöq.`}</p>`;
+    const label = usersFilter.role === 'student' ? 'talabalar' : 'o‘qituvchilar';
+    target.innerHTML = `<p class="muted-text empty-text">${usersFilter.q ? 'Qidiruv bo‘yicha hech kim topilmadi.' : `Hozircha ro‘yxatdan o‘tgan ${label} yo‘q.`}</p>`;
     return;
   }
 
@@ -1772,14 +1801,14 @@ async function loadUsersTable() {
     <div style="overflow-x:auto;">
       <table class="leaderboard-table">
         <thead><tr>
-          <th>F.I.Ş</th><th>Login</th>
+          <th>F.I.Sh</th><th>Login</th>
           ${isStudent ? '<th>Tugatilgan modullar</th><th>Ball</th>' : '<th>Yaratgan modullari</th>'}
-          <th>Röyxatdan ötgan</th><th>Holat</th>
+          <th>Ro‘yxatdan o‘tgan</th><th>Holat</th>
         </tr></thead>
         <tbody>
           ${data.items.map(user => `
             <tr>
-              <td data-label="F.I.Ş"><button type="button" class="link-btn" onclick="openUserProfile(${Number(user.id)})">${escapeHTML(user.name || user.login)}</button></td>
+              <td data-label="F.I.Sh"><button type="button" class="link-btn" onclick="openUserProfile(${Number(user.id)})">${escapeHTML(user.name || user.login)}</button></td>
               <td data-label="Login">${escapeHTML(user.login)}</td>
               ${isStudent
                 ? `<td data-label="Modullar">${Number(user.modules_finished)} / ${Number(user.modules_started)}</td><td data-label="Ball">${Number(user.total_score)}</td>`
@@ -1803,7 +1832,7 @@ async function loadUsersTable() {
 async function renderUserProfile(container) {
   const profile = await fetchAPI(`/users?id=${currentProfileId}`);
   if (!profile) {
-    container.innerHTML = '<div class="card">Foydalanuvçi topilmadi.</div>';
+    container.innerHTML = '<div class="card">Foydalanuvchi topilmadi.</div>';
     return;
   }
   document.getElementById('pageTitle').textContent = profile.name || profile.login;
@@ -1812,27 +1841,27 @@ async function renderUserProfile(container) {
   let extra = '';
   if (profile.role === 'student') {
     const rows = await fetchAPI(`/progress?user_id=${Number(profile.id)}`);
-    extra = rows ? studentWorkHtml(rows) : '<div class="card">Natijalarni yuklab bölmadi.</div>';
+    extra = rows ? studentWorkHtml(rows) : '<div class="card">Natijalarni yuklab bo‘lmadi.</div>';
   } else {
     extra = `
       <div class="card">
         <h3 class="card-title">Yaratgan modullari</h3>
         ${profile.modules_created.length
           ? `<ul class="plain-list">${profile.modules_created.map(m => `<li>Modul ${Number(m.order_num)}. ${escapeHTML(m.title)}</li>`).join('')}</ul>`
-          : '<p class="muted-text">Hozirça modul yaratmagan.</p>'}
+          : '<p class="muted-text">Hozircha modul yaratmagan.</p>'}
       </div>`;
   }
 
   container.innerHTML = `
-    <button type="button" class="back-btn" onclick="navigate('users')"><i data-lucide="arrow-left"></i> Foydalanuvçilar röyxatiga qaytiş</button>
+    <button type="button" class="back-btn" onclick="navigate('users')"><i data-lucide="arrow-left"></i> Foydalanuvchilar ro‘yxatiga qaytish</button>
     <div class="card">
       <h3 class="card-title">${escapeHTML(profile.name || profile.login)}</h3>
       <dl class="profile-grid">
         <div><dt>Login</dt><dd>${escapeHTML(profile.login)}</dd></div>
         <div><dt>Rol</dt><dd>${escapeHTML(ROLE_LABELS[profile.role] || profile.role)}</dd></div>
         <div><dt>Holat</dt><dd>${statusBadge(profile.status)}</dd></div>
-        <div><dt>Röyxatdan ötgan</dt><dd>${escapeHTML(formatDate(profile.created_at))}</dd></div>
-        <div><dt>Oxirgi kiriş</dt><dd>${escapeHTML(formatDate(profile.last_login_at))}</dd></div>
+        <div><dt>Ro‘yxatdan o‘tgan</dt><dd>${escapeHTML(formatDate(profile.created_at))}</dd></div>
+        <div><dt>Oxirgi kirish</dt><dd>${escapeHTML(formatDate(profile.last_login_at))}</dd></div>
       </dl>
     </div>
     ${extra}
@@ -1866,7 +1895,7 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
 const NON_INTERACTIVE_ONCLICK = '.modal-overlay, .auth-card, .modal-box, .sidebar-backdrop';
 
 function makeClickablesFocusable() {
-  document.querySelectorAll('div[onclick], span[onclick], tr[onclick]').forEach(element => {
+  document.querySelectorAll('div[onclick], span[onclick]').forEach(element => {
     if (element.matches(NON_INTERACTIVE_ONCLICK)) return;
     if (!element.getAttribute('onclick')) return; // locked steps have an empty handler
     element.setAttribute('role', 'button');

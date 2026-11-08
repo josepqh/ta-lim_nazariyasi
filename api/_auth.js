@@ -56,7 +56,7 @@ async function requireUser(req, res, roles) {
     return null;
   }
   if (roles && !roles.includes(user.role)) {
-    res.status(403).json({ error: 'Bu amal uçun ruxsat yöq.' });
+    res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
     return null;
   }
   return user;

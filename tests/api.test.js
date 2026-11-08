@@ -254,3 +254,43 @@ describe('admin user directory', () => {
     assert.equal((await admin.get('users', { id: '999999' })).statusCode, 404);
   });
 });
+
+describe('registration limit', () => {
+  const attempt = (ip) => harness.client().call('auth', {
+    method: 'POST',
+    headers: { 'x-forwarded-for': ip },
+    body: { action: 'register', name: 'Some Name', login: unique('limited'), password: 'a-valid-password' }
+  });
+
+  test('one address is stopped after ten registrations, others are not', async () => {
+    for (let i = 0; i < 10; i++) assert.equal((await attempt('203.0.113.7')).statusCode, 201);
+    assert.equal((await attempt('203.0.113.7')).statusCode, 429);
+    assert.equal((await attempt('203.0.113.8')).statusCode, 201);
+  });
+});
+
+describe('module deletion', () => {
+  test('deleting hides the module but keeps student work until restored', async () => {
+    const id = await buildFullModule(teacher);
+    await finishUntilTask(other, id);
+
+    assert.equal((await teacher.call('modules', { method: 'DELETE', query: { id: String(id) } })).statusCode, 200);
+    assert.ok(!(await student.get('modules')).body.some((m) => m.id === id));
+    assert.equal((await student.get('content', { module_id: String(id) })).body.length, 0);
+    assert.equal((await other.post('progress', { module_id: id, step_type: 'task', response: 'x' })).statusCode, 404);
+    assert.equal((await student.get('modules', { deleted: '1' })).statusCode, 403);
+    assert.ok((await teacher.get('modules', { deleted: '1' })).body.some((m) => m.id === id));
+
+    assert.equal((await teacher.post('modules', { action: 'restore', id })).statusCode, 200);
+    const rows = await other.get('progress', { module_id: String(id) });
+    assert.equal(rows.body[0].completed_steps.length, 4);
+  });
+
+  test('a position freed by deletion can be reused, and restoring into it conflicts', async () => {
+    const first = await teacher.post('modules', { order_num: 777, title: 'First' });
+    await teacher.call('modules', { method: 'DELETE', query: { id: String(first.body.id) } });
+    const second = await teacher.post('modules', { order_num: 777, title: 'Second' });
+    assert.equal(second.statusCode, 200);
+    assert.equal((await teacher.post('modules', { action: 'restore', id: first.body.id })).statusCode, 409);
+  });
+});

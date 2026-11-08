@@ -27,14 +27,15 @@ function parseOptionalId(value) {
 async function readProgress(req, res, user) {
   const moduleId = parseOptionalId(req.query.module_id);
   const studentId = parseOptionalId(req.query.user_id);
-  if (Number.isNaN(moduleId)) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
-  if (Number.isNaN(studentId)) return res.status(400).json({ error: 'Talaba raqami nötöğri.' });
+  if (Number.isNaN(moduleId)) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+  if (Number.isNaN(studentId)) return res.status(400).json({ error: 'Talaba raqami noto‘g‘ri.' });
 
   if (user.role === 'student') {
-    if (studentId !== null && studentId !== user.id) return res.status(403).json({ error: 'Bu amal uçun ruxsat yöq.' });
+    if (studentId !== null && studentId !== user.id) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
     return res.json(await sql`
       SELECT * FROM np_progress
-      WHERE user_id=${user.id} AND (${moduleId}::int IS NULL OR module_id=${moduleId}::int)`);
+      WHERE user_id=${user.id} AND (${moduleId}::int IS NULL OR module_id=${moduleId}::int)
+        AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)`);
   }
 
   return res.json(await sql`
@@ -52,9 +53,9 @@ async function saveReview(res, teacher, body) {
   const progressId = Number(body.progress_id);
   const feedback = typeof body.feedback === 'string' ? body.feedback.trim() : '';
   const step = body.step;
-  if (!Number.isSafeInteger(progressId) || progressId < 1) return res.status(400).json({ error: 'Topşiriq raqami nötöğri.' });
-  if (!REVIEWABLE_STEPS.includes(step)) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
-  if (!feedback || feedback.length > 5000) return res.status(400).json({ error: 'Fikr 1–5000 belgidan iborat bölsin.' });
+  if (!Number.isSafeInteger(progressId) || progressId < 1) return res.status(400).json({ error: 'Topshiriq raqami noto‘g‘ri.' });
+  if (!REVIEWABLE_STEPS.includes(step)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
+  if (!feedback || feedback.length > 5000) return res.status(400).json({ error: 'Fikr 1–5000 belgidan iborat bo‘lsin.' });
 
   // jsonb_set only creates the last path element, so "reviews" must exist first.
   const rows = await sql`
@@ -68,7 +69,7 @@ async function saveReview(res, teacher, body) {
         updated_at = NOW()
     WHERE id=${progressId}
     RETURNING *`;
-  if (!rows.length) return res.status(404).json({ error: 'Topşiriq topilmadi.' });
+  if (!rows.length) return res.status(404).json({ error: 'Topshiriq topilmadi.' });
   return res.json(rows[0]);
 }
 
@@ -85,9 +86,12 @@ async function completeStep(res, user, body) {
   const stepType = body.step_type;
   const response = typeof body.response === 'string' ? body.response.trim() : '';
   const stepIndex = STEP_TYPES.indexOf(stepType);
-  if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
-  if (stepIndex < 0) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
-  if (response.length > 10000) return res.status(400).json({ error: 'Javob 10 000 belgidan oşmasin.' });
+  if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+  if (stepIndex < 0) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
+  if (response.length > 10000) return res.status(400).json({ error: 'Javob 10 000 belgidan oshmasin.' });
+
+  const active = await sql`SELECT 1 FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
+  if (!active.length) return res.status(404).json({ error: 'Modul topilmadi.' });
 
   const current = await sql`
     SELECT completed_steps, total_score, step_responses
@@ -100,7 +104,7 @@ async function completeStep(res, user, body) {
   }
 
   if (STEPS_REQUIRING_MATERIAL.includes(stepType) && !(await hasMaterial(moduleId, stepType))) {
-    return res.status(409).json({ error: 'Öqituvçi bu qadam uçun material qöşmagan.' });
+    return res.status(409).json({ error: 'O‘qituvchi bu qadam uchun material qo‘shmagan.' });
   }
 
   const responses = { ...(progress.step_responses || {}) };
@@ -154,18 +158,18 @@ module.exports = async (req, res) => {
     if (!user) return;
 
     if (req.method === 'GET') return await readProgress(req, res, user);
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Ruxsat etilmagan sörov.' });
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
 
     const body = req.body && typeof req.body === 'object' ? req.body : {};
     if (body.action === 'review') {
-      if (!STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uçun ruxsat yöq.' });
+      if (!STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
       return await saveReview(res, user, body);
     }
-    if (user.role !== 'student') return res.status(403).json({ error: 'Bu amal uçun ruxsat yöq.' });
+    if (user.role !== 'student') return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
     return await completeStep(res, user, body);
   } catch (error) {
     if (error.code === '23503') return res.status(404).json({ error: 'Modul topilmadi.' });
     console.error(error);
-    return res.status(500).json({ error: 'Serverda içki xato yuz berdi.' });
+    return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

@@ -33,4 +33,4 @@ Taqdimot (`.pptx`), qo‘shimcha material va topshiriq fayllari PostgreSQL’da 
 
 ## Lokal ishlab chiqish va testlar
 
-`npm run dev` Neon’siz ishlaydi: sayt va haqiqiy API xotiradagi PostgreSQL’ga ulanadi, ma’lumotlar qayta ishga tushirilganda o‘chadi. Lokal admin hisobi `tests/helpers/harness.js` faylida. `npm test` API testlarini ishga tushiradi. Baza sxemasining ishlaydigan manbasi `api/setup.js`.
+`npm run dev` (yoki `npm start`) saytni va haqiqiy API’ni ishga tushiradi. `.env` da `DATABASE_URL` bo‘lsa, o‘sha bazaga ulanadi (avval `npm run db:setup`); bo‘lmasa ma’lumotlar lokal `.local-db/` papkasida saqlanadi. Lokal admin hisobi `tests/helpers/harness.js` faylida. `npm test` API testlarini, `npm run test:e2e` brauzer testlarini ishga tushiradi (birinchi marta `npx playwright install chromium` kerak). Baza sxemasining yagona manbasi `api/setup.js`.

@@ -13,9 +13,9 @@ function toDriverParam(value) {
   return String(value); // The Neon HTTP driver also sends every parameter as text.
 }
 
-async function createDatabase() {
+async function createDatabase(dataDir) {
   const identity = (value) => value;
-  const db = new PGlite();
+  const db = new PGlite(dataDir);
   await db.waitReady;
   const sql = async (strings, ...values) => {
     const text = strings.reduce((query, part, index) => `${query}$${index}${part}`);
@@ -66,16 +66,16 @@ function createResponse() {
   };
 }
 
-async function createHarness() {
-  const { db, sql } = await createDatabase();
+async function createHarness({ dataDir } = {}) {
+  const { db, sql } = await createDatabase(dataDir);
   const handlers = loadHandlers(sql);
   await runSetup(handlers);
 
   // A small client that keeps its own session cookie, like one browser.
   function client() {
     let cookie = '';
-    async function call(name, { method = 'GET', query = {}, body } = {}) {
-      const req = { method, query, body, headers: cookie ? { cookie } : {} };
+    async function call(name, { method = 'GET', query = {}, body, headers = {} } = {}) {
+      const req = { method, query, body, headers: cookie ? { ...headers, cookie } : headers };
       const res = createResponse();
       await handlers[name](req, res);
       const setCookie = res.headers['set-cookie'];

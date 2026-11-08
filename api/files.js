@@ -16,11 +16,11 @@ async function startUpload(res, user, body) {
   const size = Number(body.size);
   const extension = extensionOf(filename);
 
-  if (!['content', 'submission'].includes(purpose)) return res.status(400).json({ error: 'Fayl maqsadi nötöğri.' });
-  if (purpose === 'content' && !STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uçun ruxsat yöq.' });
-  if (purpose === 'submission' && user.role !== 'student') return res.status(403).json({ error: 'Topşiriqni faqat talaba yuklaydi.' });
-  if (purpose === 'submission' && stepType !== 'task') return res.status(400).json({ error: 'Fayl faqat amaliy topşiriqqa biriktiriladi.' });
-  if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
+  if (!['content', 'submission'].includes(purpose)) return res.status(400).json({ error: 'Fayl maqsadi noto‘g‘ri.' });
+  if (purpose === 'content' && !STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
+  if (purpose === 'submission' && user.role !== 'student') return res.status(403).json({ error: 'Topshiriqni faqat talaba yuklaydi.' });
+  if (purpose === 'submission' && stepType !== 'task') return res.status(400).json({ error: 'Fayl faqat amaliy topshiriqqa biriktiriladi.' });
+  if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
 
   const allowed = ALLOWED_EXTENSIONS[stepType];
   if (!allowed) return res.status(400).json({ error: 'Bu qadamga fayl biriktirilmaydi.' });
@@ -28,7 +28,7 @@ async function startUpload(res, user, body) {
     return res.status(415).json({ error: `Ruxsat etilgan formatlar: ${allowed.join(', ')}.` });
   }
   if (!Number.isSafeInteger(size) || size < 1 || size > MAX_FILE_SIZE) {
-    return res.status(413).json({ error: 'Fayl hajmi 30 MB dan oşmasin.' });
+    return res.status(413).json({ error: 'Fayl hajmi 30 MB dan oshmasin.' });
   }
 
   const modules = await sql`SELECT id FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
@@ -40,7 +40,7 @@ async function startUpload(res, user, body) {
     const done = await sql`
       SELECT 1 FROM np_progress
       WHERE user_id=${user.id} AND module_id=${moduleId} AND completed_steps ? 'task' LIMIT 1`;
-    if (done.length) return res.status(409).json({ error: 'Bu topşiriq allaqaçon yuborilgan.' });
+    if (done.length) return res.status(409).json({ error: 'Bu topshiriq allaqachon yuborilgan.' });
     // Until the step is submitted, earlier uploads for it are abandoned attempts.
     await sql`
       DELETE FROM np_files
@@ -49,7 +49,7 @@ async function startUpload(res, user, body) {
 
   const pending = await sql`SELECT COUNT(*)::int AS n FROM np_files WHERE owner_id=${user.id} AND status='uploading'`;
   if (pending[0].n >= MAX_PENDING_UPLOADS) {
-    return res.status(429).json({ error: 'Tugallanmagan yuklaşlar köp. Bir ozdan keyin urinib köring.' });
+    return res.status(429).json({ error: 'Tugallanmagan yuklashlar ko‘p. Bir ozdan keyin urinib ko‘ring.' });
   }
 
   const totalChunks = Math.ceil(size / CHUNK_SIZE);
@@ -62,7 +62,7 @@ async function startUpload(res, user, body) {
 
 async function loadOwnUpload(res, user, id) {
   if (!isUuid(id)) {
-    res.status(400).json({ error: 'Fayl raqami nötöğri.' });
+    res.status(400).json({ error: 'Fayl raqami noto‘g‘ri.' });
     return null;
   }
   const rows = await sql`
@@ -73,7 +73,7 @@ async function loadOwnUpload(res, user, id) {
     return null;
   }
   if (rows[0].status !== 'uploading') {
-    res.status(409).json({ error: 'Fayl yuklaş allaqaçon yakunlangan.' });
+    res.status(409).json({ error: 'Fayl yuklash allaqachon yakunlangan.' });
     return null;
   }
   return rows[0];
@@ -85,16 +85,16 @@ async function saveChunk(res, user, body) {
 
   const index = Number(body.index);
   if (!Number.isSafeInteger(index) || index < 0 || index >= file.total_chunks) {
-    return res.status(400).json({ error: 'Fayl bölagi raqami nötöğri.' });
+    return res.status(400).json({ error: 'Fayl bo‘lagi raqami noto‘g‘ri.' });
   }
   if (typeof body.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(body.data)) {
-    return res.status(400).json({ error: 'Fayl bölagi nötöğri.' });
+    return res.status(400).json({ error: 'Fayl bo‘lagi noto‘g‘ri.' });
   }
 
   const bytes = Buffer.from(body.data, 'base64');
   const isLast = index === file.total_chunks - 1;
   const expectedLength = isLast ? Number(file.size_bytes) - CHUNK_SIZE * (file.total_chunks - 1) : CHUNK_SIZE;
-  if (bytes.length !== expectedLength) return res.status(400).json({ error: 'Fayl bölagi hajmi nötöğri.' });
+  if (bytes.length !== expectedLength) return res.status(400).json({ error: 'Fayl bo‘lagi hajmi noto‘g‘ri.' });
 
   if (index === 0 && !matchesSignature(file.extension, bytes)) {
     await sql`DELETE FROM np_files WHERE id=${file.id}::uuid`;
@@ -117,7 +117,7 @@ async function finishUpload(res, user, body) {
     SELECT COUNT(*)::int AS n, COALESCE(SUM(octet_length(data)), 0)::bigint AS bytes
     FROM np_file_chunks WHERE file_id=${file.id}::uuid`;
   if (totals[0].n !== file.total_chunks || Number(totals[0].bytes) !== Number(file.size_bytes)) {
-    return res.status(409).json({ error: 'Fayl töliq yuklanmadi. Qayta urinib köring.' });
+    return res.status(409).json({ error: 'Fayl to‘liq yuklanmadi. Qayta urinib ko‘ring.' });
   }
 
   await sql`UPDATE np_files SET status='ready', completed_at=NOW() WHERE id=${file.id}::uuid`;
@@ -126,7 +126,7 @@ async function finishUpload(res, user, body) {
 
 async function readFile(req, res, user) {
   const { id } = req.query;
-  if (!isUuid(id)) return res.status(400).json({ error: 'Fayl raqami nötöğri.' });
+  if (!isUuid(id)) return res.status(400).json({ error: 'Fayl raqami noto‘g‘ri.' });
 
   const rows = await sql`
     SELECT id, owner_id, purpose, filename, size_bytes, total_chunks FROM np_files
@@ -142,7 +142,7 @@ async function readFile(req, res, user) {
 
   const index = Number(req.query.chunk);
   if (!Number.isSafeInteger(index) || index < 0 || index >= file.total_chunks) {
-    return res.status(400).json({ error: 'Fayl bölagi raqami nötöğri.' });
+    return res.status(400).json({ error: 'Fayl bo‘lagi raqami noto‘g‘ri.' });
   }
   const chunks = await sql`
     SELECT replace(encode(data, 'base64'), E'\n', '') AS data
@@ -154,7 +154,7 @@ async function readFile(req, res, user) {
 module.exports = async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'Ruxsat etilmagan sörov.' });
+    if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
 
     const user = await requireUser(req, res);
     if (!user) return;
@@ -164,9 +164,9 @@ module.exports = async (req, res) => {
     if (body.action === 'init') return await startUpload(res, user, body);
     if (body.action === 'chunk') return await saveChunk(res, user, body);
     if (body.action === 'complete') return await finishUpload(res, user, body);
-    return res.status(400).json({ error: 'Nötöğri sörov.' });
+    return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Serverda içki xato yuz berdi.' });
+    return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

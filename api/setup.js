@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE np_users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
 
     // Users Indexes
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_users_login ON np_users(login)`;
+    await sql`DROP INDEX IF EXISTS idx_np_users_login`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_users_role ON np_users(role)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_users_status_deleted ON np_users(status, deleted_at)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_users_created_at ON np_users(created_at DESC)`;
@@ -72,7 +72,7 @@ module.exports = async (req, res) => {
     await sql`ALTER TABLE np_modules ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ`;
 
     // Modules Indexes
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_modules_order ON np_modules(order_num)`;
+    await sql`DROP INDEX IF EXISTS idx_np_modules_order`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_modules_created_by ON np_modules(created_by)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_modules_deleted_at ON np_modules(deleted_at)`;
 
@@ -114,90 +114,19 @@ module.exports = async (req, res) => {
     // Progress Indexes
     await sql`CREATE INDEX IF NOT EXISTS idx_np_progress_user_id ON np_progress(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_progress_module_id ON np_progress(module_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_progress_user_mod ON np_progress(user_id, module_id)`;
+    await sql`DROP INDEX IF EXISTS idx_np_progress_user_mod`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_progress_mod_updated ON np_progress(module_id, updated_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_progress_score ON np_progress(total_score DESC)`;
 
-    // 5. Enterprise RBAC Tables
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_roles (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(50) UNIQUE NOT NULL,
-        system_type VARCHAR(20) NOT NULL,
-        description VARCHAR(255),
-        is_default BOOLEAN DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_roles_system_type ON np_roles(system_type)`;
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_permissions (
-        id SERIAL PRIMARY KEY,
-        action VARCHAR(50) NOT NULL,
-        resource VARCHAR(50) NOT NULL,
-        slug VARCHAR(100) UNIQUE NOT NULL,
-        description VARCHAR(255),
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(action, resource)
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_permissions_resource ON np_permissions(resource)`;
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_user_roles (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES np_users(id) ON DELETE CASCADE,
-        role_id INTEGER REFERENCES np_roles(id) ON DELETE CASCADE,
-        assigned_at TIMESTAMPTZ DEFAULT NOW(),
-        assigned_by INTEGER REFERENCES np_users(id) ON DELETE SET NULL,
-        UNIQUE(user_id, role_id)
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_user_roles_role_id ON np_user_roles(role_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_user_roles_user_id ON np_user_roles(user_id)`;
-
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_role_permissions (
-        id SERIAL PRIMARY KEY,
-        role_id INTEGER REFERENCES np_roles(id) ON DELETE CASCADE,
-        permission_id INTEGER REFERENCES np_permissions(id) ON DELETE CASCADE,
-        assigned_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(role_id, permission_id)
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_role_permissions_role ON np_role_permissions(role_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_role_permissions_perm ON np_role_permissions(permission_id)`;
-
-    // Seed default roles
-    await sql`
-      INSERT INTO np_roles (name, system_type, description, is_default)
-      VALUES 
-        ('admin', 'ADMIN', 'Tizim to‘liq boshqaruvchisi', false),
-        ('teacher', 'MANAGER', 'O‘qituvchi va kontent moderatori', false),
-        ('student', 'CLIENT', 'Talaba va o‘quvchi', true)
-      ON CONFLICT (name) DO NOTHING;
-    `;
-
-    // 6. Audit Logs Table
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_audit_logs (
-        id BIGSERIAL PRIMARY KEY,
-        actor_id INTEGER REFERENCES np_users(id) ON DELETE SET NULL,
-        action VARCHAR(50) NOT NULL,
-        entity_name VARCHAR(100) NOT NULL,
-        entity_id VARCHAR(64),
-        old_values JSONB,
-        new_values JSONB,
-        ip_address VARCHAR(45),
-        user_agent TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_audit_entity ON np_audit_logs(entity_name, entity_id)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_audit_actor ON np_audit_logs(actor_id, created_at DESC)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_audit_action_created ON np_audit_logs(action, created_at DESC)`;
+    // Tables from an abandoned design; the application never used them.
+    for (const statement of [
+      sql`DROP TABLE IF EXISTS np_role_permissions`,
+      sql`DROP TABLE IF EXISTS np_user_roles`,
+      sql`DROP TABLE IF EXISTS np_permissions`,
+      sql`DROP TABLE IF EXISTS np_roles`,
+      sql`DROP TABLE IF EXISTS np_audit_logs`,
+      sql`DROP TABLE IF EXISTS np_notifications`
+    ]) await statement;
 
     // 7. Sessions Table
     await sql`
@@ -215,29 +144,24 @@ module.exports = async (req, res) => {
       );
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_np_sessions_active ON np_sessions(user_id, is_valid, expires_at)`;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_sessions_token ON np_sessions(token_hash)`;
-
-    // 8. Notifications Table
-    await sql`
-      CREATE TABLE IF NOT EXISTS np_notifications (
-        id BIGSERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES np_users(id) ON DELETE CASCADE,
-        type VARCHAR(50) DEFAULT 'SYSTEM_ALERT',
-        priority VARCHAR(20) DEFAULT 'MEDIUM',
-        title VARCHAR(200) NOT NULL,
-        message TEXT NOT NULL,
-        data JSONB DEFAULT '{}'::jsonb,
-        is_read BOOLEAN DEFAULT false,
-        read_at TIMESTAMPTZ,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        deleted_at TIMESTAMPTZ
-      );
-    `;
-    await sql`CREATE INDEX IF NOT EXISTS idx_np_notif_user_unread ON np_notifications(user_id, is_read, deleted_at, created_at DESC)`;
+    await sql`DROP INDEX IF EXISTS idx_np_sessions_token`;
 
     await sql`ALTER TABLE np_modules ALTER COLUMN created_at TYPE TIMESTAMPTZ`;
     await sql`ALTER TABLE np_module_content ALTER COLUMN updated_at TYPE TIMESTAMPTZ`;
     await sql`ALTER TABLE np_progress ALTER COLUMN updated_at TYPE TIMESTAMPTZ`;
+
+    // Deleted modules keep their row, so only active ones must have a unique position.
+    await sql`ALTER TABLE np_modules DROP CONSTRAINT IF EXISTS np_modules_order_num_key`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS uq_np_modules_active_order ON np_modules(order_num) WHERE deleted_at IS NULL`;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS np_rate_limits (
+        bucket TEXT PRIMARY KEY,
+        window_start TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        hits INTEGER NOT NULL DEFAULT 0
+      );
+    `;
+    await sql`DELETE FROM np_rate_limits WHERE window_start < NOW() - INTERVAL '1 day'`;
 
     // 9. Uploaded files, stored in chunks so each request fits the serverless body limit.
     await sql`
@@ -293,18 +217,10 @@ module.exports = async (req, res) => {
     }
 
     const passwordHash = await hashPassword(adminPassword);
-    const adminRows = await sql`
+    await sql`
       INSERT INTO np_users(name, login, password, role)
       VALUES(${adminName}, ${adminLogin}, ${passwordHash}, 'admin')
-      ON CONFLICT(login) DO UPDATE SET name=EXCLUDED.name, password=EXCLUDED.password, role='admin', status='active', deleted_at=NULL, failed_login_count=0, lockout_until=NULL
-      RETURNING id`;
-
-    if (adminRows.length) {
-      await sql`
-        INSERT INTO np_user_roles(user_id, role_id)
-        SELECT ${adminRows[0].id}, id FROM np_roles WHERE name='admin'
-        ON CONFLICT(user_id, role_id) DO NOTHING`;
-    }
+      ON CONFLICT(login) DO UPDATE SET name=EXCLUDED.name, password=EXCLUDED.password, role='admin', status='active', deleted_at=NULL, failed_login_count=0, lockout_until=NULL`;
 
     return res.status(200).json({ message: 'Database schema configured.' });
   } catch (error) {
