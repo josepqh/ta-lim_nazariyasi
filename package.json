@@ -2,8 +2,21 @@
   "name": "talimnazariyasi",
   "version": "1.0.0",
   "description": "Ta'lim nazariyasi platformasi",
+  "scripts": {
+    "start": "npx vercel dev",
+    "dev": "node tests/dev-server.js",
+    "dev:vercel": "npx vercel dev",
+    "db:setup": "node run_setup.js",
+    "test": "node --test tests/api.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.5",
     "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15"
   }
 }

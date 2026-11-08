@@ -1,35 +1,105 @@
 const sql = require('./_db');
+const { getSessionUser, requireUser } = require('./_auth');
+const { deleteOtherContentFiles, findAttachable } = require('./_files');
 
-const cors = (res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-};
+const STEP_TYPES = new Set(['diag', 'video', 'pres', 'doc', 'task', 'refl']);
+const FILE_REQUIRED_STEPS = new Set(['pres', 'doc']);
+const FILE_ALLOWED_STEPS = new Set(['pres', 'doc', 'task']);
+
+function isYouTubeUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    let videoId = '';
+    if (host === 'youtu.be') videoId = url.pathname.slice(1).split('/')[0];
+    if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) {
+      if (url.pathname === '/watch') videoId = url.searchParams.get('v') || '';
+      else videoId = url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1] || '';
+    }
+    return /^[\w-]{11}$/.test(videoId);
+  } catch {
+    return false;
+  }
+}
 
 module.exports = async (req, res) => {
-  cors(res);
-  if (req.method === 'OPTIONS') return res.status(200).end();
-
   try {
     if (req.method === 'GET') {
-      const { module_id } = req.query;
-      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${module_id}`;
-      return res.json(rows);
+      const moduleId = Number(req.query.module_id);
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
+
+      const rows = await sql`SELECT * FROM np_module_content WHERE module_id=${moduleId}`;
+      const user = await getSessionUser(req);
+      if (user && ['teacher', 'admin'].includes(user.role)) return res.json(rows);
+
+      const publicRows = rows.map((row) => {
+        if (row.step_type !== 'diag' || !row.content || typeof row.content !== 'object') return row;
+        const publicContent = { ...row.content };
+        delete publicContent.answer;
+        return { ...row, content: publicContent };
+      });
+      return res.json(publicRows);
     }
 
     if (req.method === 'POST') {
-      const { module_id, step_type, content, updated_by } = req.body;
+      const user = await requireUser(req, res, ['teacher', 'admin']);
+      if (!user) return;
+
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      const moduleId = Number(body.module_id);
+      const stepType = body.step_type;
+      const value = typeof body.content?.value === 'string' ? body.content.value.trim() : '';
+      const answer = typeof body.content?.answer === 'string' ? body.content.answer.trim() : '';
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
+      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
+      if (value.length > 30000) return res.status(400).json({ error: 'Material 30 000 belgidan oşmasin.' });
+      if (!FILE_REQUIRED_STEPS.has(stepType) && !value) return res.status(400).json({ error: 'Material matnini kiriting.' });
+      if (stepType === 'diag' && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigança).' });
+      if (stepType === 'video' && !isYouTubeUrl(value)) return res.status(400).json({ error: 'HTTPS YouTube havolasini kiriting.' });
+
+      const fileId = body.content?.file_id ?? null;
+      let file = null;
+      if (fileId !== null) {
+        if (!FILE_ALLOWED_STEPS.has(stepType)) return res.status(400).json({ error: 'Bu qadamga fayl biriktirilmaydi.' });
+        file = await findAttachable(fileId, { purpose: 'content', moduleId, stepType });
+        if (!file) return res.status(400).json({ error: 'Biriktirilgan fayl topilmadi.' });
+      }
+      if (FILE_REQUIRED_STEPS.has(stepType) && !file) return res.status(400).json({ error: 'Faylni yuklang.' });
+
+      const content = { value };
+      if (stepType === 'diag') content.answer = answer;
+      if (file) content.file = file;
+      const serialized = JSON.stringify(content);
+
       const rows = await sql`
         INSERT INTO np_module_content(module_id, step_type, content, updated_by)
-        VALUES(${module_id}, ${step_type}, ${JSON.stringify(content)}, ${updated_by})
+        VALUES(${moduleId}, ${stepType}, ${serialized}, ${user.id})
         ON CONFLICT(module_id, step_type) DO UPDATE
-          SET content=${JSON.stringify(content)}, updated_by=${updated_by}, updated_at=NOW()
+          SET content=${serialized}, updated_by=${user.id}, updated_at=NOW()
         RETURNING *`;
+      if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, file ? file.id : null);
       return res.json(rows[0]);
     }
 
-    return res.status(405).end();
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+    if (req.method === 'DELETE') {
+      const user = await requireUser(req, res, ['teacher', 'admin']);
+      if (!user) return;
+
+      const moduleId = Number(req.query.module_id || req.body?.module_id);
+      const stepType = req.query.step_type || req.body?.step_type;
+      if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami nötöğri.' });
+      if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi nötöğri.' });
+
+      await sql`DELETE FROM np_module_content WHERE module_id=${moduleId} AND step_type=${stepType}`;
+      if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, null);
+      return res.json({ ok: true });
+    }
+
+    return res.status(405).json({ error: 'Ruxsat etilmagan sörov.' });
+  } catch (error) {
+    if (error.code === '23503') return res.status(404).json({ error: 'Modul topilmadi.' });
+    console.error(error);
+    return res.status(500).json({ error: 'Serverda içki xato yuz berdi.' });
   }
 };

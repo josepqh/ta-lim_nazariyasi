@@ -3,33 +3,54 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F5"/>
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B1A18"/>
   <title>Ta'lim Nazariyasi — Zamonaviy Ta'lim Platformasi</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Montserrat:wght@300;400;500&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
+  <link rel="icon" type="image/png" href="assets/logo-256.png"/>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet"/>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js" integrity="sha384-zYPBGXwO4633CABX/5Spf6emCKUJCfoOkhOMYyxMsatqQZPnDblmmOewfjsIVWCM" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="style.css?v=12"/>
 </head>
 <body>
+<a class="skip-link" href="#mainContent">Asosiy mazmunga ötiş</a>
 
 <!-- ════════ PUBLIC WEBSITE ════════ -->
 <div id="public-website">
   <!-- NAVBAR -->
   <nav class="navbar" id="navbar">
     <div class="nav-container">
-      <a href="#" class="logo" onclick="showPublicSection('home')">
-        Ta'lim Nazariyasi
+      <a href="#" class="logo brand-logo" onclick="showPublicSection('home')">
+        <img src="assets/logo-256.png" alt="Ta'lim Nazariyasi Logo" class="brand-logo-img"/>
+        <div class="brand-text-wrap">
+          <span class="brand-name">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
+          <span class="brand-tagline">Neyropedagogik Platforma</span>
+        </div>
       </a>
-      <ul class="nav-links">
-        <li><a href="#" onclick="showPublicSection('home')">Bosh sahifa</a></li>
-        <li><a href="#" onclick="showPublicSection('public-modules')">Modullar</a></li>
-        <li><a href="#" onclick="showPublicSection('public-news')">Yangiliklar</a></li>
-        <li><a href="#" onclick="showPublicSection('public-contact')">Aloqa</a></li>
+      <button class="mobile-menu-btn" type="button" aria-label="Menyuni oçiş" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
+        <i data-lucide="menu"></i>
+      </button>
+      <ul class="nav-links" id="mainNav">
+        <li><a href="#" onclick="showPublicSection('home')"><i data-lucide="home"></i> Boş sahifa</a></li>
+        <li><a href="#" onclick="showPublicSection('public-modules')"><i data-lucide="layers"></i> Modullar</a></li>
+        <li><a href="#" onclick="showPublicSection('public-news')"><i data-lucide="newspaper"></i> Maqolalar</a></li>
+        <li><a href="#" onclick="showPublicSection('public-contact')"><i data-lucide="mail"></i> Aloqa</a></li>
       </ul>
       <div class="nav-auth" id="navAuth">
-        <button class="btn-nav" onclick="openAuthModal('register')">Ro'yxatdan o'tish</button>
-        <button class="btn-primary" onclick="openAuthModal('login')">Kirish</button>
+        <button class="btn-nav" onclick="openAuthModal('register')">
+          <i data-lucide="user-plus"></i> Röyxatdan ötış
+        </button>
+        <button class="btn-primary" onclick="openAuthModal('login')">
+          <i data-lucide="log-in"></i> Kiriş
+        </button>
       </div>
       <div class="nav-user" id="navUser" style="display:none; align-items:center; gap:15px;">
-        <span id="navUserName" style="font-weight:500; color:var(--text-main);"></span>
-        <button class="btn-primary" onclick="logout()" style="padding:6px 12px; font-size:14px;">Chiqish</button>
+        <span id="navUserName" style="font-weight:500; color:var(--text-main); display:inline-flex; align-items:center; gap:6px;"></span>
+        <button class="btn-primary" onclick="logout()" style="padding:6px 14px; font-size:12px; gap:6px;">
+          <i data-lucide="log-out"></i> Çiqiş
+        </button>
       </div>
     </div>
   </nav>
@@ -45,25 +66,29 @@
         <div class="hero-bg"></div>
         <div class="hero-overlay"></div>
         <div class="hero-content">
-          <span class="hero-badge">Ilmiy Yondashuv &middot; 10 ta Modul</span>
-          <h1 class="hero-title">Ta'limning ilg'or<br/><em>usullarini</em><br/>kashf eting</h1>
-          <p class="hero-desc">Ta'lim nazariyasi &mdash; pedagogikaning asosiy yo'nalishlaridan biri. O'qituvchilar, ota-onalar va talabalar uchun maxsus ta'lim platformasi.</p>
+          <span class="hero-badge"><i data-lucide="brain" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Ilmiy yondaşuv &middot; 6 qadamli kurslar</span>
+          <h1 class="hero-title">Ta'limning ilğor<br/><span>usullarini</span><br/>kaşf eting</h1>
+          <p class="hero-desc">Ta'lim nazariyasini örganiş, öquv materiallari bilan işlaş va bilimni amaliyotda sinaş uçun zamonaviy platforma.</p>
           <div class="hero-buttons">
-            <button class="btn-primary" onclick="openAuthModal('register')">Platformaga Qo'shilish</button>
-            <button class="btn-outline-white" onclick="showPublicSection('public-modules')">Modullar Bilan Tanishish</button>
+            <button class="btn-primary" onclick="openAuthModal('register')">
+              <i data-lucide="arrow-right-circle"></i> Platformaga Qöşiliş
+            </button>
+            <button class="btn-outline-white" onclick="showPublicSection('public-modules')">
+              <i data-lucide="library"></i> Modullar Bilan Tanişiş
+            </button>
           </div>
         </div>
       </div>
 
       <!-- STATS BAR -->
       <div class="stats-bar">
-        <div class="stat-item"><span class="stat-num">10</span><span class="stat-label">Ta'lim Moduli</span></div>
+        <div class="stat-item"><span class="stat-num">6</span><span class="stat-label">Har bir moduldagi qadam</span></div>
         <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">500+</span><span class="stat-label">O'qituvchi tayyorlangan</span></div>
+        <div class="stat-item"><span class="stat-num">3</span><span class="stat-label">Foydalanuvçi roli</span></div>
         <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">12</span><span class="stat-label">Yillik Tajriba</span></div>
+        <div class="stat-item"><span class="stat-num">1</span><span class="stat-label">Yagona platforma</span></div>
         <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">98%</span><span class="stat-label">Mamnunlik darajasi</span></div>
+        <div class="stat-item"><span class="stat-num">Öz</span><span class="stat-label">sur'atingizda örganing</span></div>
       </div>
 
       <!-- ABOUT -->
@@ -71,20 +96,22 @@
         <div class="container">
           <div class="about-grid">
             <div class="about-img-wrap">
-              <img src="https://images.unsplash.com/photo-1629709305580-5a833dc72d4a?w=700&auto=format&fit=crop" alt="Ta'lim jarayoni" onerror="this.src='https://images.unsplash.com/photo-1559757175-5700dde675bc?w=700&auto=format&fit=crop'" />
+              <img src="assets/about_team.png?v=2" alt="Ta'lim nazariyasi — dars jarayoni va birgalikda örganiş" loading="lazy" />
             </div>
             <div class="about-text">
               <span class="section-tag">Biz Haqimizda</span>
               <h2 class="section-title">Ta'lim nazariyasi nima?</h2>
-              <p>Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va shakllarini o'rganuvchi fan. U ta'lim-tarbiya jarayonini eng samarali tashkil etish yo'llarini taklif etadi.</p>
-              <p style="margin-top:15px">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini o'rganasiz va ularni amalda qo'llashni o'rganasiz.</p>
+              <p>Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va şakllarini örganuvçi fan. U ta'lim-tarbiya jarayonini eng samarali taşkil etiş yöllarini taklif etadi.</p>
+              <p style="margin-top:15px">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini örganasiz va ularni amalda qöllaşni özlaştirasiz.</p>
               <div class="about-features">
-                <div class="feat-item"><span class="feat-check">&#10003;</span> Ilmiy asoslangan metodologiya</div>
-                <div class="feat-item"><span class="feat-check">&#10003;</span> Amaliy mashg'ulotlar va seminarlar</div>
-                <div class="feat-item"><span class="feat-check">&#10003;</span> Individual yondashuv</div>
-                <div class="feat-item"><span class="feat-check">&#10003;</span> 10 ta chuqurlashtirilgan modul</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Ilmiy asoslangan metodologiya</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Bosqiçma-bosqiç öquv jarayoni</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Özlaştiriş jarayoni saqlanadi</div>
+                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Öqituvçi qöşgan materiallar</div>
               </div>
-              <button class="btn-primary" style="margin-top:30px" onclick="openAuthModal('register')">Boshlash</button>
+              <button class="btn-primary" style="margin-top:30px" onclick="openAuthModal('register')">
+                <i data-lucide="arrow-right"></i> Boşlaş
+              </button>
             </div>
           </div>
         </div>
@@ -96,28 +123,28 @@
           <div class="section-header">
             <span class="section-tag">Xizmatlarimiz</span>
             <h2 class="section-title">Nima taklif etamiz?</h2>
-            <p class="section-desc">O'qituvchilardan tortib ota-onalargacha &mdash; har bir guruh uchun maxsus dasturlar</p>
+            <p class="section-desc">Talabalar bilimni örganadi, öqituvçilar esa kurs materiallari, grafik tahlillar va javoblarni boşqaradi.</p>
           </div>
           <div class="features-grid">
             <div class="feat-card">
-              <div class="feat-icon">&#127979;</div>
-              <h3>O'qituvchilar uchun</h3>
-              <p>Zamonaviy o'qitish strategiyalari, innovatsion metodlar va ta'lim texnologiyalari.</p>
+              <div class="feat-icon"><i data-lucide="graduation-cap"></i></div>
+              <h3>Öqituvçilar uçun</h3>
+              <p>Modullarni boşqaring, video va matnli materiallar qöşing, talabalar topşiriqlarini tekşiring.</p>
             </div>
             <div class="feat-card">
-              <div class="feat-icon">&#128106;</div>
-              <h3>Ota-onalar maktabi</h3>
-              <p>Farzandingiz qanday ta'lim oladi? Ilmiy javoblar va amaliy maslahatlar.</p>
+              <div class="feat-icon"><i data-lucide="users"></i></div>
+              <h3>Talabalar uçun</h3>
+              <p>Modullarni ketma-ket örganing, savollarga javob bering va özlaştiriş jarayonini kuzating.</p>
             </div>
             <div class="feat-card">
-              <div class="feat-icon">&#128187;</div>
+              <div class="feat-icon"><i data-lucide="monitor-play"></i></div>
               <h3>Online kurslar</h3>
-              <p>Qulay vaqtda, o'z sur'atingizda onlayn formatda o'rganish. Video darslar va sertifikat.</p>
+              <p>Öqituvçi kiritgan video darslar, taqdimotlar va amaliy topşiriqlar majmuasi.</p>
             </div>
             <div class="feat-card">
-              <div class="feat-icon">&#128300;</div>
-              <h3>Ilmiy tadqiqotlar</h3>
-              <p>O'zbek ta'lim muhitida ilg'or pedagogik tadqiqotlar olib borish va nashr etish.</p>
+              <div class="feat-icon"><i data-lucide="bar-chart-2"></i></div>
+              <h3>Grafik tahlillar</h3>
+              <p>Test natijalari, bajarilgan qadamlar va reytinglar interaktiv grafiklarda aks etadi.</p>
             </div>
           </div>
         </div>
@@ -126,10 +153,7 @@
       <!-- QUOTE -->
       <div class="home-quote">
         <div class="container">
-          <blockquote>
-            &ldquo;Ta'lim - bu insonni kamolotga yetaklovchi asosiy vositadir. Bizning vazifamiz &mdash; sifatli ta'lim berish.&rdquo;
-            <cite>&mdash; Ta'lim nazariyasi namoyondalaridan</cite>
-          </blockquote>
+          <p class="quote-text">Ta'lim inson kamolotiga yöl oçadi.</p>
         </div>
       </div>
 
@@ -139,9 +163,9 @@
     <section id="public-modules" class="public-section">
       <div class="container section">
         <div class="section-header">
-          <span class="section-tag">O'quv Dasturi</span>
+          <span class="section-tag">Öquv Dasturi</span>
           <h2 class="section-title">Ta'lim Nazariyasi Modullari</h2>
-          <p class="section-desc">Platformamizda jami 10 ta chuqurlashtirilgan modul mavjud. Har bir modul nazariy va amaliy qismlarni o'z ichiga oladi.</p>
+          <p class="section-desc">Har bir modul nazariy va amaliy qismlarni öz içiga oladi. Öquv jarayoni bosqiçma-bosqiç taşkil etilgan.</p>
         </div>
         <div class="public-grid" id="publicModulesList">
           <!-- Populated by JS -->
@@ -156,12 +180,12 @@
       </div>
     </section>
 
-    <!-- NEWS SECTION -->
+    <!-- LEARNING GUIDES -->
     <section id="public-news" class="public-section">
       <div class="container section">
         <div class="section-header">
-          <span class="section-tag">Yangiliklar</span>
-          <h2 class="section-title">So'nggi Yangiliklar</h2>
+          <span class="section-tag">Foydali mavzular</span>
+          <h2 class="section-title">Öqitiş va örganiş böyiça tavsiyalar</h2>
         </div>
         <div class="public-grid" id="publicNewsList">
           <!-- Populated by JS -->
@@ -174,19 +198,21 @@
       <div class="container section">
         <div class="section-header">
           <span class="section-tag">Aloqa</span>
-          <h2 class="section-title">Biz bilan bog'laning</h2>
+          <h2 class="section-title">Biz bilan boğlaning</h2>
         </div>
         <div class="contact-wrap">
           <div class="contact-info">
-            <p>📍 Toshkent sh., Mirzo Ulug'bek ko'chasi, 45-uy</p>
-            <p>📞 +998 90 123 45 67</p>
-            <p>✉️ info@talimnazariyasi.uz</p>
+            <p><i data-lucide="map-pin"></i> Toşkent ş., Mirzo Uluğbek köçasi, 45-uy</p>
+            <p><i data-lucide="phone"></i> +998 90 123 45 67</p>
+            <p><i data-lucide="mail"></i> info@talimnazariyasi.uz</p>
           </div>
-          <form class="contact-form" onsubmit="event.preventDefault(); alert('Xabar yuborildi!'); this.reset();">
-            <input type="text" placeholder="Ismingiz" required />
-            <input type="email" placeholder="Emailingiz" required />
-            <textarea rows="4" placeholder="Xabaringiz..." required></textarea>
-            <button type="submit" class="btn-primary">Yuborish</button>
+          <form class="contact-form" onsubmit="sendContactMessage(event)">
+            <input type="text" id="contactName" placeholder="İsmingiz" autocomplete="name" required />
+            <input type="email" id="contactEmail" placeholder="Emailingiz" autocomplete="email" required />
+            <textarea id="contactMessage" rows="4" placeholder="Xabaringiz..." required></textarea>
+            <button type="submit" class="btn-primary">
+              <i data-lucide="send"></i> Email orqali yuboriş
+            </button>
           </form>
         </div>
       </div>
@@ -196,87 +222,116 @@
 </div>
 
 <!-- ════════ AUTH MODAL ════════ -->
-<div id="authModal" class="modal-overlay" onclick="closeAuthModal(event)">
+<div id="authModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="authTitle" onclick="closeAuthModal(event)">
   <div class="auth-card" onclick="event.stopPropagation()">
-    <button class="modal-close-btn" onclick="document.getElementById('authModal').classList.remove('active')">✕</button>
+    <button class="modal-close-btn" aria-label="Yopish" onclick="document.getElementById('authModal').classList.remove('active')">&times;</button>
     
     <div class="auth-header">
-      <h2 id="authTitle" class="gradient-text">Tizimga Kirish</h2>
-      <p id="authSubtitle">Platformadan foydalanish uchun o'z rolingizni tanlang</p>
+      <h2 id="authTitle" class="gradient-text">Tizimga Kiriş</h2>
+      <p id="authSubtitle">Platformadan foydalaniş uçun öz rolingizni tanlang</p>
     </div>
 
     <!-- Login Form -->
     <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
       <div class="role-tabs">
-        <div class="role-tab active" data-role="student" onclick="selectRole('student', this)">👨‍🎓 Talaba</div>
-        <div class="role-tab" data-role="teacher" onclick="selectRole('teacher', this)">👩‍🏫 O'qituvchi</div>
-        <div class="role-tab" data-role="admin" onclick="selectRole('admin', this)">⚙️ Admin</div>
+        <div class="role-tab active" data-role="student" onclick="selectRole('student', this)">
+          <i data-lucide="user"></i> Talaba
+        </div>
+        <div class="role-tab" data-role="teacher" onclick="selectRole('teacher', this)">
+          <i data-lucide="graduation-cap"></i> Öqituvçi
+        </div>
+        <div class="role-tab" data-role="admin" onclick="selectRole('admin', this)">
+          <i data-lucide="shield"></i> Administrator
+        </div>
       </div>
       <div class="form-group">
-        <label>Login</label>
-        <input type="text" id="loginUser" placeholder="Loginni kiriting" required/>
+        <label for="loginUser">Login</label>
+        <input type="text" id="loginUser" spellcheck="false" autocapitalize="none" placeholder="Loginni kiriting" maxlength="50" autocomplete="username" required/>
       </div>
       <div class="form-group">
-        <label>Parol</label>
-        <input type="password" id="loginPass" placeholder="Parolni kiriting" required/>
+        <label for="loginPass">Parol</label>
+        <input type="password" id="loginPass" placeholder="Parolni kiriting" maxlength="200" autocomplete="current-password" required/>
       </div>
-      <div id="loginError" class="error-msg"></div>
-      <button type="submit" class="btn-primary btn-full">Kirish</button>
-      <div class="auth-switch">Hisobingiz yo'qmi? <span onclick="switchAuth('register')">Ro'yxatdan o'tish</span></div>
+      <div id="loginError" class="error-msg" role="alert"></div>
+      <button type="submit" class="btn-primary btn-full">
+        <i data-lucide="log-in"></i> Kiriş
+      </button>
+      <div class="auth-switch">Hisobingiz yöqmi? <span onclick="switchAuth('register')">Röyxatdan ötış</span></div>
     </form>
 
     <!-- Register Form -->
     <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
-      <input type="hidden" id="regRole" value="student" />
-      <div class="form-group">
-        <label>F.I.Sh</label>
-        <input type="text" id="regName" placeholder="To'liq ismingiz" required/>
+      <div class="role-tabs" role="group" aria-label="Rolni tanlang">
+        <div class="role-tab active" data-role="student" aria-pressed="true" onclick="selectRegisterRole('student', this)">
+          <i data-lucide="user"></i> Talaba
+        </div>
+        <div class="role-tab" data-role="teacher" aria-pressed="false" onclick="selectRegisterRole('teacher', this)">
+          <i data-lucide="graduation-cap"></i> Öqituvçi
+        </div>
       </div>
       <div class="form-group">
-        <label>Login yaratish</label>
-        <input type="text" id="regLogin" placeholder="Yangi login" required/>
+        <label for="regName">F.I.Ş (Familiya, İsm, Şarif)</label>
+        <input type="text" id="regName" placeholder="Töliq ismingiz" maxlength="100" autocomplete="name" required/>
       </div>
       <div class="form-group">
-        <label>Parol yaratish</label>
-        <input type="password" id="regPass" placeholder="Yangi parol" required/>
+        <label for="regLogin">Login yaratış</label>
+        <input type="text" id="regLogin" spellcheck="false" autocapitalize="none" placeholder="Yangi login" minlength="3" maxlength="50" autocomplete="username" required/>
       </div>
-      <button type="submit" class="btn-primary btn-full">Ro'yxatdan o'tish</button>
-      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kirish</span></div>
+      <div class="form-group">
+        <label for="regPass">Parol yaratış</label>
+        <input type="password" id="regPass" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
+      </div>
+      <div id="registerError" class="error-msg" role="alert"></div>
+      <button type="submit" class="btn-primary btn-full">
+        <i data-lucide="user-plus"></i> Röyxatdan ötış
+      </button>
+      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kiriş</span></div>
     </form>
   </div>
 </div>
 
 <!-- ════════ PRIVATE PLATFORM SYSTEM ════════ -->
 <div id="screen-app" class="screen">
+  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
   <aside id="sidebar">
-    <div class="sidebar-logo">
-      <span class="s-icon">📚</span>
-      <span class="s-title">Ta'limN</span>
+    <div class="sidebar-logo brand-logo" onclick="returnToWebsite()" style="cursor:pointer;">
+      <img src="assets/logo-256.png" alt="Ta'lim Nazariyasi Logo" class="brand-logo-img" style="width:36px;height:36px;"/>
+      <span class="brand-name" style="font-size:18px;">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
     </div>
     <nav id="sidebarNav"></nav>
     <div class="sidebar-user" id="sidebarUser"></div>
-    <button class="btn-logout" onclick="logout()">⬅ Chiqish</button>
+    <button class="btn-logout" onclick="logout()">
+      <i data-lucide="log-out"></i> Çiqiş
+    </button>
   </aside>
 
-  <main id="mainContent">
+  <main id="mainContent" tabindex="-1">
     <div class="topbar">
-      <button class="hamburger-btn" onclick="toggleSidebar()">☰</button>
-      <h2 id="pageTitle">Bosh sahifa</h2>
+      <div style="display:flex; align-items:center; gap:15px;">
+        <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menyu">
+          <i data-lucide="menu"></i>
+        </button>
+        <h2 id="pageTitle">Boş sahifa</h2>
+      </div>
       <div class="topbar-right">
-        <button class="btn-outline-light" style="color:var(--text-main); border-color:#ccc; padding:6px 12px;" onclick="returnToWebsite()">Saytga qaytish</button>
+        <button class="btn-outline" style="padding:6px 14px; font-size:11px; gap:6px;" onclick="returnToWebsite()">
+          <i data-lucide="arrow-left"></i> Saytga qaytiş
+        </button>
         <div id="topbarUser" class="topbar-user"></div>
       </div>
     </div>
     <div id="pageContainer"></div>
+    <!-- MOBILE BOTTOM NAVIGATION (Thumb-friendly UX) -->
+    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Mobil pastki menyu"></nav>
   </main>
 </div>
 
 <!-- MODULE STEP MODAL -->
-<div id="stepModal" class="modal-overlay" onclick="closeModal(event, 'stepModal')">
+<div id="stepModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="closeModal(event, 'stepModal')">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modalTitle">Qadam</h3>
-      <button onclick="document.getElementById('stepModal').classList.remove('active')" class="modal-close-btn">✕</button>
+      <button onclick="document.getElementById('stepModal').classList.remove('active')" class="modal-close-btn" aria-label="Yopish">&times;</button>
     </div>
     <div id="modalBody" class="modal-body"></div>
     <div class="modal-footer" id="modalFooter"></div>
@@ -284,8 +339,8 @@
 </div>
 
 <!-- TOAST -->
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=3"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

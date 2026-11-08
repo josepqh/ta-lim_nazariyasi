@@ -3,115 +3,378 @@ let currentUser = null;
 let currentModuleId = null;
 let modulesCache = [];
 let progressCache = {};
+let stepContentsCache = {};
+let activeCharts = [];
 
 const API_BASE = '/api';
 
-// ===== API HELPER =====
-async function fetchAPI(endpoint, method = 'GET', body = null) {
-  const options = {
-    method,
-    headers: { 'Content-Type': 'application/json' }
-  };
-  if (body) options.body = JSON.stringify(body);
+// ===== STRING & INPUT HELPERS (YANGI TAHRIRDAGI O'ZBEK ALIFBOSI) =====
+function escapeHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
+function normalizeUzbekText(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .trim()
+    .replace(/[`’‘ʻʼ´]/g, "'")
+    .replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ')
+    .toLocaleLowerCase('uz');
+}
+
+function refreshIcons() {
+  setTimeout(() => {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    makeClickablesFocusable();
+  }, 10);
+}
+
+function motionAllowed() {
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function getYouTubeEmbedUrl(value) {
   try {
-    const res = await fetch(`${API_BASE}${endpoint}`, options);
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Server xatosi');
+    const url = new URL(value);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    const host = url.hostname.toLowerCase();
+    let videoId = '';
+
+    if (host === 'youtu.be') {
+      videoId = url.pathname.slice(1).split('/')[0].split('?')[0];
+    } else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) {
+      if (url.pathname === '/watch') videoId = url.searchParams.get('v') || '';
+      else videoId = url.pathname.match(/^\/(?:embed|shorts)\/([^/?]+)/)?.[1] || '';
     }
-    return await res.json();
-  } catch (error) {
-    showToast(error.message);
+
+    return /^[\w-]{11}$/.test(videoId) ? `https://www.youtube-nocookie.com/embed/${videoId}` : null;
+  } catch {
     return null;
   }
 }
 
-const NEWS_DATA = [
-  { title: "Ta'lim nazariyasida yangi yondashuvlar", date: "2026-07-01", desc: "Zamonaviy ta'lim metodikalari va ularning amaliyotdagi o'rni haqida batafsil ma'lumotlar e'lon qilindi." },
-  { title: "Xalqaro ta'lim konferensiyasi", date: "2026-06-25", desc: "Toshkent shahrida bo'lib o'tgan xalqaro konferensiyada qatnashgan mutaxassislar fikrlari bilan tanishing." },
-  { title: "O'qituvchilar uchun yangi modullar", date: "2026-06-10", desc: "Platformamizda o'qituvchilar malakasini oshirish uchun mo'ljallangan 5 ta yangi modul qo'shildi." },
-  { title: "Talabalar faolligi oshmoqda", date: "2026-05-28", desc: "O'tgan oy davomida platformamizdan foydalanuvchi talabalar soni 2 barobarga ortdi. Statistika va tahlillar." }
+// ===== API HELPER =====
+class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function requestAPI(endpoint, method = 'GET', body = null) {
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body !== null) options.body = JSON.stringify(body);
+
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, options);
+  } catch {
+    throw new ApiError("Server bilan aloqa yöq. İnternetni tekşirib, qayta urinib köring.", 0);
+  }
+  let data = null;
+  try { data = await res.json(); } catch { /* non-JSON error page */ }
+  if (!res.ok) throw new ApiError(data?.error || `Server xatosi: ${res.status}`, res.status);
+  return data;
+}
+
+// For page code: shows the error to the user and returns null.
+async function fetchAPI(endpoint, method = 'GET', body = null) {
+  try {
+    return await requestAPI(endpoint, method, body);
+  } catch (error) {
+    showToast(error.message, 'error');
+    return null;
+  }
+}
+
+// ===== FILE UPLOAD & DOWNLOAD =====
+const MAX_FILE_SIZE = 30 * 1024 * 1024;
+const DOCUMENT_ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.jpg,.jpeg,.png';
+
+function formatFileSize(bytes) {
+  const size = Number(bytes) || 0;
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(size / 1024))} KB`;
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// Throws ApiError on failure so the caller can keep the form open.
+async function uploadFile(file, { moduleId, stepType, purpose }, onProgress) {
+  if (file.size > MAX_FILE_SIZE) throw new ApiError('Fayl hajmi 30 MB dan oşmasin.', 413);
+  if (file.size === 0) throw new ApiError("Fayl böş.", 400);
+
+  const started = await requestAPI('/files', 'POST', {
+    action: 'init', module_id: moduleId, step_type: stepType, purpose, filename: file.name, size: file.size
+  });
+  for (let index = 0; index < started.total_chunks; index++) {
+    const start = index * started.chunk_size;
+    const buffer = await file.slice(start, start + started.chunk_size).arrayBuffer();
+    await requestAPI('/files', 'POST', {
+      action: 'chunk', id: started.id, index, data: bytesToBase64(new Uint8Array(buffer))
+    });
+    onProgress?.(Math.round(((index + 1) / started.total_chunks) * 100));
+  }
+  return requestAPI('/files', 'POST', { action: 'complete', id: started.id });
+}
+
+async function downloadFile(id, button) {
+  if (!currentUser) {
+    document.getElementById('stepModal').classList.remove('active');
+    openAuthModal('login');
+    showToast('Faylni yuklab oliş uçun tizimga kiring.', 'warning');
+    return;
+  }
+  const label = button?.querySelector('.file-card-meta');
+  const originalLabel = label?.textContent;
+  if (button) button.disabled = true;
+  try {
+    const meta = await requestAPI(`/files?id=${encodeURIComponent(id)}`);
+    const parts = [];
+    for (let chunk = 0; chunk < meta.total_chunks; chunk++) {
+      const { data } = await requestAPI(`/files?id=${encodeURIComponent(id)}&chunk=${chunk}`);
+      parts.push(base64ToBytes(data));
+      if (label) label.textContent = `Yuklanmoqda ${Math.round(((chunk + 1) / meta.total_chunks) * 100)}%`;
+    }
+    // octet-stream keeps uploaded content from ever rendering on this origin.
+    const url = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = meta.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    if (button) button.disabled = false;
+    if (label) label.textContent = originalLabel;
+  }
+}
+
+function fileCardHtml(file) {
+  if (!file?.id) return '';
+  return `
+    <button type="button" class="file-card" onclick="downloadFile('${escapeHTML(file.id)}', this)">
+      <i data-lucide="download"></i>
+      <span class="file-card-text">
+        <span class="file-card-name">${escapeHTML(file.name)}</span>
+        <span class="file-card-meta">${formatFileSize(file.size)} &middot; Yuklab oliş</span>
+      </span>
+    </button>`;
+}
+
+function setUploadProgress(percent) {
+  const bar = document.getElementById('uploadProgress');
+  if (!bar) return;
+  bar.hidden = false;
+  bar.querySelector('.progress-bar-fill').style.width = `${percent}%`;
+  bar.querySelector('.upload-progress-text').textContent = `Yuklanmoqda: ${percent}%`;
+}
+
+const UPLOAD_PROGRESS_HTML = `
+  <div id="uploadProgress" class="upload-progress" hidden>
+    <div class="progress-bar-track"><div class="progress-bar-fill" style="width:0%"></div></div>
+    <span class="upload-progress-text" aria-live="polite"></span>
+  </div>`;
+
+async function runBusy(button, work) {
+  if (button) button.disabled = true;
+  try {
+    return await work();
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+const GUIDE_DATA = [
+  { title: "Darsni rejalaştiriş", desc: "Aniq öquv maqsadini belgilang, mazmun va maşqlarni şu maqsadga moslang." },
+  { title: "Faol örganiş", desc: "Savol, bahs-munozara va amaliy maşqlar orqali öquvçini dars jarayoniga jalb qiling." },
+  { title: "Öquv natijalarini baholaş", desc: "Baholaş mezonlarini oldindan tuşuntiring va natijaga konstruktiv fikr-mulohaza qöşing." },
+  { title: "Refleksiya va öz-özini rivojlantiriş", desc: "Darsdan keyin nimalar samarali işlaganini körib çiqing va keyingi maşğulotni şunga qarab boyiting." }
+];
+
+const STEP_TYPES = [
+  { id: 'diag', title: '1. Diagnostika testi', type: 'quiz', icon: 'help-circle' },
+  { id: 'video', title: '2. Video dars', type: 'video', icon: 'play-circle' },
+  { id: 'pres', title: '3. Taqdimot (Prezentatsiya)', type: 'doc', icon: 'presentation' },
+  { id: 'doc', title: '4. Qöşimça material', type: 'doc', icon: 'file-text' },
+  { id: 'task', title: '5. Amaliy topşiriq', type: 'upload', icon: 'upload-cloud' },
+  { id: 'refl', title: '6. Refleksiv hisobot', type: 'text', icon: 'feather' }
 ];
 
 // ===== PUBLIC WEBSITE LOGIC =====
 async function initPublicSite() {
-  const res = await fetchAPI('/modules');
-  if (res) {
-    modulesCache = res;
-    renderPublicModules();
-  }
+  setupEventListeners();
+  try { localStorage.removeItem('talimnazariyasi_local_store_v2'); } catch { /* storage unavailable */ }
+
+  const [modules, session] = await Promise.all([
+    fetchAPI('/modules'),
+    fetchAPI('/auth')
+  ]);
+
+  if (modules && Array.isArray(modules)) modulesCache = modules;
+  renderPublicModules();
 
   const newsContainer = document.getElementById('publicNewsList');
-  if(newsContainer) {
-    newsContainer.innerHTML = NEWS_DATA.map(n => `
+  if (newsContainer) {
+    newsContainer.innerHTML = GUIDE_DATA.map(article => `
       <div class="info-card">
-        <div style="color:var(--primary); font-size:12px; margin-bottom:5px;">📅 ${n.date}</div>
-        <h3>${n.title}</h3>
-        <p>${n.desc}</p>
-        <button class="btn-outline-light" style="margin-top:10px; padding:5px 10px; font-size:12px; border-color:var(--primary); color:var(--primary);" onclick="showToast('Tez orada batafsil sahifa qo\\'shiladi!')">Batafsil</button>
+        <h3>${escapeHTML(article.title)}</h3>
+        <p>${escapeHTML(article.desc)}</p>
       </div>
     `).join('');
   }
+
+  refreshIcons();
+
+  if (session?.user) {
+    await startSession(session.user, true);
+  }
+}
+
+function setupEventListeners() {
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.getElementById('authModal')?.classList.remove('active');
+      document.getElementById('stepModal')?.classList.remove('active');
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar?.classList.contains('open')) toggleSidebar();
+    }
+  });
 }
 
 function renderPublicModules() {
   const modContainer = document.getElementById('publicModulesList');
-  if(modContainer && modulesCache.length > 0) {
-    modContainer.innerHTML = modulesCache.map(m => {
-      let progText = '';
-      let isStudent = currentUser && currentUser.role === 'student';
-      if(isStudent) {
-         const prog = progressCache[m.id] || { completed_steps: [] };
-         const stepCount = prog.completed_steps ? prog.completed_steps.length : 0;
-         progText = `<div style="margin-top:10px; font-size:13px; color:var(--primary); font-weight:bold;">✅ ${stepCount}/6 qadam bajarildi</div>`;
-      }
-      return `
-        <div class="info-card" ${isStudent ? `style="cursor:pointer" onclick="openStudentModule(${m.id})"` : ''}>
-          <h3>${m.title}</h3>
-          <p>${m.description || "Ta'lim nazariyasi moduli"}</p>
-          ${progText}
-          ${isStudent ? `<button class="btn-outline" style="margin-top:15px; padding:6px 12px; font-size:12px;">Modulni ochish</button>` : ''}
+  if (!modContainer) return;
+
+  if (!modulesCache.length) {
+    modContainer.innerHTML = '<div class="info-card"><p>Hozirça modullar qöşilmagan.</p></div>';
+    refreshIcons();
+    return;
+  }
+
+  modContainer.innerHTML = modulesCache.map(m => {
+    let progBarHtml = '';
+    const isStudent = currentUser && currentUser.role === 'student';
+
+    if (isStudent) {
+      const prog = progressCache[m.id] || { completed_steps: [] };
+      const stepCount = (prog.completed_steps || []).length;
+      const pct = Math.round((stepCount / 6) * 100);
+      const isComplete = stepCount >= 6;
+
+      progBarHtml = `
+        <div style="margin-top:16px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:500; color:var(--text-main);">
+            <span>${isComplete ? '🎉 Tamomlandi' : `${stepCount}/6 qadam`}</span>
+            <span>${pct}%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${pct}%"></div>
+          </div>
         </div>
       `;
-    }).join('') + (currentUser && currentUser.role === 'student' ? '' : `<div class="info-card" style="display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);font-weight:bold" onclick="openAuthModal('register')">Barcha modullarni ko'rish →</div>`);
-  }
+    }
+
+    return `
+      <div class="info-card" style="cursor:pointer;" onclick="openStudentModule(${Number(m.id)})">
+        <div style="font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--primary); margin-bottom:8px;">Modul ${m.order_num}</div>
+        <h3>${escapeHTML(m.title)}</h3>
+        <p>${escapeHTML(m.description || "Ta'lim nazariyasi moduli")}</p>
+        ${progBarHtml}
+        <button class="btn-outline" style="margin-top:20px; padding:8px 18px; font-size:11px;" onclick="event.stopPropagation(); openStudentModule(${Number(m.id)})">
+          <i data-lucide="arrow-right"></i> Modulni örganiş &rarr;
+        </button>
+      </div>
+    `;
+  }).join('') + (!currentUser ? `
+    <div class="info-card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; background:rgba(168,155,140,0.06); border:2px dashed var(--primary);" onclick="openAuthModal('register')">
+      <div style="margin-bottom:10px; color:var(--primary);"><i data-lucide="graduation-cap" style="width:36px;height:36px;"></i></div>
+      <h3 style="color:var(--text-main)">Barça modullarga kiriş</h3>
+      <p>Bepul röyxatdan ötib, darslarni özlaştirişni boşlang</p>
+      <button class="btn-primary" style="margin-top:15px; padding:10px 20px;"><i data-lucide="sparkles"></i> Röyxatdan ötış</button>
+    </div>` : '');
+
+  refreshIcons();
+}
+
+function openModule(id) {
+  currentModuleId = Number(id);
+  const target = modulesCache.find(x => Number(x.id) === currentModuleId);
+  navigate('module-view', target ? target.title : `Modul ${id}`);
 }
 
 async function openStudentModule(id) {
-  currentModuleId = id;
-  showPublicSection('public-module-view');
-  document.getElementById('publicModuleViewContainer').innerHTML = '<div style="text-align:center; padding:40px;">Yuklanmoqda...</div>';
-  await renderModuleView(document.getElementById('publicModuleViewContainer'), true);
-}
+  currentModuleId = Number(id);
 
+  // Agar foydalanuvchi tizimga kirgan bo'lsa, bevosita shaxsiy kabinetga o'tadi
+  if (currentUser) {
+    document.getElementById('public-website').style.display = 'none';
+    document.getElementById('screen-app').classList.add('active');
+    openModule(id);
+    return;
+  }
+
+  // Agar kirmagan bo'lsa ham public o'quv bo'limida modulni to'liq ochish
+  showPublicSection('public-module-view');
+  const container = document.getElementById('publicModuleViewContainer');
+  container.innerHTML = '<div class="spinner"></div><div style="text-align:center; padding:10px; color:var(--text-muted)">Yuklanmoqda...</div>';
+  await renderModuleView(container, true);
+}
 
 function showPublicSection(sectionId) {
   document.querySelectorAll('.public-section').forEach(s => s.classList.remove('active'));
-  document.getElementById(sectionId).classList.add('active');
-  window.scrollTo(0,0);
+  document.getElementById(sectionId)?.classList.add('active');
+  document.getElementById('mainNav')?.classList.remove('open');
+  const menuButton = document.querySelector('.mobile-menu-btn');
+  menuButton?.setAttribute('aria-expanded', 'false');
+  menuButton?.setAttribute('aria-label', 'Menyuni oçiş');
+  window.scrollTo(0, 0);
+  refreshIcons();
 }
 
 // ===== AUTH MODAL LOGIC =====
 function openAuthModal(type) {
   document.getElementById('authModal').classList.add('active');
   switchAuth(type);
+  refreshIcons();
 }
 
 function closeAuthModal(e) {
-  if(e.target.id === 'authModal') e.target.classList.remove('active');
+  if (e.target.id === 'authModal') e.target.classList.remove('active');
 }
 
 function switchAuth(type) {
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
+  document.getElementById('loginError').textContent = '';
   if (type === 'login') {
-    document.getElementById('authTitle').textContent = 'Tizimga Kirish';
-    document.getElementById('authSubtitle').textContent = "Platformadan foydalanish uchun rolingizni tanlang";
+    document.getElementById('authTitle').textContent = 'Tizimga Kiriş';
+    document.getElementById('authSubtitle').textContent = "Platformadan foydalaniş uçun öz rolingizni tanlang";
     document.getElementById('loginForm').classList.add('active');
   } else {
-    document.getElementById('authTitle').textContent = "Ro'yxatdan o'tish";
-    document.getElementById('authSubtitle').textContent = "Yangi hisob yarating";
+    document.getElementById('authTitle').textContent = "Röyxatdan ötış";
+    document.getElementById('authSubtitle').textContent = "Rolingizni tanlang va yangi hisob yarating";
     document.getElementById('registerForm').classList.add('active');
   }
+  refreshIcons();
 }
 
 function selectRole(role, btn) {
@@ -119,306 +382,758 @@ function selectRole(role, btn) {
   btn.classList.add('active');
 }
 
-function selectRegRole(role, btn) {
-  document.querySelectorAll('#registerForm .role-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
 // ===== LOGIN & REGISTER HANDLING =====
 async function handleLogin(e) {
   e.preventDefault();
-  const role = document.querySelector('#loginForm .role-tab.active').dataset.role;
-  const login = document.getElementById('loginUser').value;
+  const roleTab = document.querySelector('#loginForm .role-tab.active');
+  const role = roleTab ? roleTab.dataset.role : 'student';
+  const login = document.getElementById('loginUser').value.trim();
   const pass = document.getElementById('loginPass').value;
-  
-  const user = await fetchAPI('/auth', 'POST', { action: 'login', login, password: pass });
-  if (user) {
-    if(user.role !== role) {
-       document.getElementById('loginError').textContent = 'Sizning rolingiz mos kelmadi.';
-       return;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const oldText = submitBtn.innerHTML;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Kirilmoqda...';
+
+  try {
+    const user = await requestAPI('/auth', 'POST', { action: 'login', login, password: pass });
+    if (user.role !== role) {
+      await requestAPI('/auth', 'POST', { action: 'logout' });
+      errEl.textContent = `Bu hisob "${ROLE_LABELS[user.role] || user.role}" roliga tegişli. Iltimos, töğri rolni tanlang.`;
+      return;
     }
-    startSession(user);
+    showToast(`Xuş kelibsiz, ${user.name || user.login}!`);
+    await startSession(user);
+  } catch (err) {
+    errEl.textContent = err.message || 'Kirişda xatolik yuz berdi.';
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = oldText;
+    refreshIcons();
   }
 }
 
 async function handleRegister(e) {
   e.preventDefault();
-  const role = document.getElementById('regRole').value;
-  const login = document.getElementById('regLogin').value;
-  const pass = document.getElementById('regPass').value; 
-  const name = document.getElementById('regName').value;
-  
-  const user = await fetchAPI('/auth', 'POST', { action: 'register', login, password: pass, role, name });
-  if (user) startSession(user);
-}
+  const name = document.getElementById('regName').value.trim();
+  const login = document.getElementById('regLogin').value.trim();
+  const pass = document.getElementById('regPass').value;
+  const role = document.querySelector('#registerForm .role-tab.active')?.dataset.role || 'student';
+  const errEl = document.getElementById('registerError');
+  errEl.textContent = '';
 
-async function startSession(user) {
-  currentUser = user;
-  
-  // Preload modules
-  const mods = await fetchAPI('/modules');
-  if (mods) modulesCache = mods;
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const oldText = submitBtn.innerHTML;
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Röyxatdan ötilmoqda...';
 
-  // Load progress for student
-  if (currentUser.role === 'student') {
-    const prog = await fetchAPI(`/progress?user_id=${currentUser.id}`);
-    if (prog) {
-       progressCache = {};
-       prog.forEach(p => {
-         progressCache[p.module_id] = p;
-       });
-    }
-    
-    document.getElementById('authModal').classList.remove('active');
-    
-    // Update navbar for student
-    document.getElementById('navAuth').style.display = 'none';
-    document.getElementById('navUser').style.display = 'flex';
-    document.getElementById('navUserName').textContent = '👨‍🎓 ' + (currentUser.name || currentUser.login);
-    
-    renderPublicModules();
-    showPublicSection('home');
-  } else {
-    document.getElementById('authModal').classList.remove('active');
-    document.getElementById('public-website').style.display = 'none';
-    document.getElementById('screen-app').classList.add('active');
-    
-    document.getElementById('sidebarUser').textContent = currentUser.name || currentUser.login;
-    let icon = currentUser.role === 'teacher' ? '👩‍🏫' : '⚙️';
-    document.getElementById('topbarUser').textContent = icon + ' ' + currentUser.role.toUpperCase();
-    
-    buildSidebar();
-    navigate('home');
+  try {
+    const user = await requestAPI('/auth', 'POST', { action: 'register', login, password: pass, name, role });
+    showToast("Röyxatdan muvaffaqiyatli ötdingiz!");
+    await startSession(user);
+  } catch (err) {
+    errEl.textContent = err.message || "Röyxatdan ötişda xatolik yuz berdi.";
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = oldText;
+    refreshIcons();
   }
 }
 
-function logout() {
+async function startSession(user, modulesLoaded = false) {
+  currentUser = user;
+
+  if (!modulesLoaded) {
+    const mods = await fetchAPI('/modules');
+    if (mods && Array.isArray(mods)) modulesCache = mods;
+  }
+
+  // Only a student's own rows belong in this per-module cache.
+  progressCache = {};
+  if (currentUser.role === 'student') {
+    const prog = await fetchAPI('/progress');
+    (prog || []).forEach(p => {
+      progressCache[p.module_id] = p;
+    });
+  }
+
+  // Modallarni yopish va to'g'ridan-to'g'ri tizim shaxsiy kabinetiga o'tish (hech kim bosh sahifada qotib qolmaydi!)
+  document.getElementById('authModal').classList.remove('active');
+  document.getElementById('public-website').style.display = 'none';
+  document.getElementById('screen-app').classList.add('active');
+
+  // Navbar user holati
+  document.getElementById('navAuth').style.display = 'none';
+  document.getElementById('navUser').style.display = 'flex';
+
+  const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
+  const roleLabel = currentUser.role === 'student' ? 'TALABA' : (currentUser.role === 'teacher' ? 'ÖQITUVÇI' : 'ADMINISTRATOR');
+
+  document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
+  document.getElementById('sidebarUser').innerHTML = `<i data-lucide="user-check"></i> <span>${escapeHTML(currentUser.name || currentUser.login)}</span>`;
+  document.getElementById('topbarUser').innerHTML = `<i data-lucide="${roleIcon}"></i> <span>${roleLabel}</span>`;
+
+  buildSidebar();
+  if (!restoreRoute()) navigate('home');
+  refreshIcons();
+}
+
+async function logout() {
+  await fetchAPI('/auth', 'POST', { action: 'logout' });
   currentUser = null;
+  progressCache = {};
+  history.replaceState(null, '', location.pathname);
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('public-website').style.display = 'block';
-  
+
   document.getElementById('navAuth').style.display = 'flex';
   document.getElementById('navUser').style.display = 'none';
 
   document.getElementById('loginForm').reset();
   document.getElementById('registerForm').reset();
+  document.getElementById('registerError').textContent = '';
+  selectRegisterRole('student', document.querySelector('#registerForm .role-tab[data-role="student"]'));
   document.getElementById('loginError').textContent = '';
-  
+
   renderPublicModules();
   showPublicSection('home');
+  showToast("Tizimdan muvaffaqiyatli çiqildi.");
+  refreshIcons();
 }
 
 function returnToWebsite() {
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('public-website').style.display = 'block';
+  document.getElementById('navAuth').style.display = currentUser ? 'none' : 'flex';
+  document.getElementById('navUser').style.display = currentUser ? 'flex' : 'none';
+  if (currentUser) {
+    const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
+    document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
+  }
   showPublicSection('home');
+  refreshIcons();
 }
 
 // ===== PRIVATE SYSTEM NAVIGATION =====
+const STAFF_ROLES = ['teacher', 'admin'];
+const ROLE_LABELS = { student: 'Talaba', teacher: 'Öqituvçi', admin: 'Administrator' };
+const PAGE_ROLES = {
+  analytics: STAFF_ROLES,
+  submissions: STAFF_ROLES,
+  'manage-modules': STAFF_ROLES,
+  'student-detail': STAFF_ROLES,
+  users: ['admin'],
+  'user-profile': ['admin']
+};
+const STAFF_MENU = [
+  { id: 'home', title: 'Boş sahifa', icon: 'home' },
+  { id: 'manage-modules', title: 'Modullarni boşqariş', short: 'Modullar', icon: 'edit-3' },
+  { id: 'modules', title: 'Modullar körinişi', icon: 'book-open' },
+  { id: 'analytics', title: 'Tahlil va Grafika', icon: 'bar-chart-3' },
+  { id: 'submissions', title: 'Talaba javoblari', icon: 'clipboard-check' }
+];
 const NAV_MENU = {
   student: [
-    { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
-    { id: 'modules', title: 'Modullar', icon: '📚' }
+    { id: 'home', title: 'Boş sahifa', icon: 'home' },
+    { id: 'modules', title: 'Modullar', icon: 'book-open' }
   ],
-  teacher: [
-    { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
-    { id: 'manage-modules', title: 'Modullarni boshqarish', icon: '✏️' },
-    { id: 'modules', title: 'Modullar', icon: '📚' }
-  ],
-  admin: [
-    { id: 'home', title: 'Bosh sahifa', icon: '🏠' },
-    { id: 'modules', title: 'Modullar', icon: '📚' }
-  ]
+  teacher: STAFF_MENU,
+  admin: [...STAFF_MENU, { id: 'users', title: 'Foydalanuvçilar', short: 'Röyxat', icon: 'users' }]
 };
+
+function pageTitle(pageId) {
+  if (pageId === 'module-view') {
+    return modulesCache.find(x => Number(x.id) === Number(currentModuleId))?.title || 'Modul';
+  }
+  if (pageId === 'student-detail') return 'Talaba işlari';
+  if (pageId === 'user-profile') return 'Profil';
+  return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Boş sahifa';
+}
+
+// ===== SKELETON LOADER HELPER =====
+function getSkeletonCards(count = 3) {
+  let html = `<div class="dashboard-grid">`;
+  for (let i = 0; i < count; i++) {
+    html += `
+      <div class="stat-card skeleton-card">
+        <div class="skeleton-shimmer" style="width:54px; height:54px; flex-shrink:0;"></div>
+        <div style="flex:1;">
+          <div class="skeleton-shimmer" style="width:40%; height:26px; margin-bottom:8px;"></div>
+          <div class="skeleton-shimmer" style="width:70%; height:13px;"></div>
+        </div>
+      </div>
+    `;
+  }
+  html += `</div>
+    <div class="card skeleton-card">
+      <div class="skeleton-shimmer" style="width:35%; height:22px; margin-bottom:20px;"></div>
+      <div class="skeleton-shimmer" style="width:100%; height:15px; margin-bottom:12px;"></div>
+      <div class="skeleton-shimmer" style="width:85%; height:15px; margin-bottom:12px;"></div>
+      <div class="skeleton-shimmer" style="width:60%; height:15px;"></div>
+    </div>
+  `;
+  return html;
+}
 
 function buildSidebar() {
   const nav = document.getElementById('sidebarNav');
+  const bottomNav = document.getElementById('mobileBottomNav');
+  if (!nav) return;
   nav.innerHTML = '';
-  NAV_MENU[currentUser.role].forEach(item => {
-    const div = document.createElement('div');
+  if (bottomNav) bottomNav.innerHTML = '';
+
+  (NAV_MENU[currentUser.role] || []).forEach(item => {
+    // 1. Desktop sidebar item
+    const div = document.createElement('button');
+    div.type = 'button';
     div.className = 'nav-item';
     div.id = 'nav-' + item.id;
-    div.innerHTML = `<span>${item.icon}</span> <span>${item.title}</span>`;
+    div.innerHTML = `<i data-lucide="${item.icon}"></i> <span>${item.title}</span>`;
     div.onclick = () => {
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      div.classList.add('active');
+      syncActiveNav(item.id);
       navigate(item.id, item.title);
-      if(window.innerWidth <= 768) toggleSidebar();
+      if (window.innerWidth <= 900) toggleSidebar();
     };
     nav.appendChild(div);
+
+    // 2. Mobile Bottom Nav item (bir qo'lda qulay boshqarish)
+    // Keeps the bar at five items; staff still reach this page from the sidebar.
+    const inBottomNav = !(item.id === 'modules' && currentUser.role !== 'student');
+    if (bottomNav && inBottomNav) {
+      const bBtn = document.createElement('button');
+      bBtn.className = 'bottom-nav-item';
+      bBtn.id = 'bnav-' + item.id;
+      bBtn.setAttribute('type', 'button');
+      bBtn.setAttribute('aria-label', item.title);
+      const shortTitle = item.short || item.title.split(' ')[0];
+      bBtn.innerHTML = `<i data-lucide="${item.icon}"></i> <span>${shortTitle}</span>`;
+      bBtn.onclick = () => {
+        syncActiveNav(item.id);
+        navigate(item.id, item.title);
+      };
+      bottomNav.appendChild(bBtn);
+    }
   });
+  refreshIcons();
 }
 
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }
+function syncActiveNav(pageId) {
+  const targetId = pageId === 'module-view' ? 'modules' : pageId;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-' + targetId)?.classList.add('active');
+  document.getElementById('bnav-' + targetId)?.classList.add('active');
+}
 
-function navigate(pageId, title = 'Bosh sahifa') {
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+  const isOpen = sidebar.classList.toggle('open');
+  if (backdrop) {
+    if (isOpen) backdrop.classList.add('active');
+    else backdrop.classList.remove('active');
+  }
+}
+
+function navigate(pageId, title) {
+  const allowedRoles = PAGE_ROLES[pageId];
+  if (allowedRoles && !allowedRoles.includes(currentUser?.role)) {
+    pageId = 'home';
+    title = undefined;
+  }
+  if (!title) title = pageTitle(pageId);
   document.getElementById('pageTitle').textContent = title;
   const container = document.getElementById('pageContainer');
-  
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const activeNav = document.getElementById('nav-' + (pageId === 'module-view' ? 'modules' : pageId));
-  if(activeNav) activeNav.classList.add('active');
 
-  container.innerHTML = '<div style="padding: 40px; text-align: center;">Yuklanmoqda...</div>';
-  
-  switch(pageId) {
+  syncActiveNav(pageId);
+  writeRoute(pageId);
+
+  // Avvalgi faol grafiklarni tozalash (xotirada qolib ketmasligi uchun)
+  activeCharts.forEach(c => { try { c.destroy(); } catch(e) {} });
+  activeCharts = [];
+
+  // Zamonaviy Shimmer Skeleton Loader
+  container.innerHTML = getSkeletonCards();
+
+  switch (pageId) {
     case 'home': renderHome(container); break;
     case 'modules': renderModules(container); break;
     case 'module-view': renderModuleView(container); break;
     case 'manage-modules': renderManageModules(container); break;
-    default: container.innerHTML = '<div class="card">Tez orada ishga tushadi...</div>';
+    case 'analytics': renderAnalytics(container); break;
+    case 'submissions': renderSubmissions(container); break;
+    case 'student-detail': renderStudentDetail(container); break;
+    case 'users': renderUsers(container); break;
+    case 'user-profile': renderUserProfile(container); break;
+    default: container.innerHTML = '<div class="card">Sahifa topilmadi.</div>';
   }
+  refreshIcons();
 }
 
 // ===== RENDER SYSTEM PAGES =====
 function renderHome(container) {
   let html = `<div class="dashboard-grid">`;
   if (currentUser.role === 'student') {
-    const completed = Object.values(progressCache).filter(p => p.completed_steps && p.completed_steps.length >= 6).length;
+    const completed = Object.values(progressCache).filter(p => (p.completed_steps || []).length >= 6).length;
+    const totalScore = Object.values(progressCache).reduce((sum, p) => sum + (Number(p.total_score) || 0), 0);
     html += `
-      <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-info"><h3>${modulesCache.length}</h3><p>Jami modullar</p></div></div>
-      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-info"><h3>${completed}</h3><p>Tugatilgan</p></div></div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="book-open"></i></div>
+        <div class="stat-info"><h3>${modulesCache.length}</h3><p>Jami modullar</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="check-circle-2"></i></div>
+        <div class="stat-info"><h3>${completed}</h3><p>Tugatilgan modullar</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="award"></i></div>
+        <div class="stat-info"><h3>${totalScore} ball</h3><p>Töplangan ballar</p></div>
+      </div>
     `;
-  } else if (currentUser.role === 'teacher') {
+  } else {
     html += `
-      <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-info"><h3>${modulesCache.length}</h3><p>Yaratilgan modullar</p></div></div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="book-open"></i></div>
+        <div class="stat-info"><h3>${modulesCache.length}</h3><p>Mavjud modullar</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="graduation-cap"></i></div>
+        <div class="stat-info"><h3>${currentUser.role === 'admin' ? 'Administrator' : 'Öqituvçi'}</h3><p>Sizning maqomingiz</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="bar-chart-2"></i></div>
+        <div class="stat-info"><h3>Faol</h3><p>Didaktik monitoring</p></div>
+      </div>
     `;
   }
   html += `</div>
   <div class="card">
-    <h3 class="card-title">Xush kelibsiz, ${currentUser.name || currentUser.login}!</h3>
-    <p>Ta'lim nazariyasi platformasi orqali ta'lim sirlarini o'rganing.</p>
+    <h3 class="card-title">Xuş kelibsiz, ${escapeHTML(currentUser.name || currentUser.login)}!</h3>
+    <p style="color:var(--text-muted); line-height: 1.8;">
+      Platformada zamonaviy ta'lim nazariyalari, 6 qadamli didaktik modullar hamda talabalar monitoringi va interaktiv vizualizatsiyasi jamlangan. 
+      ${currentUser.role === 'student' ? "Çap menyudan 'Modullar' bölimiga ötib bilimlaringizni oşiring." : "Siz modullarni boşqarişingiz, materiallar kiritişingiz, 'Tahlil va Grafika' bölimida öquvçilar natijalarini tahlil qilişingiz mumkin."}
+    </p>
   </div>`;
   container.innerHTML = html;
+  refreshIcons();
 }
 
 async function renderModules(container) {
-  if(!modulesCache.length) {
-    container.innerHTML = '<div class="card">Hali modullar qo\'shilmagan.</div>';
+  if (!modulesCache.length) {
+    container.innerHTML = '<div class="card"><p>Hozirça modullar mavjud emas.</p></div>';
+    refreshIcons();
     return;
   }
   let html = `<div class="modules-grid">`;
 
   modulesCache.forEach(m => {
     const prog = progressCache[m.id] || { completed_steps: [] };
-    const stepCount = prog.completed_steps ? prog.completed_steps.length : 0;
+    const stepCount = (prog.completed_steps || []).length;
     const isDone = stepCount >= 6;
+    const pct = Math.round((stepCount / 6) * 100);
 
     html += `
-      <div class="module-card" onclick="currentModuleId=${m.id}; navigate('module-view', '${m.title}')">
-        <div class="mod-info">
-          <h4>${m.title}</h4>
-          <p>${currentUser.role === 'student' ? stepCount + '/6 qadam bajarildi' : "Materiallarni ko'rish"}</p>
+      <div class="module-card" onclick="openModule(${Number(m.id)})">
+        <div class="mod-info" style="flex:1; padding-right:20px;">
+          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--primary); margin-bottom:4px;">Modul ${m.order_num}</div>
+          <h4>${escapeHTML(m.title)}</h4>
+          <p>${escapeHTML(m.description || '')}</p>
+          ${currentUser.role === 'student' ? `
+            <div style="margin-top:12px; max-width:320px;">
+              <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:4px;">
+                <span>${stepCount}/6 qadam bajarildi</span>
+                <span>${pct}%</span>
+              </div>
+              <div class="progress-bar-track" style="margin:0;">
+                <div class="progress-bar-fill ${isDone ? 'complete' : ''}" style="width:${pct}%"></div>
+              </div>
+            </div>
+          ` : `
+            <p style="margin-top:8px; font-size:12px; color:var(--primary); font-weight:500;">Materiallar va bosqiçlarni köriş &rarr;</p>
+          `}
         </div>
-        <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">${isDone || currentUser.role !== 'student' ? '✅' : '▶️'}</div>
+        <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">
+          <i data-lucide="${isDone ? 'check-circle' : 'play-circle'}"></i>
+        </div>
       </div>
     `;
   });
   html += `</div>`;
   container.innerHTML = html;
+  refreshIcons();
 }
 
-const STEP_TYPES = [
-  { id: 'diag', title: '1. Diagnostika testi', type: 'quiz' },
-  { id: 'video', title: '2. Video dars', type: 'video' },
-  { id: 'pres', title: '3. Prezintatsiya', type: 'doc' },
-  { id: 'doc', title: '4. Qo\'shimcha material', type: 'doc' },
-  { id: 'task', title: '5. Amaliy topshiriq', type: 'upload' },
-  { id: 'refl', title: '6. Refleksiv hisobot', type: 'text' }
-];
+// ===== ANALYTICS & CHARTS (GRAFIK VA VIZUALIZATSIYA) =====
+async function renderAnalytics(container) {
+  container.innerHTML = getSkeletonCards(4);
 
+  const rows = await fetchAPI('/progress');
+  if (!rows) {
+    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    return;
+  }
+  const allProgress = rows;
+  const hasStepData = allProgress.some(p => (p.completed_steps || []).length > 0);
+  const hasModuleData = allProgress.length > 0 && modulesCache.length > 0;
+
+  // Modullar statistikasini jamlash
+  const moduleLabels = modulesCache.map(m => `Modul ${m.order_num}`);
+  const moduleCompletion = modulesCache.map(m => {
+    const relevant = allProgress.filter(p => p.module_id === m.id);
+    if (!relevant.length) return 0;
+    const completedCount = relevant.filter(p => (p.completed_steps || []).length >= 6).length;
+    return Math.round((completedCount / relevant.length) * 100);
+  });
+
+  // Step types tahlili
+  const stepCounts = { diag: 0, video: 0, pres: 0, doc: 0, task: 0, refl: 0 };
+  allProgress.forEach(p => {
+    (p.completed_steps || []).forEach(st => {
+      if (stepCounts[st] !== undefined) stepCounts[st]++;
+    });
+  });
+
+  // Talabalar reytingi (Leaderboard)
+  const studentMap = {};
+  allProgress.forEach(p => {
+    const uid = p.user_id;
+    const name = p.student_name || p.student_login || `Talaba #${uid}`;
+    if (!studentMap[uid]) {
+      studentMap[uid] = { id: uid, name, completedSteps: 0, score: 0, finishedModules: 0 };
+    }
+    const steps = (p.completed_steps || []).length;
+    studentMap[uid].completedSteps += steps;
+    studentMap[uid].score += (p.total_score || 0);
+    if (steps >= 6) studentMap[uid].finishedModules++;
+  });
+
+  const leaderboard = Object.values(studentMap).sort((a, b) => b.completedSteps - a.completedSteps || b.score - a.score);
+
+  let html = `
+    <div class="charts-grid">
+      <!-- Chart 1: Modullar özlaştiriş darajasi -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h4><i data-lucide="bar-chart-2"></i> Modullar böyiça özlaştiriş (%)</h4>
+          <p>Töliq yakunlaş koeffitsiyenti</p>
+        </div>
+        <div class="chart-wrapper">
+          ${hasModuleData ? '<canvas id="chartModules"></canvas>' : '<p class="muted-text empty-text">Hozirça ma\'lumot yöq.</p>'}
+        </div>
+      </div>
+
+      <!-- Chart 2: 6 qadam taqsimoti -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h4><i data-lucide="pie-chart"></i> Qadamlar faolligi taqsimoti</h4>
+          <p>Didaktik bosqiçlar</p>
+        </div>
+        <div class="chart-wrapper">
+          ${hasStepData ? '<canvas id="chartSteps"></canvas>' : '<p class="muted-text empty-text">Hozirça ma\'lumot yöq.</p>'}
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard / Reyting jadvali -->
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+        <h3 class="card-title" style="margin:0; border:none; padding:0; display:flex; align-items:center; gap:8px;">
+          <i data-lucide="trophy" style="color:#d4af37;"></i> Talabalar Reytingi va Liderlar Jadvali
+        </h3>
+        <span class="badge badge-primary">Didaktik monitoring</span>
+      </div>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
+        Modullardagi 6 qadamli didaktik vazifalarni eng faol bajargan va eng yuqori natija körsatgan iqtidorli talabalar:
+      </p>
+
+      <div style="overflow-x:auto;">
+        <table class="leaderboard-table">
+          <thead>
+            <tr>
+              <th style="width:70px;">Örin</th>
+              <th>Talaba F.I.Ş</th>
+              <th>Bajarilgan qadamlar</th>
+              <th>Tugatilgan modullar</th>
+              <th>Toplangan ball</th>
+              <th>Holat</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+
+  if (!leaderboard.length) {
+    html += `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Hozirça talabalar natijalari mavjud emas.</td></tr>`;
+  } else {
+    leaderboard.forEach((st, idx) => {
+      const rank = idx + 1;
+      let rankBadgeClass = 'rank-default';
+      if (rank === 1) rankBadgeClass = 'rank-1';
+      else if (rank === 2) rankBadgeClass = 'rank-2';
+      else if (rank === 3) rankBadgeClass = 'rank-3';
+
+      html += `
+        <tr class="clickable-row" onclick="openStudentDetail(${Number(st.id)})" title="Bajargan işlarini köriş">
+          <td data-label="Örin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
+          <td data-label="Talaba"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
+          <td data-label="Qadamlar"><i data-lucide="check" style="width:14px;color:var(--success);"></i> ${st.completedSteps} ta qadam</td>
+          <td data-label="Modullar"><span class="badge ${st.finishedModules > 0 ? 'badge-success' : 'badge-muted'}">${st.finishedModules} ta modul</span></td>
+          <td data-label="Ball"><strong>${st.score} XP</strong></td>
+          <td data-label="Holat">
+            ${st.finishedModules > 0 ? '<span class="badge badge-success"><i data-lucide="award"></i> A\'loçi</span>' : '<span class="badge badge-primary">Faol</span>'}
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = html;
+  refreshIcons();
+
+  // Chart.js diagrammalarini ishga tushirish
+  setTimeout(() => {
+    const ctxModules = document.getElementById('chartModules')?.getContext('2d');
+    if (ctxModules && window.Chart) {
+      activeCharts.push(new Chart(ctxModules, {
+        type: 'bar',
+        data: {
+          labels: moduleLabels,
+          datasets: [{
+            label: 'Özlaştiriş darajasi (%)',
+            data: moduleCompletion,
+            backgroundColor: '#A89B8C',
+            borderColor: '#8F8171',
+            borderWidth: 1,
+            borderRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: motionAllowed() ? undefined : false,
+          scales: {
+            y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      }));
+    }
+
+    const ctxSteps = document.getElementById('chartSteps')?.getContext('2d');
+    if (ctxSteps && window.Chart) {
+      activeCharts.push(new Chart(ctxSteps, {
+        type: 'doughnut',
+        data: {
+          labels: ['Diagnostika', 'Video dars', 'Taqdimot', 'Material', 'Topşiriq', 'Refleksiya'],
+          datasets: [{
+            data: [stepCounts.diag, stepCounts.video, stepCounts.pres, stepCounts.doc, stepCounts.task, stepCounts.refl],
+            backgroundColor: ['#A89B8C', '#81987F', '#C9B99A', '#D4B896', '#7A7571', '#333130'],
+            borderWidth: 2,
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-alt').trim()
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: motionAllowed() ? undefined : false,
+          plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+          }
+        }
+      }));
+    }
+  }, 50);
+}
+
+// ===== MODULE VIEW & STEP LOGIC =====
 let currentStepContents = {};
 
 async function renderModuleView(container, isPublic = false) {
-  const m = modulesCache.find(x => x.id === currentModuleId);
+  if (!modulesCache.length) {
+    const mods = await fetchAPI('/modules');
+    if (mods && Array.isArray(mods)) modulesCache = mods;
+  }
+
+  let m = modulesCache.find(x => Number(x.id) === Number(currentModuleId));
+  if (!m && modulesCache.length > 0) {
+    m = modulesCache[0];
+    currentModuleId = Number(m.id);
+  }
+
+  if (!m) {
+    container.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Modul topilmadi yoki hali qöşilmagan.</p></div>';
+    refreshIcons();
+    return;
+  }
+
   const prog = progressCache[m.id] || { completed_steps: [] };
   const completed = prog.completed_steps || [];
-  
-  // Fetch specific content uploaded by teacher
+  const isAllDone = completed.length >= 6;
+
   const contentRows = await fetchAPI(`/content?module_id=${m.id}`);
   currentStepContents = {};
-  
+  if (contentRows && Array.isArray(contentRows)) {
+    contentRows.forEach(c => {
+      currentStepContents[c.step_type] = c.content || {};
+    });
+  }
+
   let html = `
-    <div class="back-btn" style="cursor:pointer; color:var(--primary); margin-bottom:20px; font-weight:500;" onclick="${isPublic ? `showPublicSection('public-modules')` : `navigate('modules')`}">← Ortga qaytish</div>
+    <div class="back-btn" onclick="${isPublic ? `showPublicSection('public-modules')` : `navigate('modules', 'Modullar')`}">
+      <i data-lucide="arrow-left"></i> Modullar röyxatiga qaytiş
+    </div>
+  `;
+
+  if (isAllDone && currentUser && currentUser.role === 'student') {
+    html += `
+      <div class="celebration-box">
+        <div style="margin-bottom:8px; color:var(--primary);"><i data-lucide="award" style="width:48px;height:48px;"></i></div>
+        <h3>Tabriklaymiz! Siz uşbu modulni muvaffaqiyatli tamomladingiz!</h3>
+        <p style="color:var(--text-muted); font-size:13px;">Barça 6 ta didaktik qadam töliq yakunlandi va tizimda qayd etildi.</p>
+      </div>
+    `;
+  }
+
+  html += `
     <div class="card">
-      <h3 class="card-title">${m.title}</h3>
-      <p style="color:var(--text-muted); margin-bottom: 20px;">${m.description}</p>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:15px;">
+        <div>
+          <span class="badge badge-primary">Modul ${m.order_num}</span>
+          <h2 style="font-family:var(--font-heading); font-size:28px; font-weight:400; margin-top:8px;">${escapeHTML(m.title)}</h2>
+        </div>
+        ${currentUser && currentUser.role === 'student' ? `
+          <div style="text-align:right;">
+            <span class="badge ${isAllDone ? 'badge-success' : 'badge-primary'}">${completed.length}/6 qadam bajarildi</span>
+          </div>
+        ` : ''}
+      </div>
+      <p style="color:var(--text-muted); margin-bottom: 25px; line-height:1.8;">${escapeHTML(m.description || '')}</p>
+      
       <div class="steps-list">
   `;
 
   STEP_TYPES.forEach((step, idx) => {
-    const isCompleted = currentUser.role !== 'student' ? true : completed.includes(step.id);
-    const isLocked = currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx-1].id);
-    const customContent = contentRows ? contentRows.find(c => c.step_type === step.id) : null;
-    currentStepContents[step.id] = customContent ? customContent.content : {};
-    
-    let icon = '📄';
-    if(step.type === 'video') icon = '▶️';
-    if(step.type === 'quiz') icon = '❓';
-    if(step.type === 'upload') icon = '📤';
-    if(step.type === 'text') icon = '✍️';
+    const isCompleted = currentUser && currentUser.role !== 'student' ? true : completed.includes(step.id);
+    const isLocked = currentUser && currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx - 1].id);
+    const hasContent = !!(currentStepContents[step.id]?.value || currentStepContents[step.id]?.file?.id);
 
     html += `
       <div class="step-item ${isCompleted ? 'completed' : ''} ${isLocked ? 'disabled' : ''}" 
-           onclick="${isLocked ? '' : `openStep('${step.id}', '${step.type}', '${step.title}')`}">
+           onclick="${isLocked ? '' : `openStep(${idx}, ${isPublic})`}"
+           title="${isLocked ? 'Oldingi qadamni yakunlang' : ''}">
         <div class="step-info">
-          <span class="step-icon">${isLocked ? '🔒' : icon}</span>
-          <span>${step.title}</span>
+          <span class="step-icon">
+            <i data-lucide="${isLocked ? 'lock' : step.icon}"></i>
+          </span>
+          <div>
+            <div style="font-weight:500; color:var(--text-main);">${step.title}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+              ${isLocked ? 'Avvalgi qadamni yakunlaş talab etiladi' : (hasContent ? 'Örganiş uçun tayyor' : 'Material hali qöşilmagan')}
+            </div>
+          </div>
         </div>
-        <div class="step-check">✅</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : '<span class="badge badge-primary">Boşlaş &rarr;</span>')}
+        </div>
       </div>
     `;
   });
 
   html += `</div></div>`;
   container.innerHTML = html;
+  refreshIcons();
 }
 
 // ===== TEACHER MANAGEMENT =====
 let editModuleId = null;
 
 async function renderManageModules(container) {
-  let formTitle = editModuleId ? "Modulni tahrirlash" : "Yangi modul qo'shish";
+  const formTitle = editModuleId ? "Modulni tahrirlaş" : "Yangi modul qöşiş";
   let mOrder = modulesCache.length + 1;
   let mTitle = "";
   let mDesc = "";
 
-  if(editModuleId) {
-     const em = modulesCache.find(x => x.id === editModuleId);
-     if(em) {
-       mOrder = em.order_num;
-       mTitle = em.title;
-       mDesc = em.description || '';
-     }
+  if (editModuleId) {
+    const em = modulesCache.find(x => x.id === editModuleId);
+    if (em) {
+      mOrder = em.order_num;
+      mTitle = em.title;
+      mDesc = em.description || '';
+    }
   }
 
   let html = `
     <div class="card">
-      <h3 class="card-title">${formTitle}</h3>
-      <div class="form-group"><label>Modul tartib raqami</label><input type="number" id="newModOrder" value="${mOrder}"/></div>
-      <div class="form-group"><label>Modul sarlavhasi</label><input type="text" id="newModTitle" placeholder="Masalan: Ta'lim turlari" value="${mTitle}"/></div>
-      <div class="form-group"><label>Ta'rif</label><input type="text" id="newModDesc" value="${mDesc}" /></div>
-      <button class="btn-primary" onclick="addModule()">${editModuleId ? "O'zgarishlarni saqlash" : "Saqlash"}</button>
-      ${editModuleId ? `<button class="btn-outline-light" style="color:#666; border-color:#ccc;" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))">Bekor qilish</button>` : ''}
+      <h3 class="card-title"><i data-lucide="edit"></i> ${formTitle}</h3>
+      <div style="display:grid; grid-template-columns: 120px 1fr; gap:20px;">
+        <div class="form-group">
+          <label>Tartib №</label>
+          <input type="number" id="newModOrder" value="${mOrder}" min="1"/>
+        </div>
+        <div class="form-group">
+          <label>Modul nomi</label>
+          <input type="text" id="newModTitle" placeholder="Masalan: Ta'lim tamoyillari" value="${escapeHTML(mTitle)}"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Modul haqida qisqaça ta'rif</label>
+        <input type="text" id="newModDesc" placeholder="Modul nimalarni örgatadi..." value="${escapeHTML(mDesc)}" />
+      </div>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn-primary" onclick="addModule()">
+          <i data-lucide="save"></i> ${editModuleId ? "Özgarişlarni saqlaş" : "Modulni yaratış"}
+        </button>
+        ${editModuleId ? `<button class="btn-outline" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))"><i data-lucide="x"></i> Bekor qiliş</button>` : ''}
+      </div>
     </div>
     
-    <div class="card"><h3 class="card-title">Modullarni boshqarish va material biriktirish</h3>
+    <div class="card">
+      <h3 class="card-title"><i data-lucide="layers"></i> Mavjud modullar va didaktik materiallar</h3>
   `;
-  
-  if(!modulesCache.length) {
-     html += `<p>Avval modul qo'shing.</p>`;
+
+  if (!modulesCache.length) {
+    html += `<p style="color:var(--text-muted)">Hozirça heç qanday modul yöq. Yuqoridagi şakl orqali modul qöşing.</p>`;
   } else {
     modulesCache.forEach(m => {
       html += `
-        <div style="border:1px solid #eee; padding: 15px; border-radius: 8px; margin-bottom: 10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <strong>${m.order_num}. ${m.title}</strong>
-            <button class="btn-outline-light" style="padding:4px 8px; font-size:12px; color:var(--primary); border-color:var(--primary);" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">✏️ Tahrirlash</button>
+        <div style="border:1px solid var(--border-color); padding: 20px; margin-bottom: 15px; background:var(--bg-alt);">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+            <div>
+              <span class="badge badge-primary">№ ${m.order_num}</span>
+              <strong style="font-size:16px; margin-left:8px;">${escapeHTML(m.title)}</strong>
+              <p style="color:var(--text-muted); font-size:12px; margin-top:4px;">${escapeHTML(m.description || '')}</p>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-outline" style="padding:6px 12px; font-size:11px;" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">
+                <i data-lucide="edit-2"></i> Tahrirlaş
+              </button>
+              <button class="btn-danger" onclick="deleteModule(${m.id})">
+                <i data-lucide="trash-2"></i> Öçiriş
+              </button>
+            </div>
           </div>
-          <div style="margin-top: 10px; display:flex; gap: 10px; flex-wrap:wrap">
-            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'video')">Video (URL) kiritish</button>
-            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'diag')">Test savoli</button>
-            <button class="btn-outline" style="padding:6px 10px; font-size:12px" onclick="openContentModal(${m.id}, 'doc')">Matn/Ssilka</button>
+          
+          <div style="margin-top: 15px; padding-top:15px; border-top:1px dashed var(--border-color);">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">6 ta qadam materiallarini biriktiriş:</div>
+            <div style="display:flex; gap: 8px; flex-wrap:wrap">
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'diag')"><i data-lucide="help-circle"></i> Test savoli</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'video')"><i data-lucide="play-circle"></i> Video (URL)</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'pres')"><i data-lucide="presentation"></i> Taqdimot</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'doc')"><i data-lucide="file-text"></i> Qöşimça matn</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'task')"><i data-lucide="upload-cloud"></i> Topşiriq</button>
+              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'refl')"><i data-lucide="feather"></i> Refleksiya</button>
+            </div>
           </div>
         </div>
       `;
@@ -426,152 +1141,795 @@ async function renderManageModules(container) {
   }
   html += `</div>`;
   container.innerHTML = html;
+  refreshIcons();
 }
 
 async function addModule() {
   const order_num = document.getElementById('newModOrder').value;
-  const title = document.getElementById('newModTitle').value;
-  const description = document.getElementById('newModDesc').value;
-  
-  if(!title || !order_num) return showToast("Iltimos, maydonlarni to'ldiring");
-  
-  const payload = { order_num, title, description, created_by: currentUser.id };
-  if(editModuleId) payload.id = editModuleId;
+  const title = document.getElementById('newModTitle').value.trim();
+  const description = document.getElementById('newModDesc').value.trim();
+
+  if (!title || !order_num) return showToast("Iltimos, tartib raqami va modul nomini töldiring!");
+
+  const payload = { order_num: Number(order_num), title, description };
+  if (editModuleId) payload.id = editModuleId;
 
   const res = await fetchAPI('/modules', 'POST', payload);
-  if(res) {
-    showToast(editModuleId ? "Modul yangilandi!" : "Modul saqlandi!");
+  if (res) {
+    showToast(editModuleId ? "Modul muvaffaqiyatli yangilandi!" : "Yangi modul yaratildi!");
     editModuleId = null;
     const mods = await fetchAPI('/modules');
-    if(mods) modulesCache = mods;
-    navigate('manage-modules', 'Modullarni boshqarish');
+    if (mods && Array.isArray(mods)) modulesCache = mods;
+    navigate('manage-modules', 'Modullarni boşqariş');
   }
 }
 
-// Upload Content Modal for Teacher
+async function deleteModule(id) {
+  const m = modulesCache.find(x => Number(x.id) === Number(id));
+  const title = m ? m.title : `Modul ${id}`;
+  if (!confirm(`Haqiqatan ham "${title}" modulini öçirmoqçimisiz?\nUşbu modulga tegişli barça materiallar va talaba javoblari öçiriladi.`)) {
+    return;
+  }
+  const res = await fetchAPI(`/modules?id=${id}`, 'DELETE');
+  if (res) {
+    showToast("Modul öçirildi.");
+    const mods = await fetchAPI('/modules');
+    if (mods && Array.isArray(mods)) modulesCache = mods;
+    navigate('manage-modules', 'Modullarni boşqariş');
+  }
+}
+
 let teacherUploadContext = {};
-function openContentModal(moduleId, stepType) {
-  teacherUploadContext = { moduleId, stepType };
-  document.getElementById('modalTitle').textContent = "Material biriktirish";
-  
+const FILE_STEP_ACCEPT = { pres: '.pptx', doc: DOCUMENT_ACCEPT, task: DOCUMENT_ACCEPT };
+const FILE_STEP_HINT = {
+  pres: 'Faqat PowerPoint (.pptx), 30 MB gaça.',
+  doc: 'PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.',
+  task: 'İxtiyoriy: topşiriqqa ilova. PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.'
+};
+
+function teacherFileFieldHtml(stepType, existingFile) {
+  return `
+    <div class="form-group">
+      <label for="teacherUploadFile">${stepType === 'pres' ? 'Taqdimot fayli (.pptx)' : 'Fayl'}</label>
+      ${existingFile ? `
+        <div class="current-file" id="currentFileRow">
+          ${fileCardHtml(existingFile)}
+          ${stepType === 'task' ? `<button type="button" class="btn-danger" onclick="removeTeacherFile()"><i data-lucide="trash-2"></i> Olib taşlaş</button>` : ''}
+        </div>` : ''}
+      <input type="file" id="teacherUploadFile" class="file-input" accept="${FILE_STEP_ACCEPT[stepType]}" aria-describedby="teacherFileHint"/>
+      <small id="teacherFileHint" class="field-hint">${FILE_STEP_HINT[stepType]}${existingFile ? ' Yangi fayl tanlasangiz, eskisi almaştiriladi.' : ''}</small>
+      ${UPLOAD_PROGRESS_HTML}
+    </div>`;
+}
+
+function removeTeacherFile() {
+  teacherUploadContext.existingFile = null;
+  document.getElementById('currentFileRow')?.remove();
+}
+
+async function openContentModal(moduleId, stepType) {
+  teacherUploadContext = { moduleId, stepType, existingFile: null };
+  const stepMeta = STEP_TYPES.find(s => s.id === stepType) || { title: 'Material biriktiriş' };
+  document.getElementById('modalTitle').textContent = `${stepMeta.title} — Material biriktiriş`;
+
   const body = document.getElementById('modalBody');
   const footer = document.getElementById('modalFooter');
-  
-  if (stepType === 'video') {
-    body.innerHTML = `<p>YouTube video ssilkasini kiriting:</p><input type="text" id="teacherUploadVal" class="form-group" style="width:100%" placeholder="https://youtube.com/..."/>`;
-  } else if (stepType === 'diag') {
-    body.innerHTML = `<p>Test savoli:</p><input type="text" id="teacherUploadVal" style="width:100%;margin-bottom:10px" placeholder="Savol..."/><p>To'g'ri javob:</p><input type="text" id="teacherUploadVal2" style="width:100%" placeholder="Javob..."/>`;
-  } else {
-    body.innerHTML = `<p>Ma'lumot matni yoki ssilka:</p><textarea id="teacherUploadVal" rows="4" style="width:100%"></textarea>`;
-  }
-  
-  footer.innerHTML = `<button class="btn btn-primary" onclick="saveTeacherContent()">Saqlash</button>`;
+  body.innerHTML = '<div class="spinner"></div>';
+  footer.innerHTML = '';
   document.getElementById('stepModal').classList.add('active');
+
+  const rows = await fetchAPI(`/content?module_id=${moduleId}`);
+  if (!rows) {
+    document.getElementById('stepModal').classList.remove('active');
+    return;
+  }
+  const existing = rows.find(r => r.step_type === stepType)?.content || {};
+  teacherUploadContext.existingFile = existing.file || null;
+  const existingVal = existing.value || '';
+  const existingAns = existing.answer || '';
+
+  if (stepType === 'video') {
+    body.innerHTML = `
+      <div class="form-group">
+        <label for="teacherUploadVal">YouTube video havolasi (URL)</label>
+        <input type="url" id="teacherUploadVal" placeholder="https://www.youtube.com/watch?v=..." value="${escapeHTML(existingVal)}"/>
+        <small class="field-hint">Masalan: https://youtube.com/watch?v=... yoki https://youtu.be/...</small>
+      </div>
+    `;
+  } else if (stepType === 'diag') {
+    body.innerHTML = `
+      <div class="form-group">
+        <label for="teacherUploadVal">Diagnostika savoli</label>
+        <textarea id="teacherUploadVal" rows="3" placeholder="Savol matnini kiriting...">${escapeHTML(existingVal)}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="teacherUploadVal2">Töğri javob (Öquvçi tekşiruvi uçun)</label>
+        <input type="text" id="teacherUploadVal2" placeholder="Töğri javob sözi yoki jumlasi..." value="${escapeHTML(existingAns)}"/>
+        <small class="field-hint">Eslatma: Talaba javobi tekşirilganda katta-kiçik harflar farqlanmaydi.</small>
+      </div>
+    `;
+  } else if (stepType === 'pres' || stepType === 'doc') {
+    body.innerHTML = `
+      ${teacherFileFieldHtml(stepType, teacherUploadContext.existingFile)}
+      <div class="form-group">
+        <label for="teacherUploadVal">Qisqaça izoh (ixtiyoriy)</label>
+        <textarea id="teacherUploadVal" rows="3" maxlength="30000" placeholder="Fayl haqida talabalarga izoh...">${escapeHTML(existingVal)}</textarea>
+      </div>
+    `;
+  } else {
+    const placeholder = stepType === 'task'
+      ? 'Talaba bajarişi kerak bölgan amaliy topşiriq matni...'
+      : 'Refleksiya uçun yönaltiruvçi savollar...';
+    body.innerHTML = `
+      <div class="form-group">
+        <label for="teacherUploadVal">Körsatma matni</label>
+        <textarea id="teacherUploadVal" rows="6" placeholder="${placeholder}">${escapeHTML(existingVal)}</textarea>
+      </div>
+      ${stepType === 'task' ? teacherFileFieldHtml('task', teacherUploadContext.existingFile) : ''}
+    `;
+  }
+
+  footer.innerHTML = `
+    <button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Bekor qiliş</button>
+    <button class="btn-primary" id="teacherSaveBtn" onclick="saveTeacherContent()"><i data-lucide="save"></i> Saqlaş</button>
+  `;
+  refreshIcons();
 }
 
 async function saveTeacherContent() {
-  const val = document.getElementById('teacherUploadVal').value;
-  let content = { value: val };
-  
-  if(teacherUploadContext.stepType === 'diag') {
-    content.answer = document.getElementById('teacherUploadVal2').value;
+  const { moduleId, stepType, existingFile } = teacherUploadContext;
+  const val = document.getElementById('teacherUploadVal')?.value.trim() || '';
+  const picked = document.getElementById('teacherUploadFile')?.files?.[0] || null;
+  const usesFileAsMaterial = stepType === 'pres' || stepType === 'doc';
+
+  if (usesFileAsMaterial && !picked && !existingFile) return showToast('Iltimos, faylni tanlang.', 'warning');
+  if (!usesFileAsMaterial && !val) return showToast('Iltimos, material matnini kiriting.', 'warning');
+
+  const content = { value: val };
+  if (stepType === 'diag') {
+    content.answer = document.getElementById('teacherUploadVal2')?.value.trim() || '';
+    if (!content.answer) return showToast('Testning töğri javobini kiriting.', 'warning');
   }
-  
-  const res = await fetchAPI('/content', 'POST', { 
-    module_id: teacherUploadContext.moduleId,
-    step_type: teacherUploadContext.stepType,
-    content,
-    updated_by: currentUser.id
+  if (stepType === 'video' && !getYouTubeEmbedUrl(val)) {
+    return showToast('Nötöğri YouTube havolasi! Iltimos, töğri YouTube URL kiriting.', 'error');
+  }
+
+  await runBusy(document.getElementById('teacherSaveBtn'), async () => {
+    try {
+      if (['pres', 'doc', 'task'].includes(stepType)) {
+        const file = picked
+          ? await uploadFile(picked, { moduleId, stepType, purpose: 'content' }, setUploadProgress)
+          : existingFile;
+        content.file_id = file ? file.id : null;
+      }
+      await requestAPI('/content', 'POST', { module_id: moduleId, step_type: stepType, content });
+      showToast("Material muvaffaqiyatli saqlandi! ✅");
+      document.getElementById('stepModal').classList.remove('active');
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
   });
-  
-  if(res) {
-    showToast("Material muvaffaqiyatli saqlandi!");
-    document.getElementById('stepModal').classList.remove('active');
+}
+
+// ===== SUBMISSIONS VIEW (FOR TEACHER / ADMIN) =====
+function renderSubmissions(container) {
+  if (!modulesCache.length) {
+    container.innerHTML = '<div class="card">Javoblarni köriş uçun avval modullar qöşing.</div>';
+    refreshIcons();
+    return;
+  }
+
+  const options = modulesCache.map((module) =>
+    `<option value="${Number(module.id)}">${module.order_num}. ${escapeHTML(module.title)}</option>`
+  ).join('');
+
+  container.innerHTML = `
+    <div class="card">
+      <h3 class="card-title"><i data-lucide="clipboard-check"></i> Talaba javoblari va monitoring</h3>
+      <div class="form-group">
+        <label for="submissionModule">Modulni tanlang</label>
+        <select id="submissionModule" onchange="loadSubmissions()">${options}</select>
+      </div>
+    </div>
+    <div id="submissionList" aria-live="polite"></div>
+  `;
+  loadSubmissions();
+  refreshIcons();
+}
+
+async function loadSubmissions() {
+  const moduleId = document.getElementById('submissionModule')?.value;
+  const list = document.getElementById('submissionList');
+  if (!moduleId || !list) return;
+
+  list.innerHTML = '<div class="spinner"></div>';
+  const rows = await fetchAPI(`/progress?module_id=${encodeURIComponent(moduleId)}`);
+  if (!rows) {
+    list.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    return;
+  }
+
+  const responseLabels = {
+    task: '5. Amaliy topşiriq',
+    refl: '6. Refleksiv hisobot'
+  };
+
+  const submissions = [];
+  rows.forEach(row => {
+    const responses = row.step_responses || {};
+    Object.keys(responseLabels).forEach(step => {
+      const response = typeof responses[step] === 'string' ? responses[step] : '';
+      const file = step === 'task' ? responses.task_file : null;
+      if (response || file?.id) submissions.push({ row, step, response, file });
+    });
+  });
+
+  if (!submissions.length) {
+    list.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Uşbu modul böyiça topşirilgan yozma topşiriqlar hozirça yöq.</p></div>';
+    refreshIcons();
+    return;
+  }
+
+  list.innerHTML = submissions.map(({ row, step, response, file }) => {
+    const reviews = row.step_responses?.reviews || {};
+    const existingReview = reviews[step]?.feedback || '';
+
+    return `
+      <article class="card submission-card" style="margin-bottom:20px;">
+        <div class="submission-heading">
+          <div>
+            <h3 style="font-size:18px;">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
+            <p>${escapeHTML(row.module_title || '')} &middot; <span class="badge badge-primary">${responseLabels[step]}</span></p>
+          </div>
+          <time>${escapeHTML(row.updated_at ? new Date(row.updated_at).toLocaleString('uz-UZ') : '')}</time>
+        </div>
+        <div class="submission-response">
+          <strong>Talaba javobi:</strong>
+          ${response ? `<p style="margin-top:6px; font-style:italic;">${escapeHTML(response)}</p>` : ''}
+          ${fileCardHtml(file)}
+        </div>
+
+        <div class="teacher-review-box">
+          <h5><i data-lucide="message-square"></i> Öqituvçi fikri va bahosi</h5>
+          ${existingReview ? `
+            <p><strong>Tekşirildi:</strong> ${escapeHTML(existingReview)}</p>
+          ` : ''}
+          <div style="display:flex; gap:10px; margin-top:8px;">
+            <input type="text" id="review_input_${row.id}_${step}" aria-label="Fikr-mulohaza" placeholder="Fikr-mulohaza yoki baho yozing..." value="${escapeHTML(existingReview)}" class="review-input"/>
+            <button class="btn-primary" style="padding:8px 16px; font-size:11px;" onclick="saveSubmissionReview(${row.id}, '${step}')">
+              <i data-lucide="check"></i> Baholaş
+            </button>
+          </div>
+        </div>
+      </article>
+    `;
+  }).join('');
+  refreshIcons();
+}
+
+async function saveSubmissionReview(progressId, step) {
+  const input = document.getElementById(`review_input_${progressId}_${step}`);
+  const feedback = input ? input.value.trim() : '';
+  if (!feedback) return showToast('Iltimos, fikr-mulohazani kiriting.');
+
+  const res = await fetchAPI('/progress', 'POST', {
+    action: 'review',
+    progress_id: progressId,
+    step,
+    feedback
+  });
+
+  if (res) {
+    showToast('Fikr-mulohaza saqlandi! ✅');
+    loadSubmissions();
   }
 }
 
-// ===== STEP MODAL LOGIC (Student) =====
+// ===== STEP MODAL LOGIC (STUDENT VIEW) =====
 let currentStepId = null;
+const NO_MATERIAL_HTML = '<p class="muted-text">Öqituvçi bu qadam uçun hali material qöşmagan.</p>';
+const CLOSE_STEP_BUTTON = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Yopiş</button>`;
 
-function openStep(id, type, title) {
+function openStep(stepIndex, isPublic = false) {
+  const step = STEP_TYPES[stepIndex];
+  if (!step) return;
+  const { id, type, title } = step;
   currentStepId = id;
   document.getElementById('modalTitle').textContent = title;
-  
+
   const body = document.getElementById('modalBody');
   const footer = document.getElementById('modalFooter');
-  
+
   const prog = progressCache[currentModuleId] || { completed_steps: [] };
   const isDone = (prog.completed_steps || []).includes(id);
-
+  const responses = prog.step_responses || {};
+  const myResponse = responses[id] || '';
+  const myFile = id === 'task' ? responses.task_file : null;
+  const myReview = responses.reviews ? responses.reviews[id] : null;
   const customContent = currentStepContents[id] || {};
+  const hasMaterial = Boolean(customContent.value || customContent.file?.id);
+  const noteHtml = customContent.value ? `<div class="step-text">${escapeHTML(customContent.value)}</div>` : '';
 
   if (type === 'quiz') {
-    const q = customContent.value || "O'qituvchi hali savol kiritmagan.";
-    body.innerHTML = `<div class="quiz-question">${q}</div>
-      <p style="font-size:12px; color:gray">Javobni o'ylab ko'ring va tasdiqlang.</p>`;
-    footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Bajarildi</button>`;
+    body.innerHTML = hasMaterial ? `
+      <div class="quiz-question">${escapeHTML(customContent.value)}</div>
+      <label for="stepAnswer" class="step-label">Javobingiz</label>
+      <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni şu yerga yozing..." autocomplete="off"/>
+    ` : NO_MATERIAL_HTML;
+    footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuboriş</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'video') {
-    const vid = customContent.value || "https://www.youtube.com/embed/dQw4w9WgXcQ";
-    let embed = vid;
-    if(vid.includes('watch?v=')) embed = vid.replace('watch?v=', 'embed/');
-    
-    body.innerHTML = `<div class="video-container" style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden;">
-        <iframe style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" src="${embed}" allowfullscreen></iframe>
-      </div><p style="margin-top:20px">Videoni to'liq ko'rgach "Bajarildi" tugmasini bosing.</p>`;
-    footer.innerHTML = `<button class="btn btn-success" onclick="completeStep()">Ko'rib bo'ldim</button>`;
+    const embed = customContent.value ? getYouTubeEmbedUrl(customContent.value) : null;
+    body.innerHTML = embed
+      ? `
+        <div class="video-container" style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; background:#000;">
+          <iframe title="Video dars" loading="lazy" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" src="${embed}" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        </div>
+        <p class="muted-text" style="margin-top:20px;">Videodarsni töliq körib bölgaç, quyidagi tugmani bosib qadamni yakunlang.</p>
+      `
+      : NO_MATERIAL_HTML;
+    footer.innerHTML = embed ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Körib böldim ✅</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'doc') {
-    const doc = customContent.value || "Hozircha material yuklanmagan.";
-    body.innerHTML = `<div style="padding: 20px 0;">${doc}</div>`;
-    footer.innerHTML = `<button class="btn btn-success" onclick="completeStep()">O'qib chiqdim</button>`;
+    body.innerHTML = hasMaterial ? `${fileCardHtml(customContent.file)}${noteHtml}` : NO_MATERIAL_HTML;
+    footer.innerHTML = hasMaterial ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Öqib çiqdim ✅</button>` : CLOSE_STEP_BUTTON;
   } else if (type === 'upload') {
-    body.innerHTML = `<p style="margin-bottom:15px">O'qituvchi bergan amaliy topshiriqni bajaring:</p>
-      <textarea rows="4" style="width:100%; padding:10px" placeholder="Javobingizni shu yerga yozing..."></textarea>`;
-    footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Topshirish</button>`;
+    body.innerHTML = `
+      <div class="step-text">${escapeHTML(customContent.value || 'Amaliy topşiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.')}</div>
+      ${fileCardHtml(customContent.file)}
+      ${isDone ? '' : `
+        <label for="stepResponse" class="step-label">Sizning yeçimingiz</label>
+        <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Javobni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
+        <label for="stepFile" class="step-label" style="margin-top:16px;">Yoki fayl biriktiring</label>
+        <input type="file" id="stepFile" class="file-input" accept="${DOCUMENT_ACCEPT}" aria-describedby="stepFileHint"/>
+        <small id="stepFileHint" class="field-hint">PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gaça.</small>
+        ${UPLOAD_PROGRESS_HTML}
+      `}
+    `;
+    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Topşiriş</button>`;
   } else if (type === 'text') {
-    body.innerHTML = `<p style="margin-bottom:15px">Ushbu moduldan nimalarni o'rgandingiz? Refleksiv hisobot yozing:</p><textarea rows="6" style="width:100%; padding: 10px; border:1px solid #ccc;"></textarea>`;
-    footer.innerHTML = `<button class="btn btn-primary" onclick="completeStep()">Hisobotni yuborish</button>`;
+    body.innerHTML = `
+      <div class="step-text">${escapeHTML(customContent.value || 'Uşbu modul davomida nimalarni örgandingiz va ularni qanday qöllaşni rejalaştirdingiz?')}</div>
+      <label for="stepResponse" class="step-label">Refleksiya hisoboti</label>
+      <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Refleksiyangizni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
+    `;
+    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Hisobotni yuboriş</button>`;
   }
 
-  if (currentUser.role !== 'student') {
-    footer.innerHTML = `<button class="btn btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')">Yopish</button>`;
-  } else if (isDone) {
-    footer.innerHTML = `<button class="btn btn-outline" disabled>Siz bu qadamni bajargansiz ✅</button>`;
+  if (!currentUser) {
+    footer.innerHTML = `<button class="btn-primary" onclick="document.getElementById('stepModal').classList.remove('active'); openAuthModal('login')"><i data-lucide="log-in"></i> Davom etiş uçun kiring</button>`;
+  } else if (isDone && currentUser.role === 'student') {
+    if (myResponse || myFile) {
+      const isDiag = id === 'diag';
+      const diagBadge = isDiag ? (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">Töğri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>') : '';
+      body.innerHTML += `
+        <div class="submitted-box">
+          <strong class="step-label">Siz topşirgan javob: ${diagBadge}</strong>
+          ${myResponse ? `<div style="font-size:14px; white-space:pre-wrap;">${escapeHTML(myResponse)}</div>` : ''}
+          ${fileCardHtml(myFile)}
+        </div>
+        ${reviewBoxHtml(myReview)}
+      `;
+    }
+    footer.innerHTML = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="check"></i> Siz bu qadamni bajargansiz &middot; Yopiş</button>`;
+  } else if (currentUser.role !== 'student') {
+    footer.innerHTML = CLOSE_STEP_BUTTON;
   }
 
   document.getElementById('stepModal').classList.add('active');
+  refreshIcons();
+}
+
+function reviewBoxHtml(review) {
+  if (!review?.feedback) return '';
+  return `
+    <div class="teacher-review-box">
+      <h5><i data-lucide="message-square"></i> Öqituvçi xulosasi (${escapeHTML(review.teacher_name || 'Ustoz')}):</h5>
+      <p>${escapeHTML(review.feedback)}</p>
+    </div>`;
+}
+
+async function completeStep(isPublic = false, button = null) {
+  if (!currentUser) return openAuthModal('login');
+
+  let response = '';
+  if (currentStepId === 'diag') {
+    response = document.getElementById('stepAnswer')?.value.trim() || '';
+    if (!response) return showToast('Iltimos, javobni kiriting.', 'warning');
+  }
+  if (['task', 'refl'].includes(currentStepId)) {
+    response = document.getElementById('stepResponse')?.value.trim() || '';
+  }
+  const picked = currentStepId === 'task' ? document.getElementById('stepFile')?.files?.[0] || null : null;
+  if (currentStepId === 'refl' && !response) return showToast('Iltimos, javob matnini kiriting.', 'warning');
+  if (currentStepId === 'task' && !response && !picked) return showToast('Iltimos, javob yozing yoki fayl biriktiring.', 'warning');
+
+  await runBusy(button, async () => {
+    try {
+      const payload = { module_id: currentModuleId, step_type: currentStepId, response };
+      if (picked) {
+        const file = await uploadFile(picked, { moduleId: currentModuleId, stepType: 'task', purpose: 'submission' }, setUploadProgress);
+        payload.file_id = file.id;
+      }
+      const res = await requestAPI('/progress', 'POST', payload);
+      progressCache[currentModuleId] = res;
+      if (currentStepId === 'diag') {
+        showToast(res.step_responses?.diag_correct ? 'Töğri javob! +15 ball ✅' : 'Javobingiz qabul qilindi (0 ball).', res.step_responses?.diag_correct ? 'success' : 'info');
+      } else {
+        showToast('Qadam muvaffaqiyatli bajarildi! ✅');
+      }
+      document.getElementById('stepModal').classList.remove('active');
+      renderModuleView(document.getElementById(isPublic ? 'publicModuleViewContainer' : 'pageContainer'), isPublic);
+    } catch (error) {
+      showToast(error.message, 'error');
+    }
+  });
 }
 
 function closeModal(e, id) {
   if (e.target.id === id) e.target.classList.remove('active');
 }
 
-async function completeStep() {
-  const score = ['diag', 'task', 'refl'].includes(currentStepId) ? 15 : 0;
-  
-  const res = await fetchAPI('/progress', 'POST', {
-    user_id: currentUser.id,
-    module_id: currentModuleId,
-    step_type: currentStepId,
-    score
-  });
-
-  if(res) {
-    progressCache[currentModuleId] = res;
-    showToast('Qadam bajarildi! ✅');
-  }
-  
-  document.getElementById('stepModal').classList.remove('active');
-  
-  const container = document.getElementById(currentUser.role === 'student' ? 'publicModuleViewContainer' : 'pageContainer');
-  renderModuleView(container, currentUser.role === 'student');
+function toggleMobileNav(button) {
+  const nav = document.getElementById('mainNav');
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  button.setAttribute('aria-expanded', String(!expanded));
+  button.setAttribute('aria-label', expanded ? 'Menyuni oçiş' : 'Menyuni yopiş');
+  nav.classList.toggle('open', !expanded);
+  refreshIcons();
 }
 
-function showToast(msg) {
+function sendContactMessage(event) {
+  event.preventDefault();
+  const name = document.getElementById('contactName').value.trim();
+  const email = document.getElementById('contactEmail').value.trim();
+  const message = document.getElementById('contactMessage').value.trim();
+  const subject = encodeURIComponent(`Ta'lim Nazariyasi murojaat: ${name}`);
+  const body = encodeURIComponent(`${message}\n\nYuboruvçi: ${name}\nEmail: ${email}`);
+  window.location.href = `mailto:info@talimnazariyasi.uz?subject=${subject}&body=${body}`;
+}
+
+function showToast(msg, type = 'info') {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
+  if (!t) return;
+
+  // Xabar mazmuniga qarab avtomatik toifani aniqlash (agar berilmagan bo'lsa)
+  if (type === 'info') {
+    const lower = String(msg).toLowerCase();
+    if (msg.includes('✅') || lower.includes('muvaffaqiyatli') || lower.includes('saqlandi') || lower.includes('yaratildi')) {
+      type = 'success';
+    } else if (lower.includes('xato') || lower.includes('nötöğri') || lower.includes('noto‘g‘ri') || lower.includes('öçirildi')) {
+      type = 'error';
+    } else if (lower.includes('iltimos') || lower.includes('diqqat') || lower.includes('talab')) {
+      type = 'warning';
+    }
+  }
+
+  const iconName = type === 'success' ? 'check-circle' : (type === 'error' ? 'alert-triangle' : (type === 'warning' ? 'alert-circle' : 'info'));
+  t.className = `toast toast-${type} show`;
+  t.innerHTML = `<i data-lucide="${iconName}"></i> <span>${escapeHTML(msg)}</span>`;
+  refreshIcons();
+
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => {
+    t.classList.remove('show');
+  }, 3500);
 }
+
+// ===== STUDENT WORK (TEACHER & ADMIN) =====
+let currentStudentId = null;
+
+function openStudentDetail(id) {
+  currentStudentId = Number(id);
+  navigate('student-detail');
+}
+
+function studentWorkHtml(rows) {
+  const byModule = new Map(rows.map(row => [Number(row.module_id), row]));
+  return modulesCache.map(module => {
+    const row = byModule.get(Number(module.id));
+    if (!row) {
+      return `
+        <section class="card work-module">
+          <div class="work-module-head">
+            <h3>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</h3>
+            <span class="badge badge-muted">Boşlanmagan</span>
+          </div>
+        </section>`;
+    }
+    const completed = row.completed_steps || [];
+    const responses = row.step_responses || {};
+    const steps = STEP_TYPES.map(step => {
+      const done = completed.includes(step.id);
+      const review = responses.reviews?.[step.id];
+      const answer = responses[step.id];
+      const file = step.id === 'task' ? responses.task_file : null;
+      const verdict = step.id === 'diag' && done
+        ? (responses.diag_correct ? '<span class="badge badge-success">Töğri</span>' : '<span class="badge badge-muted">Nötöğri</span>')
+        : '';
+      return `
+        <li class="work-step">
+          <div class="work-step-head">
+            <span>${step.title}</span>
+            <span class="work-step-badges">${verdict}<span class="badge ${done ? 'badge-success' : 'badge-muted'}">${done ? 'Bajarilgan' : 'Bajarilmagan'}</span></span>
+          </div>
+          ${typeof answer === 'string' && answer ? `<div class="submission-response">${escapeHTML(answer)}</div>` : ''}
+          ${fileCardHtml(file)}
+          ${reviewBoxHtml(review)}
+        </li>`;
+    }).join('');
+    return `
+      <section class="card work-module">
+        <div class="work-module-head">
+          <h3>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</h3>
+          <span class="badge ${completed.length >= 6 ? 'badge-success' : 'badge-primary'}">${completed.length}/6 qadam &middot; ${Number(row.total_score) || 0} ball</span>
+        </div>
+        <ul class="work-steps">${steps}</ul>
+      </section>`;
+  }).join('');
+}
+
+async function renderStudentDetail(container) {
+  const rows = await fetchAPI(`/progress?user_id=${currentStudentId}`);
+  if (!rows) {
+    container.innerHTML = '<div class="card">Ma\'lumotlarni yuklab bölmadi.</div>';
+    return;
+  }
+  const name = rows[0]?.student_name || rows[0]?.student_login || 'Talaba';
+  document.getElementById('pageTitle').textContent = name;
+  container.innerHTML = `
+    <button type="button" class="back-btn" onclick="navigate('analytics')"><i data-lucide="arrow-left"></i> Tahlilga qaytiş</button>
+    <div class="card">
+      <h3 class="card-title" style="margin-bottom:6px; border:none; padding:0;">${escapeHTML(name)}</h3>
+      <p class="muted-text">${escapeHTML(rows[0]?.student_login || '')} &middot; Modullar kesimida bajarilgan işlar</p>
+    </div>
+    ${studentWorkHtml(rows)}
+  `;
+  refreshIcons();
+}
+
+// ===== ADMIN: USERS & PROFILES =====
+const usersFilter = { role: 'student', q: '', page: 1 };
+let currentProfileId = null;
+let usersSearchTimer = null;
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString('uz-UZ') : '—';
+}
+
+function statusBadge(status) {
+  return (status || 'active') === 'active'
+    ? '<span class="badge badge-success">Faol</span>'
+    : '<span class="badge badge-muted">Bloklangan</span>';
+}
+
+function openUserProfile(id) {
+  currentProfileId = Number(id);
+  navigate('user-profile');
+}
+
+function setUsersRole(role) {
+  usersFilter.role = role;
+  usersFilter.page = 1;
+  navigate('users');
+}
+
+function setUsersPage(page) {
+  usersFilter.page = page;
+  loadUsersTable();
+}
+
+function onUsersSearch(value) {
+  clearTimeout(usersSearchTimer);
+  usersSearchTimer = setTimeout(() => {
+    usersFilter.q = value.trim();
+    usersFilter.page = 1;
+    loadUsersTable();
+  }, 300);
+}
+
+function renderUsers(container) {
+  container.innerHTML = `
+    <div class="card">
+      <div class="users-toolbar">
+        <div class="segmented" role="group" aria-label="Rol böyiça filtr">
+          <button type="button" id="usersTabStudent" aria-pressed="${usersFilter.role === 'student'}" onclick="setUsersRole('student')">Talabalar</button>
+          <button type="button" id="usersTabTeacher" aria-pressed="${usersFilter.role === 'teacher'}" onclick="setUsersRole('teacher')">Öqituvçilar</button>
+        </div>
+        <div class="users-search">
+          <label for="usersSearch" class="visually-hidden">İsm yoki login böyiça qidiriş</label>
+          <input id="usersSearch" type="search" placeholder="İsm yoki login böyiça qidiriş..." value="${escapeHTML(usersFilter.q)}" oninput="onUsersSearch(this.value)"/>
+        </div>
+      </div>
+      <div id="usersTable" aria-live="polite"><div class="spinner"></div></div>
+    </div>
+  `;
+  loadUsersTable();
+}
+
+async function loadUsersTable() {
+  const target = document.getElementById('usersTable');
+  if (!target) return;
+  const params = new URLSearchParams({ role: usersFilter.role, page: String(usersFilter.page) });
+  if (usersFilter.q) params.set('q', usersFilter.q);
+  const data = await fetchAPI(`/users?${params}`);
+  if (!document.getElementById('usersTable')) return;
+  if (!data) {
+    target.innerHTML = '<p class="muted-text">Ma\'lumotlarni yuklab bölmadi.</p>';
+    return;
+  }
+
+  document.getElementById('usersTabStudent').textContent = `Talabalar (${data.counts.student || 0})`;
+  document.getElementById('usersTabTeacher').textContent = `Öqituvçilar (${data.counts.teacher || 0})`;
+
+  if (!data.items.length) {
+    const label = usersFilter.role === 'student' ? 'talabalar' : 'öqituvçilar';
+    target.innerHTML = `<p class="muted-text empty-text">${usersFilter.q ? 'Qidiruv böyiça heç kim topilmadi.' : `Hozirça röyxatdan ötgan ${label} yöq.`}</p>`;
+    return;
+  }
+
+  const isStudent = usersFilter.role === 'student';
+  const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+  target.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table class="leaderboard-table">
+        <thead><tr>
+          <th>F.I.Ş</th><th>Login</th>
+          ${isStudent ? '<th>Tugatilgan modullar</th><th>Ball</th>' : '<th>Yaratgan modullari</th>'}
+          <th>Röyxatdan ötgan</th><th>Holat</th>
+        </tr></thead>
+        <tbody>
+          ${data.items.map(user => `
+            <tr>
+              <td data-label="F.I.Ş"><button type="button" class="link-btn" onclick="openUserProfile(${Number(user.id)})">${escapeHTML(user.name || user.login)}</button></td>
+              <td data-label="Login">${escapeHTML(user.login)}</td>
+              ${isStudent
+                ? `<td data-label="Modullar">${Number(user.modules_finished)} / ${Number(user.modules_started)}</td><td data-label="Ball">${Number(user.total_score)}</td>`
+                : `<td data-label="Modullar">${Number(user.modules_created)}</td>`}
+              <td data-label="Sana">${escapeHTML(formatDate(user.created_at))}</td>
+              <td data-label="Holat">${statusBadge(user.status)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    ${totalPages > 1 ? `
+      <div class="pagination">
+        <button type="button" class="btn-outline" ${data.page <= 1 ? 'disabled' : ''} onclick="setUsersPage(${data.page - 1})">Oldingi</button>
+        <span>${data.page} / ${totalPages}</span>
+        <button type="button" class="btn-outline" ${data.page >= totalPages ? 'disabled' : ''} onclick="setUsersPage(${data.page + 1})">Keyingi</button>
+      </div>` : ''}
+  `;
+  refreshIcons();
+}
+
+async function renderUserProfile(container) {
+  const profile = await fetchAPI(`/users?id=${currentProfileId}`);
+  if (!profile) {
+    container.innerHTML = '<div class="card">Foydalanuvçi topilmadi.</div>';
+    return;
+  }
+  document.getElementById('pageTitle').textContent = profile.name || profile.login;
+  usersFilter.role = profile.role === 'teacher' ? 'teacher' : 'student';
+
+  let extra = '';
+  if (profile.role === 'student') {
+    const rows = await fetchAPI(`/progress?user_id=${Number(profile.id)}`);
+    extra = rows ? studentWorkHtml(rows) : '<div class="card">Natijalarni yuklab bölmadi.</div>';
+  } else {
+    extra = `
+      <div class="card">
+        <h3 class="card-title">Yaratgan modullari</h3>
+        ${profile.modules_created.length
+          ? `<ul class="plain-list">${profile.modules_created.map(m => `<li>Modul ${Number(m.order_num)}. ${escapeHTML(m.title)}</li>`).join('')}</ul>`
+          : '<p class="muted-text">Hozirça modul yaratmagan.</p>'}
+      </div>`;
+  }
+
+  container.innerHTML = `
+    <button type="button" class="back-btn" onclick="navigate('users')"><i data-lucide="arrow-left"></i> Foydalanuvçilar röyxatiga qaytiş</button>
+    <div class="card">
+      <h3 class="card-title">${escapeHTML(profile.name || profile.login)}</h3>
+      <dl class="profile-grid">
+        <div><dt>Login</dt><dd>${escapeHTML(profile.login)}</dd></div>
+        <div><dt>Rol</dt><dd>${escapeHTML(ROLE_LABELS[profile.role] || profile.role)}</dd></div>
+        <div><dt>Holat</dt><dd>${statusBadge(profile.status)}</dd></div>
+        <div><dt>Röyxatdan ötgan</dt><dd>${escapeHTML(formatDate(profile.created_at))}</dd></div>
+        <div><dt>Oxirgi kiriş</dt><dd>${escapeHTML(formatDate(profile.last_login_at))}</dd></div>
+      </dl>
+    </div>
+    ${extra}
+  `;
+  refreshIcons();
+}
+
+// ===== URL ROUTING (a page refresh keeps the current view) =====
+function writeRoute(pageId) {
+  const params = { 'module-view': currentModuleId, 'student-detail': currentStudentId, 'user-profile': currentProfileId };
+  const suffix = pageId in params ? `/${params[pageId]}` : '';
+  history.replaceState(null, '', `#/${pageId}${suffix}`);
+}
+
+function restoreRoute() {
+  const [, pageId, rawId] = location.hash.match(/^#\/([a-z-]+)(?:\/(\d+))?$/) || [];
+  if (!pageId) return false;
+  const known = pageId === 'home' || pageId === 'modules' || pageId in PAGE_ROLES || pageId === 'module-view';
+  if (!known) return false;
+  const needsId = ['module-view', 'student-detail', 'user-profile'].includes(pageId);
+  if (needsId && !rawId) return false;
+  if (pageId === 'module-view') currentModuleId = Number(rawId);
+  if (pageId === 'student-detail') currentStudentId = Number(rawId);
+  if (pageId === 'user-profile') currentProfileId = Number(rawId);
+  navigate(pageId);
+  return true;
+}
+
+// ===== ACCESSIBILITY: KEYBOARD & MODAL FOCUS =====
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, iframe, [tabindex="0"]';
+const NON_INTERACTIVE_ONCLICK = '.modal-overlay, .auth-card, .modal-box, .sidebar-backdrop';
+
+function makeClickablesFocusable() {
+  document.querySelectorAll('div[onclick], span[onclick], tr[onclick]').forEach(element => {
+    if (element.matches(NON_INTERACTIVE_ONCLICK)) return;
+    if (!element.getAttribute('onclick')) return; // locked steps have an empty handler
+    element.setAttribute('role', 'button');
+    element.setAttribute('tabindex', '0');
+  });
+}
+
+function activeModal() {
+  return document.querySelector('.modal-overlay.active');
+}
+
+document.addEventListener('keydown', (event) => {
+  const target = event.target;
+  if ((event.key === 'Enter' || event.key === ' ') && target.matches?.('[role="button"][tabindex="0"]')) {
+    event.preventDefault();
+    target.click();
+    return;
+  }
+  if (event.key === 'Tab') {
+    const modal = activeModal();
+    if (!modal) return;
+    const items = [...modal.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+});
+
+function watchModalFocus(modal) {
+  let returnFocusTo = null;
+  new MutationObserver(() => {
+    const isOpen = modal.classList.contains('active');
+    if (isOpen && !returnFocusTo) {
+      returnFocusTo = document.activeElement;
+      setTimeout(() => {
+        const box = modal.firstElementChild;
+        const first = box.querySelector('input:not([type=file]):not([disabled]), textarea') || box.querySelector(FOCUSABLE);
+        first?.focus();
+      }, 80);
+    } else if (!isOpen && returnFocusTo) {
+      returnFocusTo.focus?.();
+      returnFocusTo = null;
+    }
+  }).observe(modal, { attributes: true, attributeFilter: ['class'] });
+}
+
+function selectRegisterRole(role, element) {
+  document.querySelectorAll('#registerForm .role-tab').forEach(tab => {
+    tab.classList.toggle('active', tab === element);
+    tab.setAttribute('aria-pressed', String(tab === element));
+  });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.modal-overlay').forEach(watchModalFocus);
+});
 
 // INITIALIZATION
-window.onload = initPublicSite;
+window.addEventListener('DOMContentLoaded', initPublicSite);
