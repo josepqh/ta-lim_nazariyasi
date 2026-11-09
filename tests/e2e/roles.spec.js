@@ -262,3 +262,41 @@ test('a module needs all its materials before it is created', async ({ page }) =
   await expect(page.locator('#toast')).toContainText('Diagnostika testini');
   await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 });
+
+for (const width of [1440, 1180, 1000, 768, 390, 340]) {
+  test(`public navbar and hero stay aligned at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#navAuth .btn-primary')).toBeVisible();
+
+    const centerY = async (locator) => {
+      const box = await locator.boundingBox();
+      return box.y + box.height / 2;
+    };
+    const candidates = [page.locator('.navbar .brand-logo'), page.locator('#navAuth .btn-primary'), page.locator('#navAuth .btn-nav'),
+      page.locator('.mobile-menu-btn'), page.locator('.nav-links a').first()];
+    const reference = await centerY(candidates[0]);
+    for (const item of candidates) {
+      if (await item.isVisible()) expect(Math.abs((await centerY(item)) - reference)).toBeLessThanOrEqual(1);
+    }
+
+    const primary = await page.locator('.hero-buttons .btn-primary').boundingBox();
+    const outline = await page.locator('.hero-buttons .btn-outline-white').boundingBox();
+    expect(primary.width).toBeCloseTo(outline.width, 0);
+    expect(primary.height).toBeCloseTo(outline.height, 0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    expect(await page.locator('.navbar').evaluate((nav) => nav.scrollWidth - nav.clientWidth)).toBeLessThanOrEqual(0);
+  });
+}
+
+test('the phone menu holds the links and registration', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#mainNav')).toBeHidden();
+  await page.locator('.mobile-menu-btn').click();
+  await expect(page.locator('#mainNav a').first()).toBeVisible();
+  await page.locator('.nav-menu-auth button').click();
+  await expect(page.locator('#authModal')).toHaveClass(/active/);
+  await expect(page.locator('#mainNav')).toBeHidden();
+  await expect(page.locator('#registerForm')).toBeVisible();
+});

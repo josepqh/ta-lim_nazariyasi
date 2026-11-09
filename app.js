@@ -354,6 +354,7 @@ function showPublicSection(sectionId) {
 
 // ===== AUTH MODAL LOGIC =====
 function openAuthModal(type) {
+  document.getElementById('mainNav')?.classList.remove('open');
   document.getElementById('authModal').classList.add('active');
   switchAuth(type);
   refreshIcons();

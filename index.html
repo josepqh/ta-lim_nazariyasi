@@ -13,7 +13,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="style.css?v=18"/>
+  <link rel="stylesheet" href="style.css?v=19"/>
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -37,6 +37,7 @@
         <li><a href="#" onclick="showPublicSection('public-modules')"><i data-lucide="layers"></i> Modullar</a></li>
         <li><a href="#" onclick="showPublicSection('public-news')"><i data-lucide="newspaper"></i> Maqolalar</a></li>
         <li><a href="#" onclick="showPublicSection('public-contact')"><i data-lucide="mail"></i> Aloqa</a></li>
+        <li class="nav-menu-auth"><button type="button" class="btn-outline" onclick="openAuthModal('register')"><i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish</button></li>
       </ul>
       <div class="nav-auth" id="navAuth">
         <button class="btn-nav" onclick="openAuthModal('register')">
@@ -363,6 +364,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
