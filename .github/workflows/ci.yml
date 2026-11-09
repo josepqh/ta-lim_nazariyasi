@@ -22,6 +22,8 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build:css
+      - run: git diff --exit-code assets/tailwind.css
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

@@ -2,6 +2,7 @@ const { expect, test } = require('@playwright/test');
 const { TEST_ADMIN } = require('../helpers/harness');
 
 const PASSWORD = 'a-valid-password';
+const ACTIVE = /(^|\s)active(\s|$)/;
 const PPTX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(4000, 9)]);
 const PDF = Buffer.concat([Buffer.from('%PDF-1.7'), Buffer.alloc(2000, 1)]);
 const file = (name, buffer, mimeType = 'application/octet-stream') => ({ name, mimeType, buffer });
@@ -18,23 +19,23 @@ async function emailedCode(page, email) {
 
 async function register(page, { name, login, role }) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('#navAuth .btn-nav').click();
+  await page.locator('#navRegister').click();
   await page.locator(`#registerForm .role-tab[data-role="${role}"]`).click();
   await page.locator('#regName').fill(name);
   const email = `${login}@gmail.com`;
   await page.locator('#regLogin').fill(email);
   await page.locator('#regPass').fill(PASSWORD);
   await page.locator('#registerForm button[type="submit"]').click();
-  await expect(page.locator('#registerCodeForm')).toHaveClass(/active/);
+  await expect(page.locator('#registerCodeForm')).toHaveClass(ACTIVE);
   await page.locator('#regCode').fill(await emailedCode(page, email));
   await page.locator('#registerCodeForm button[type="submit"]').click();
-  await expect(page.locator('#screen-app')).toHaveClass(/active/);
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
   await expect(page.locator('#pageTitle')).toHaveText('Bosh sahifa');
 }
 
 async function signIn(page, { login, password, role }) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('#navAuth .btn-primary').click();
+  await page.locator('#navLogin').click();
   await page.locator(`#loginForm .role-tab[data-role="${role}"]`).click();
   await page.locator('#loginUser').fill(login);
   await page.locator('#loginPass').fill(password);
@@ -97,16 +98,16 @@ async function answerQuizCorrectly(page) {
 
 async function doStep(page, index, fill) {
   await page.locator('.step-item').nth(index).click();
-  await expect(page.locator('#stepModal')).toHaveClass(/active/);
+  await expect(page.locator('#stepModal')).toHaveClass(ACTIVE);
   if (fill) await fill(page);
   await page.locator('#modalFooter button').first().click();
-  await expect(page.locator('#stepModal')).not.toHaveClass(/active/);
+  await expect(page.locator('#stepModal')).not.toHaveClass(ACTIVE);
 }
 
 test('a wrong password shows an error and never enters the app', async ({ page }) => {
   await signIn(page, { login: 'nobody_here', password: 'wrong-password', role: 'admin' });
   await expect(page.locator('#loginError')).toHaveText('Gmail yoki parol noto‘g‘ri.');
-  await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
 });
 
@@ -278,25 +279,25 @@ for (const width of [1440, 1180, 1000, 768, 390, 340]) {
   test(`public navbar and hero stay aligned at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#navAuth .btn-primary')).toBeVisible();
+    await expect(page.locator('#navLogin')).toBeVisible();
 
     const centerY = async (locator) => {
       const box = await locator.boundingBox();
       return box.y + box.height / 2;
     };
-    const candidates = [page.locator('.navbar .brand-logo'), page.locator('#navAuth .btn-primary'), page.locator('#navAuth .btn-nav'),
-      page.locator('.mobile-menu-btn'), page.locator('.nav-links a').first()];
+    const candidates = [page.locator('#navBrand'), page.locator('#navLogin'), page.locator('#navRegister'),
+      page.locator('#mobileMenuBtn'), page.locator('#mainNav a').first()];
     const reference = await centerY(candidates[0]);
     for (const item of candidates) {
       if (await item.isVisible()) expect(Math.abs((await centerY(item)) - reference)).toBeLessThanOrEqual(1);
     }
 
-    const primary = await page.locator('.hero-buttons .btn-primary').boundingBox();
-    const outline = await page.locator('.hero-buttons .btn-outline-white').boundingBox();
+    const primary = await page.locator('#heroJoin').boundingBox();
+    const outline = await page.locator('#heroModules').boundingBox();
     expect(primary.width).toBeCloseTo(outline.width, 0);
     expect(primary.height).toBeCloseTo(outline.height, 0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
-    expect(await page.locator('.navbar').evaluate((nav) => nav.scrollWidth - nav.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await page.locator('#navbar').evaluate((nav) => nav.scrollWidth - nav.clientWidth)).toBeLessThanOrEqual(0);
   });
 }
 
@@ -304,10 +305,10 @@ test('the phone menu holds the links and registration', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#mainNav')).toBeHidden();
-  await page.locator('.mobile-menu-btn').click();
+  await page.locator('#mobileMenuBtn').click();
   await expect(page.locator('#mainNav a').first()).toBeVisible();
-  await page.locator('.nav-menu-auth button').click();
-  await expect(page.locator('#authModal')).toHaveClass(/active/);
+  await page.locator('#menuRegister').click();
+  await expect(page.locator('#authModal')).toHaveClass(ACTIVE);
   await expect(page.locator('#mainNav')).toBeHidden();
   await expect(page.locator('#registerForm')).toBeVisible();
 });
@@ -316,39 +317,39 @@ test('registration needs the emailed code, and a forgotten password can be reset
   const login = unique('realuser');
   const email = `${login}@gmail.com`;
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.locator('#navAuth .btn-nav').click();
+  await page.locator('#navRegister').click();
   await page.locator('#regName').fill('Real User');
   await page.locator('#regLogin').fill(email);
   await page.locator('#regPass').fill(PASSWORD);
   await page.locator('#registerForm button[type="submit"]').click();
-  await expect(page.locator('#registerCodeForm')).toHaveClass(/active/);
+  await expect(page.locator('#registerCodeForm')).toHaveClass(ACTIVE);
   await expect(page.locator('#regResend')).toBeDisabled();
 
   const code = await emailedCode(page, email);
   await page.locator('#regCode').fill(code === '000000' ? '000001' : '000000');
   await page.locator('#registerCodeForm button[type="submit"]').click();
   await expect(page.locator('#registerCodeError')).toHaveText('Kod noto‘g‘ri.');
-  await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
 
   await page.locator('#regCode').fill(code);
   await page.locator('#registerCodeForm button[type="submit"]').click();
-  await expect(page.locator('#screen-app')).toHaveClass(/active/);
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
 
   await page.locator('.btn-logout').click();
-  await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
-  await page.locator('#navAuth .btn-primary').click();
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
+  await page.locator('#navLogin').click();
   await page.getByText('Parolni unutdingizmi?').click();
   await page.locator('#forgotEmail').fill(email);
   await page.locator('#forgotForm button[type="submit"]').click();
-  await expect(page.locator('#forgotCodeForm')).toHaveClass(/active/);
+  await expect(page.locator('#forgotCodeForm')).toHaveClass(ACTIVE);
   await page.locator('#forgotCode').fill(await emailedCode(page, email));
   await page.locator('#forgotPass').fill('a-brand-new-password');
   await page.locator('#forgotCodeForm button[type="submit"]').click();
-  await expect(page.locator('#loginForm')).toHaveClass(/active/);
+  await expect(page.locator('#loginForm')).toHaveClass(ACTIVE);
   await expect(page.locator('#loginUser')).toHaveValue(email);
   await page.locator('#loginPass').fill('a-brand-new-password');
   await page.locator('#loginForm button[type="submit"]').click();
-  await expect(page.locator('#screen-app')).toHaveClass(/active/);
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
 });
 
 test('the corner label opens the user’s own profile', async ({ page }) => {
@@ -377,16 +378,16 @@ test('the theme toggle overrides the system and is remembered', async ({ browser
   const page = await context.newPage();
   const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#navAuth .theme-toggle')).toHaveAttribute('aria-label', 'Kunduzgi rejim');
+  await expect(page.locator('#navAuth [data-theme-toggle]')).toHaveAttribute('aria-label', 'Kunduzgi rejim');
   const dark = await background();
 
-  await page.locator('#navAuth .theme-toggle').click();
+  await page.locator('#navAuth [data-theme-toggle]').click();
   await expect.poll(background).not.toBe(dark);
   const light = await background();
   await page.reload({ waitUntil: 'domcontentloaded' });
   expect(await background()).toBe(light);
 
-  await page.locator('#navAuth .theme-toggle').click();
+  await page.locator('#navAuth [data-theme-toggle]').click();
   await expect.poll(background).toBe(dark);
   await context.close();
 });
@@ -394,8 +395,8 @@ test('the theme toggle overrides the system and is remembered', async ({ browser
 test('the phone menu offers the theme toggle', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#navAuth .theme-toggle')).toBeHidden();
-  await page.locator('.mobile-menu-btn').click();
+  await expect(page.locator('#navAuth [data-theme-toggle]')).toBeHidden();
+  await page.locator('#mobileMenuBtn').click();
   await page.locator('.theme-menu-item').click();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
 });

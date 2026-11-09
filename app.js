@@ -236,9 +236,9 @@ async function initPublicSite() {
   const newsContainer = document.getElementById('publicNewsList');
   if (newsContainer) {
     newsContainer.innerHTML = GUIDE_DATA.map(article => `
-      <div class="info-card">
-        <h3>${escapeHTML(article.title)}</h3>
-        <p>${escapeHTML(article.desc)}</p>
+      <div class="info-tile">
+        <h3 class="text-xl font-semibold text-ink">${escapeHTML(article.title)}</h3>
+        <p class="mt-2 text-base leading-relaxed text-muted">${escapeHTML(article.desc)}</p>
       </div>
     `).join('');
   }
@@ -267,53 +267,50 @@ function renderPublicModules() {
   if (!modContainer) return;
 
   if (!modulesCache.length) {
-    modContainer.innerHTML = '<div class="info-card"><p>Hozircha modullar qo‘shilmagan.</p></div>';
+    modContainer.innerHTML = '<p class="col-span-full text-center text-base text-muted">Hozircha modullar qo‘shilmagan.</p>';
     refreshIcons();
     return;
   }
 
-  modContainer.innerHTML = modulesCache.map(m => {
-    let progBarHtml = '';
-    const isStudent = currentUser && currentUser.role === 'student';
-
-    if (isStudent) {
-      const prog = progressCache[m.id] || { completed_steps: [] };
-      const stepCount = (prog.completed_steps || []).length;
-      const pct = Math.round((stepCount / 6) * 100);
-      const isComplete = stepCount >= 6;
-
-      progBarHtml = `
-        <div style="margin-top:16px;">
-          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:500; color:var(--text-main);">
-            <span>${isComplete ? '🎉 Tamomlandi' : `${stepCount}/6 qadam`}</span>
-            <span>${pct}%</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill ${isComplete ? 'complete' : ''}" style="width: ${pct}%"></div>
-          </div>
+  const isStudent = currentUser?.role === 'student';
+  const cards = modulesCache.map(m => {
+    const prog = progressCache[m.id] || { completed_steps: [] };
+    const stepCount = (prog.completed_steps || []).length;
+    const pct = Math.round((stepCount / 6) * 100);
+    const isComplete = stepCount >= 6;
+    const progress = !isStudent ? '' : `
+      <div class="mt-4">
+        <div class="flex justify-between text-sm font-medium text-ink">
+          <span>${isComplete ? 'Tamomlandi' : `${stepCount}/6 qadam`}</span>
+          <span>${pct}%</span>
         </div>
-      `;
-    }
+        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
+          <div class="h-full rounded-full ${isComplete ? 'bg-success' : 'bg-primary'}" style="width: ${pct}%"></div>
+        </div>
+      </div>`;
 
     return `
-      <div class="info-card" style="cursor:pointer;" onclick="openStudentModule(${Number(m.id)})">
-        <div style="font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--primary); margin-bottom:8px;">Modul ${m.order_num}</div>
-        <h3>${escapeHTML(m.title)}</h3>
-        <p>${escapeHTML(m.description || "Ta'lim nazariyasi moduli")}</p>
-        ${progBarHtml}
-        <button class="btn-outline" style="margin-top:20px; padding:8px 18px; font-size:11px;" onclick="event.stopPropagation(); openStudentModule(${Number(m.id)})">
-          <i data-lucide="arrow-right"></i> Modulni o‘rganish &rarr;
+      <div class="info-tile flex cursor-pointer flex-col" onclick="openStudentModule(${Number(m.id)})">
+        <span class="section-eyebrow">Modul ${Number(m.order_num)}</span>
+        <h3 class="mt-2 text-xl font-semibold text-ink">${escapeHTML(m.title)}</h3>
+        <p class="mt-2 flex-1 text-base leading-relaxed text-muted">${escapeHTML(m.description || "Ta'lim nazariyasi moduli")}</p>
+        ${progress}
+        <button class="btn btn-line mt-5 self-start" onclick="event.stopPropagation(); openStudentModule(${Number(m.id)})">
+          Modulni o‘rganish <i data-lucide="arrow-right"></i>
         </button>
       </div>
     `;
-  }).join('') + (!currentUser ? `
-    <div class="info-card" style="display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; background:rgba(168,155,140,0.06); border:2px dashed var(--primary);" onclick="openAuthModal('register')">
-      <div style="margin-bottom:10px; color:var(--primary);"><i data-lucide="graduation-cap" style="width:36px;height:36px;"></i></div>
-      <h3 style="color:var(--text-main)">Barcha modullarga kirish</h3>
-      <p>Bepul ro‘yxatdan o‘tib, darslarni o‘zlashtirishni boshlang</p>
-      <button class="btn-primary" style="margin-top:15px; padding:10px 20px;"><i data-lucide="sparkles"></i> Ro‘yxatdan o‘tish</button>
-    </div>` : '');
+  }).join('');
 
+  const invite = currentUser ? '' : `
+    <div class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/5 p-6 text-center sm:p-7" onclick="openAuthModal('register')">
+      <i data-lucide="graduation-cap" class="size-9 text-primary"></i>
+      <h3 class="mt-3 text-xl font-semibold text-ink">Barcha modullarga kirish</h3>
+      <p class="mt-1 text-base text-muted">Bepul ro‘yxatdan o‘tib, darslarni o‘zlashtirishni boshlang</p>
+      <button class="btn btn-solid mt-4"><i data-lucide="sparkles"></i> Ro‘yxatdan o‘tish</button>
+    </div>`;
+
+  modContainer.innerHTML = cards + invite;
   refreshIcons();
 }
 
@@ -337,7 +334,7 @@ async function openStudentModule(id) {
   // Agar kirmagan bo'lsa ham public o'quv bo'limida modulni to'liq ochish
   showPublicSection('public-module-view');
   const container = document.getElementById('publicModuleViewContainer');
-  container.innerHTML = '<div class="spinner"></div><div style="text-align:center; padding:10px; color:var(--text-muted)">Yuklanmoqda...</div>';
+  container.innerHTML = '<div class="spinner"></div><div class="text-center p-2.5 text-muted">Yuklanmoqda...</div>';
   await renderModuleView(container, true);
 }
 
@@ -345,7 +342,7 @@ function showPublicSection(sectionId) {
   document.querySelectorAll('.public-section').forEach(s => s.classList.remove('active'));
   document.getElementById(sectionId)?.classList.add('active');
   document.getElementById('mainNav')?.classList.remove('open');
-  const menuButton = document.querySelector('.mobile-menu-btn');
+  const menuButton = document.getElementById('mobileMenuBtn');
   menuButton?.setAttribute('aria-expanded', 'false');
   menuButton?.setAttribute('aria-label', 'Menyuni ochish');
   window.scrollTo(0, 0);
@@ -559,11 +556,11 @@ async function startSession(user, modulesLoaded = false) {
   document.getElementById('navUser').style.display = 'flex';
 
   const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
-  const roleLabel = currentUser.role === 'student' ? 'TALABA' : (currentUser.role === 'teacher' ? 'O‘QITUVCHI' : 'ADMINISTRATOR');
+  const roleLabel = ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin;
 
   document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
-  document.getElementById('sidebarUser').innerHTML = `<i data-lucide="user-check"></i> <span>${escapeHTML(currentUser.name || currentUser.login)}</span>`;
-  document.getElementById('topbarUser').innerHTML = `<i data-lucide="${roleIcon}"></i> <span>${roleLabel}</span>`;
+  renderSidebarUser();
+  document.getElementById('topbarUser').innerHTML = `<i data-lucide="${roleIcon}"></i> <span class="hidden sm:inline">${roleLabel}</span>`;
 
   buildSidebar();
   syncAiChatAccess();
@@ -623,7 +620,7 @@ const STAFF_MENU = [
   { id: 'home', title: 'Bosh sahifa', icon: 'home' },
   { id: 'manage-modules', title: 'Modullarni boshqarish', short: 'Modullar', icon: 'edit-3' },
   { id: 'modules', title: 'Modullar ko‘rinishi', icon: 'book-open' },
-  { id: 'analytics', title: 'Tahlil va Grafika', icon: 'bar-chart-3' },
+  { id: 'analytics', title: 'Tahlil va grafika', icon: 'bar-chart-3' },
   { id: 'submissions', title: 'Talaba javoblari', icon: 'clipboard-check' }
 ];
 const NAV_MENU = {
@@ -651,20 +648,20 @@ function getSkeletonCards(count = 3) {
   for (let i = 0; i < count; i++) {
     html += `
       <div class="stat-card skeleton-card">
-        <div class="skeleton-shimmer" style="width:54px; height:54px; flex-shrink:0;"></div>
-        <div style="flex:1;">
-          <div class="skeleton-shimmer" style="width:40%; height:26px; margin-bottom:8px;"></div>
-          <div class="skeleton-shimmer" style="width:70%; height:13px;"></div>
+        <div class="skeleton-shimmer w-[54px] h-[54px] shrink-0"></div>
+        <div class="flex-1">
+          <div class="skeleton-shimmer w-[40%] h-[26px] mb-2"></div>
+          <div class="skeleton-shimmer w-[70%] h-[13px]"></div>
         </div>
       </div>
     `;
   }
   html += `</div>
     <div class="card skeleton-card">
-      <div class="skeleton-shimmer" style="width:35%; height:22px; margin-bottom:20px;"></div>
-      <div class="skeleton-shimmer" style="width:100%; height:15px; margin-bottom:12px;"></div>
-      <div class="skeleton-shimmer" style="width:85%; height:15px; margin-bottom:12px;"></div>
-      <div class="skeleton-shimmer" style="width:60%; height:15px;"></div>
+      <div class="skeleton-shimmer w-[35%] h-[22px] mb-5"></div>
+      <div class="skeleton-shimmer w-full h-[15px] mb-3"></div>
+      <div class="skeleton-shimmer w-[85%] h-[15px] mb-3"></div>
+      <div class="skeleton-shimmer w-[60%] h-[15px]"></div>
     </div>
   `;
   return html;
@@ -687,7 +684,7 @@ function buildSidebar() {
     div.onclick = () => {
       syncActiveNav(item.id);
       navigate(item.id, item.title);
-      if (window.innerWidth <= 900) toggleSidebar();
+      if (window.innerWidth < 1024) toggleSidebar();
     };
     nav.appendChild(div);
 
@@ -807,9 +804,9 @@ function renderHome(container) {
   html += `</div>
   <div class="card">
     <h3 class="card-title">Xush kelibsiz, ${escapeHTML(currentUser.name || currentUser.login)}!</h3>
-    <p style="color:var(--text-muted); line-height: 1.8;">
+    <p class="text-muted leading-[1.8]">
       Platformada zamonaviy ta'lim nazariyalari, 6 qadamli didaktik modullar hamda talabalar monitoringi va interaktiv vizualizatsiyasi jamlangan. 
-      ${currentUser.role === 'student' ? "Chap menyudan 'Modullar' bo‘limiga o‘tib bilimlaringizni oshiring." : "Siz modullarni boshqarishingiz, materiallar kiritishingiz, 'Tahlil va Grafika' bo‘limida o‘quvchilar natijalarini tahlil qilishingiz mumkin."}
+      ${currentUser.role === 'student' ? "Chap menyudan 'Modullar' bo‘limiga o‘tib bilimlaringizni oshiring." : "Siz modullarni boshqarishingiz, materiallar kiritishingiz, 'Tahlil va grafika' bo‘limida o‘quvchilar natijalarini tahlil qilishingiz mumkin."}
     </p>
   </div>`;
   container.innerHTML = html;
@@ -832,22 +829,22 @@ async function renderModules(container) {
 
     html += `
       <div class="module-card" onclick="openModule(${Number(m.id)})">
-        <div class="mod-info" style="flex:1; padding-right:20px;">
-          <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--primary); margin-bottom:4px;">Modul ${m.order_num}</div>
+        <div class="mod-info flex-1 pr-5">
+          <div class="text-sm text-primary mb-1">Modul ${m.order_num}</div>
           <h4>${escapeHTML(m.title)}</h4>
           <p>${escapeHTML(m.description || '')}</p>
           ${currentUser.role === 'student' ? `
-            <div style="margin-top:12px; max-width:320px;">
-              <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:4px;">
+            <div class="mt-3 max-w-80">
+              <div class="flex justify-between text-sm text-muted mb-1">
                 <span>${stepCount}/6 qadam bajarildi</span>
                 <span>${pct}%</span>
               </div>
-              <div class="progress-bar-track" style="margin:0;">
+              <div class="progress-bar-track m-0">
                 <div class="progress-bar-fill ${isDone ? 'complete' : ''}" style="width:${pct}%"></div>
               </div>
             </div>
           ` : `
-            <p style="margin-top:8px; font-size:12px; color:var(--primary); font-weight:500;">Materiallar va bosqichlarni ko‘rish &rarr;</p>
+            <p class="mt-2 text-sm text-primary font-medium">Materiallar va bosqichlarni ko‘rish &rarr;</p>
           `}
         </div>
         <div class="mod-status ${isDone ? 'done' : ''}">
@@ -950,9 +947,9 @@ async function renderAnalytics(container) {
     </div>
 
     <div class="card">
-      <h3 class="card-title" style="display:flex; align-items:center; gap:8px;"><i data-lucide="layers"></i> Modullar kesimida</h3>
+      <h3 class="card-title flex items-center gap-2"><i data-lucide="layers"></i> Modullar kesimida</h3>
       ${moduleStats.length ? `
-        <div style="overflow-x:auto;">
+        <div class="overflow-x-auto">
           <table class="leaderboard-table module-stats-table">
             <thead>
               <tr><th>Modul</th><th>Boshlaganlar</th><th>Tugatganlar</th><th>Jarayonda</th><th>O‘rtacha test natijasi</th></tr>
@@ -973,21 +970,21 @@ async function renderAnalytics(container) {
 
     <!-- Leaderboard / Reyting jadvali -->
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
-        <h3 class="card-title" style="margin:0; border:none; padding:0; display:flex; align-items:center; gap:8px;">
-          <i data-lucide="trophy" style="color:#d4af37;"></i> Talabalar Reytingi va Liderlar Jadvali
+      <div class="flex justify-between items-center mb-4 border-b border-line pb-3">
+        <h3 class="card-title m-0 border-0 p-0 flex items-center gap-2">
+          <i data-lucide="trophy" class="text-accent"></i> Talabalar reytingi
         </h3>
         <span class="badge badge-primary">Didaktik monitoring</span>
       </div>
-      <p style="color:var(--text-muted); font-size:13px; margin-bottom:20px;">
+      <p class="text-muted text-sm mb-5">
         Modullardagi 6 qadamli didaktik vazifalarni eng faol bajargan va eng yuqori natija ko‘rsatgan iqtidorli talabalar:
       </p>
 
-      <div style="overflow-x:auto;">
+      <div class="overflow-x-auto">
         <table class="leaderboard-table">
           <thead>
             <tr>
-              <th style="width:70px;">O‘rin</th>
+              <th class="w-[70px]">O‘rin</th>
               <th>Talaba F.I.Sh</th>
               <th>Bajarilgan qadamlar</th>
               <th>Test natijasi</th>
@@ -1000,7 +997,7 @@ async function renderAnalytics(container) {
   `;
 
   if (!leaderboard.length) {
-    html += `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted)">Hozircha talabalar natijalari mavjud emas.</td></tr>`;
+    html += `<tr><td colspan="7" class="text-center p-5 text-muted">Hozircha talabalar natijalari mavjud emas.</td></tr>`;
   } else {
     leaderboard.forEach((st, idx) => {
       const rank = idx + 1;
@@ -1013,7 +1010,7 @@ async function renderAnalytics(container) {
         <tr class="clickable-row" onclick="openStudentDetail(${Number(st.id)})" title="Bajargan ishlarini ko‘rish">
           <td data-label="O‘rin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
           <td data-label="Talaba"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
-          <td data-label="Qadamlar"><i data-lucide="check" style="width:14px;color:var(--success);"></i> ${st.completedSteps} ta qadam</td>
+          <td data-label="Qadamlar"><i data-lucide="check" class="w-[14px] text-success"></i> ${st.completedSteps} ta qadam</td>
           <td data-label="Test">${st.testTotal ? `<strong>${st.testCorrect}/${st.testTotal}</strong> <span class="muted-text">(${st.testTotal - st.testCorrect} ta xato)</span>` : '—'}</td>
           <td data-label="Modullar"><span class="badge ${st.finishedModules > 0 ? 'badge-success' : 'badge-muted'}">${st.finishedModules} ta modul</span></td>
           <td data-label="Ball"><strong>${st.score} XP</strong></td>
@@ -1108,7 +1105,7 @@ async function renderModuleView(container, isPublic = false) {
   }
 
   if (!m) {
-    container.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Modul topilmadi yoki hali qo‘shilmagan.</p></div>';
+    container.innerHTML = '<div class="card"><p class="text-muted">Modul topilmadi yoki hali qo‘shilmagan.</p></div>';
     refreshIcons();
     return;
   }
@@ -1134,27 +1131,27 @@ async function renderModuleView(container, isPublic = false) {
   if (isAllDone && currentUser && currentUser.role === 'student') {
     html += `
       <div class="celebration-box">
-        <div style="margin-bottom:8px; color:var(--primary);"><i data-lucide="award" style="width:48px;height:48px;"></i></div>
+        <div class="mb-2 text-primary"><i data-lucide="award" class="w-[48px] h-[48px]"></i></div>
         <h3>Tabriklaymiz! Siz ushbu modulni muvaffaqiyatli tamomladingiz!</h3>
-        <p style="color:var(--text-muted); font-size:13px;">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
+        <p class="text-muted text-sm">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
       </div>
     `;
   }
 
   html += `
     <div class="card">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:15px; margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:15px;">
+      <div class="flex justify-between items-start flex-wrap gap-4 mb-4 border-b border-line pb-4">
         <div>
           <span class="badge badge-primary">Modul ${m.order_num}</span>
-          <h2 style="font-family:var(--font-heading); font-size:28px; font-weight:400; margin-top:8px;">${escapeHTML(m.title)}</h2>
+          <h2 class="text-3xl font-normal mt-2">${escapeHTML(m.title)}</h2>
         </div>
         ${currentUser && currentUser.role === 'student' ? `
-          <div style="text-align:right;">
+          <div class="text-right">
             <span class="badge ${isAllDone ? 'badge-success' : 'badge-primary'}">${completed.length}/6 qadam bajarildi</span>
           </div>
         ` : ''}
       </div>
-      <p style="color:var(--text-muted); margin-bottom: 25px; line-height:1.8;">${escapeHTML(m.description || '')}</p>
+      <p class="text-muted mb-6 leading-[1.8]">${escapeHTML(m.description || '')}</p>
       
       <div class="steps-list">
   `;
@@ -1174,13 +1171,13 @@ async function renderModuleView(container, isPublic = false) {
             <i data-lucide="${isLocked ? 'lock' : step.icon}"></i>
           </span>
           <div>
-            <div style="font-weight:500; color:var(--text-main);">${step.title}</div>
-            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+            <div class="font-medium text-ink">${step.title}</div>
+            <div class="mt-0.5 text-sm text-muted">
               ${isLocked ? 'Avvalgi qadamni yakunlash talab etiladi' : (hasContent ? 'O‘rganish uchun tayyor' : 'Material hali qo‘shilmagan')}
             </div>
           </div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div class="flex items-center gap-2.5">
           ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : `<span class="badge badge-primary">${currentUser && !isStudent ? 'Ko‘rish' : 'Boshlash'} &rarr;</span>`)}
         </div>
       </div>
@@ -1228,7 +1225,7 @@ async function renderManageModules(container) {
         <input type="text" id="newModDesc" maxlength="5000" placeholder="Modul nimalarni o‘rgatadi…" value="${escapeHTML(mDesc)}"/>
       </div>
       ${editModuleId ? '' : newModuleStepsHtml()}
-      <div style="display:flex; gap:10px; margin-top:10px;">
+      <div class="flex gap-2.5 mt-2.5">
         <button class="btn-primary" id="saveModuleBtn" onclick="addModule()">
           <i data-lucide="save"></i> ${editModuleId ? "O‘zgarishlarni saqlash" : "Modulni yaratish"}
         </button>
@@ -1241,19 +1238,19 @@ async function renderManageModules(container) {
   `;
 
   if (!modulesCache.length) {
-    html += `<p style="color:var(--text-muted)">Hozircha hech qanday modul yo‘q. Yuqoridagi shakl orqali modul qo‘shing.</p>`;
+    html += `<p class="text-muted">Hozircha hech qanday modul yo‘q. Yuqoridagi shakl orqali modul qo‘shing.</p>`;
   } else {
     modulesCache.forEach(m => {
       html += `
-        <div style="border:1px solid var(--border-color); padding: 20px; margin-bottom: 15px; background:var(--bg-alt);">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+        <div class="rounded-xl border border-line p-5 mb-4 bg-surface">
+          <div class="flex justify-between items-start flex-wrap gap-2.5">
             <div>
               <span class="badge badge-primary">№ ${m.order_num}</span>
-              <strong style="font-size:16px; margin-left:8px;">${escapeHTML(m.title)}</strong>
-              <p style="color:var(--text-muted); font-size:12px; margin-top:4px;">${escapeHTML(m.description || '')}</p>
+              <strong class="text-base ml-2">${escapeHTML(m.title)}</strong>
+              <p class="text-muted text-sm mt-1">${escapeHTML(m.description || '')}</p>
             </div>
-            <div style="display:flex; gap:8px;">
-              <button class="btn-outline" style="padding:6px 12px; font-size:11px;" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">
+            <div class="flex gap-2">
+              <button class="btn-outline btn-sm" onclick="editModuleId=${m.id}; renderManageModules(document.getElementById('pageContainer'))">
                 <i data-lucide="edit-2"></i> Tahrirlash
               </button>
               <button class="btn-danger" onclick="deleteModule(${m.id})">
@@ -1262,15 +1259,15 @@ async function renderManageModules(container) {
             </div>
           </div>
           
-          <div style="margin-top: 15px; padding-top:15px; border-top:1px dashed var(--border-color);">
-            <div style="font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:8px;">6 ta qadam materiallarini biriktirish:</div>
-            <div style="display:flex; gap: 8px; flex-wrap:wrap">
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'diag')"><i data-lucide="help-circle"></i> Test savoli</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'video')"><i data-lucide="play-circle"></i> Video (URL)</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'pres')"><i data-lucide="presentation"></i> Taqdimot</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'doc')"><i data-lucide="file-text"></i> Qo‘shimcha matn</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'task')"><i data-lucide="upload-cloud"></i> Topshiriq</button>
-              <button class="btn-outline" style="padding:6px 10px; font-size:11px" onclick="openContentModal(${m.id}, 'refl')"><i data-lucide="feather"></i> Refleksiya</button>
+          <div class="mt-4 pt-4 border-t border-dashed border-line">
+            <div class="text-sm text-muted mb-2">6 ta qadam materiallarini biriktirish:</div>
+            <div class="flex gap-2 flex-wrap">
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'diag')"><i data-lucide="help-circle"></i> Test savoli</button>
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'video')"><i data-lucide="play-circle"></i> Video (URL)</button>
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'pres')"><i data-lucide="presentation"></i> Taqdimot</button>
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'doc')"><i data-lucide="file-text"></i> Qo‘shimcha matn</button>
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'task')"><i data-lucide="upload-cloud"></i> Topshiriq</button>
+              <button class="btn-outline btn-sm" onclick="openContentModal(${m.id}, 'refl')"><i data-lucide="feather"></i> Refleksiya</button>
             </div>
           </div>
         </div>
@@ -1742,10 +1739,10 @@ async function loadSubmissions() {
   });
 
   const quizCards = rows.filter(row => row.step_responses?.diag_result).map(row => `
-    <article class="card submission-card" style="margin-bottom:20px;">
+    <article class="card submission-card mb-5">
       <div class="submission-heading">
         <div>
-          <h3 style="font-size:18px;">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
+          <h3 class="text-lg">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
           <p>${escapeHTML(row.module_title || '')} &middot; <span class="badge badge-primary">1. Diagnostika testi</span></p>
         </div>
       </div>
@@ -1753,7 +1750,7 @@ async function loadSubmissions() {
     </article>`).join('');
 
   if (!submissions.length && !quizCards) {
-    list.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Ushbu modul bo‘yicha topshirilgan yozma topshiriqlar hozircha yo‘q.</p></div>';
+    list.innerHTML = '<div class="card"><p class="text-muted">Ushbu modul bo‘yicha topshirilgan yozma topshiriqlar hozircha yo‘q.</p></div>';
     refreshIcons();
     return;
   }
@@ -1763,17 +1760,17 @@ async function loadSubmissions() {
     const existingReview = reviews[step]?.feedback || '';
 
     return `
-      <article class="card submission-card" style="margin-bottom:20px;">
+      <article class="card submission-card mb-5">
         <div class="submission-heading">
           <div>
-            <h3 style="font-size:18px;">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
+            <h3 class="text-lg">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
             <p>${escapeHTML(row.module_title || '')} &middot; <span class="badge badge-primary">${responseLabels[step]}</span></p>
           </div>
           <time>${escapeHTML(row.updated_at ? new Date(row.updated_at).toLocaleString('uz-UZ') : '')}</time>
         </div>
         <div class="submission-response">
           <strong>Talaba javobi:</strong>
-          ${response ? `<p style="margin-top:6px; font-style:italic;">${escapeHTML(response)}</p>` : ''}
+          ${response ? `<p class="mt-1.5 italic">${escapeHTML(response)}</p>` : ''}
           ${fileCardHtml(file)}
         </div>
 
@@ -1782,9 +1779,9 @@ async function loadSubmissions() {
           ${existingReview ? `
             <p><strong>Tekshirildi:</strong> ${escapeHTML(existingReview)}</p>
           ` : ''}
-          <div style="display:flex; gap:10px; margin-top:8px;">
+          <div class="flex gap-2.5 mt-2">
             <input type="text" id="review_input_${row.id}_${step}" aria-label="Fikr-mulohaza" placeholder="Fikr-mulohaza yoki baho yozing..." value="${escapeHTML(existingReview)}" class="review-input"/>
-            <button class="btn-primary" style="padding:8px 16px; font-size:11px;" onclick="saveSubmissionReview(${row.id}, '${step}')">
+            <button class="btn-primary btn-sm" onclick="saveSubmissionReview(${row.id}, '${step}')">
               <i data-lucide="check"></i> Baholash
             </button>
           </div>
@@ -1856,10 +1853,10 @@ function openStep(stepIndex, isPublic = false) {
     const embed = customContent.value ? getYouTubeEmbedUrl(customContent.value) : null;
     body.innerHTML = embed
       ? `
-        <div class="video-container" style="position:relative; padding-bottom:56.25%; height:0; overflow:hidden; background:#000;">
-          <iframe title="Video dars" loading="lazy" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" src="${embed}" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        <div class="video-container relative pb-[56.25%] h-0 overflow-hidden bg-black">
+          <iframe title="Video dars" loading="lazy" class="absolute top-0 left-0 w-full h-full border-0" src="${embed}" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
         </div>
-        <p class="muted-text" style="margin-top:20px;">Videodarsni to‘liq ko‘rib bo‘lgach, quyidagi tugmani bosib qadamni yakunlang.</p>
+        <p class="muted-text mt-5">Videodarsni to‘liq ko‘rib bo‘lgach, quyidagi tugmani bosib qadamni yakunlang.</p>
       `
       : NO_MATERIAL_HTML;
     footer.innerHTML = embed ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Ko‘rib bo‘ldim ✅</button>` : CLOSE_STEP_BUTTON;
@@ -1873,7 +1870,7 @@ function openStep(stepIndex, isPublic = false) {
       ${isDone ? '' : `
         <label for="stepResponse" class="step-label">Sizning yechimingiz</label>
         <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Javobni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
-        <label for="stepFile" class="step-label" style="margin-top:16px;">Yoki fayl biriktiring</label>
+        <label for="stepFile" class="step-label mt-4">Yoki fayl biriktiring</label>
         <input type="file" id="stepFile" class="file-input" accept="${DOCUMENT_ACCEPT}" aria-describedby="stepFileHint"/>
         <small id="stepFileHint" class="field-hint">PDF, Word, Excel, PowerPoint, matn yoki rasm, 30 MB gacha.</small>
         ${UPLOAD_PROGRESS_HTML}
@@ -1896,12 +1893,12 @@ function openStep(stepIndex, isPublic = false) {
       const isDiag = id === 'diag';
       const quizScore = responses.diag_result;
       const diagBadge = !isDiag ? '' : quizScore
-        ? `<span class="badge badge-primary" style="margin-left:8px;">+${quizScore.score} ball</span>`
-        : (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">To‘g‘ri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>');
+        ? `<span class="badge badge-primary ml-2">+${quizScore.score} ball</span>`
+        : (responses.diag_correct ? '<span class="badge badge-success ml-2">To‘g‘ri (+15 ball)</span>' : '<span class="badge badge-muted ml-2">Qabul qilindi (0 ball)</span>');
       body.innerHTML += `
         <div class="submitted-box">
           <strong class="step-label">Siz topshirgan javob: ${diagBadge}</strong>
-          ${myResponse ? `<div style="font-size:14px; white-space:pre-wrap;">${escapeHTML(myResponse)}</div>` : ''}
+          ${myResponse ? `<div class="text-sm whitespace-pre-wrap">${escapeHTML(myResponse)}</div>` : ''}
           ${fileCardHtml(myFile)}
         </div>
         ${reviewBoxHtml(myReview)}
@@ -2137,7 +2134,7 @@ async function renderStudentDetail(container) {
   container.innerHTML = `
     <button type="button" class="back-btn" onclick="navigate('analytics')"><i data-lucide="arrow-left"></i> Tahlilga qaytish</button>
     <div class="card">
-      <h3 class="card-title" style="margin-bottom:6px; border:none; padding:0;">${escapeHTML(name)}</h3>
+      <h3 class="card-title mb-1.5 border-0 p-0">${escapeHTML(name)}</h3>
       <p class="muted-text">${escapeHTML(rows[0]?.student_login || '')} &middot; Modullar kesimida bajarilgan ishlar</p>
     </div>
     ${studentWorkHtml(rows)}
@@ -2228,7 +2225,7 @@ async function loadUsersTable() {
   const isStudent = usersFilter.role === 'student';
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
   target.innerHTML = `
-    <div style="overflow-x:auto;">
+    <div class="overflow-x-auto">
       <table class="leaderboard-table">
         <thead><tr>
           <th>F.I.Sh</th><th>Login</th>
@@ -2300,9 +2297,16 @@ async function renderUserProfile(container) {
 }
 
 // ===== MY PROFILE =====
+function renderSidebarUser() {
+  const name = currentUser.name || currentUser.login;
+  document.getElementById('sidebarUser').innerHTML = `
+    <span class="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-semibold text-on-primary">${escapeHTML(name.charAt(0).toUpperCase())}</span>
+    <div class="min-w-0"><p class="truncate text-[15px] font-semibold">${escapeHTML(name)}</p><p class="text-sm text-muted">${ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin}</p></div>`;
+}
+
 function syncDisplayedName() {
   const name = escapeHTML(currentUser.name || currentUser.login);
-  document.getElementById('sidebarUser').innerHTML = `<i data-lucide="user-check"></i> <span>${name}</span>`;
+  renderSidebarUser();
   const icon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
   document.getElementById('navUserName').innerHTML = `<i data-lucide="${icon}"></i> ${name}`;
   refreshIcons();
@@ -2399,7 +2403,7 @@ function syncThemeButtons() {
   const dark = activeTheme() === 'dark';
   const label = dark ? 'Kunduzgi rejim' : 'Tungi rejim';
   const icon = dark ? 'sun' : 'moon';
-  document.querySelectorAll('.theme-toggle').forEach(button => {
+  document.querySelectorAll('[data-theme-toggle]').forEach(button => {
     button.setAttribute('aria-label', label);
     button.setAttribute('title', label);
     button.innerHTML = `<i data-lucide="${icon}"></i>`;

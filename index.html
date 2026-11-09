@@ -14,46 +14,44 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="style.css?v=21"/>
+  <link rel="stylesheet" href="assets/tailwind.css?v=4"/>
 </head>
-<body>
-<a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
+<body class="min-h-dvh overflow-x-hidden bg-page font-sans text-[15px] leading-[1.7] text-ink">
+<a class="fixed -top-16 left-3 z-[3000] rounded-xl bg-ink px-4 py-2.5 text-surface focus:top-3" href="#mainContent">Asosiy mazmunga o‘tish</a>
 
 <!-- ════════ PUBLIC WEBSITE ════════ -->
-<div id="public-website">
+<div id="public-website" class="min-h-screen">
   <!-- NAVBAR -->
-  <nav class="navbar" id="navbar">
-    <div class="nav-container">
-      <a href="#" class="logo brand-logo" onclick="showPublicSection('home')">
-        <img src="assets/logo.png?v=4" alt="" width="42" height="42" class="brand-logo-img"/>
-        <div class="brand-text-wrap">
-          <span class="brand-name">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
-        </div>
+  <nav id="navbar" class="fixed inset-x-0 top-0 z-[900] flex h-16 items-center border-b border-line bg-overlay backdrop-blur xl:h-[76px]">
+    <div class="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 xl:gap-6 xl:px-8">
+      <a href="#" id="navBrand" class="mr-auto inline-flex min-w-0 items-center gap-2.5 xl:mr-0 xl:flex-1" onclick="showPublicSection('home')">
+        <img src="assets/logo.png?v=4" alt="" width="40" height="40" class="size-9 shrink-0 sm:size-10"/>
+        <span class="text-lg font-bold tracking-tight whitespace-nowrap text-ink sm:text-xl">Ta'lim<span class="text-primary">Nazariyasi</span></span>
       </a>
-      <button class="mobile-menu-btn" type="button" aria-label="Menyuni ochish" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
-        <i data-lucide="menu"></i>
+      <button id="mobileMenuBtn" class="icon-btn order-3 border-transparent xl:hidden" type="button" aria-label="Menyuni ochish" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
+        <i data-lucide="menu" class="size-[22px]"></i>
       </button>
-      <ul class="nav-links" id="mainNav">
-        <li><a href="#" onclick="showPublicSection('home')"><i data-lucide="home"></i> Bosh sahifa</a></li>
-        <li><a href="#" onclick="showPublicSection('public-modules')"><i data-lucide="layers"></i> Modullar</a></li>
-        <li><a href="#" onclick="showPublicSection('public-news')"><i data-lucide="newspaper"></i> Maqolalar</a></li>
-        <li><a href="#" onclick="showPublicSection('public-contact')"><i data-lucide="mail"></i> Aloqa</a></li>
-        <li class="nav-menu-theme"><button type="button" class="theme-menu-item" onclick="toggleTheme()"></button></li>
-        <li class="nav-menu-auth"><button type="button" class="btn-outline" onclick="openAuthModal('register')"><i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish</button></li>
+      <ul id="mainNav" class="absolute inset-x-0 top-full hidden flex-col gap-1 border-b border-line bg-surface px-4 py-3 shadow-lg sm:px-6 [&.open]:flex xl:static xl:flex xl:flex-row xl:items-center xl:gap-1 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
+        <li><a href="#" class="flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px]" onclick="showPublicSection('home')"><i data-lucide="home" class="size-[18px]"></i> Bosh sahifa</a></li>
+        <li><a href="#" class="flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px]" onclick="showPublicSection('public-modules')"><i data-lucide="layers" class="size-[18px]"></i> Modullar</a></li>
+        <li><a href="#" class="flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px]" onclick="showPublicSection('public-news')"><i data-lucide="newspaper" class="size-[18px]"></i> Maqolalar</a></li>
+        <li><a href="#" class="flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px]" onclick="showPublicSection('public-contact')"><i data-lucide="mail" class="size-[18px]"></i> Aloqa</a></li>
+        <li class="sm:hidden"><button type="button" class="theme-menu-item flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px] w-full" onclick="toggleTheme()"></button></li>
+        <li class="mt-2 sm:hidden [#navbar:has(#navAuth[style*=none])_&]:hidden"><button type="button" id="menuRegister" class="btn btn-line w-full" onclick="openAuthModal('register')"><i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish</button></li>
       </ul>
-      <div class="nav-auth" id="navAuth">
-        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <button class="btn-nav" onclick="openAuthModal('register')">
+      <div id="navAuth" class="order-2 flex items-center gap-2 xl:flex-1 xl:justify-end">
+        <button type="button" data-theme-toggle class="icon-btn hidden sm:inline-flex" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
+        <button id="navRegister" class="btn hidden text-ink hover:text-primary sm:inline-flex" onclick="openAuthModal('register')">
           <i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish
         </button>
-        <button class="btn-primary" onclick="openAuthModal('login')">
+        <button id="navLogin" class="btn btn-solid" onclick="openAuthModal('login')">
           <i data-lucide="log-in"></i> Kirish
         </button>
       </div>
-      <div class="nav-user" id="navUser" style="display:none; align-items:center; gap:15px;">
-        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <span id="navUserName" style="font-weight:500; color:var(--text-main); display:inline-flex; align-items:center; gap:6px;"></span>
-        <button class="btn-primary" onclick="logout()" style="padding:6px 14px; font-size:12px; gap:6px;">
+      <div id="navUser" class="order-2 items-center gap-2 xl:flex-1 xl:justify-end" style="display:none">
+        <button type="button" data-theme-toggle class="icon-btn hidden sm:inline-flex" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
+        <span id="navUserName" class="hidden min-w-0 items-center gap-1.5 truncate font-medium text-ink sm:inline-flex"></span>
+        <button class="btn btn-solid" onclick="logout()">
           <i data-lucide="log-out"></i> Chiqish
         </button>
       </div>
@@ -61,161 +59,157 @@
   </nav>
 
   <!-- SECTIONS -->
-  <main class="public-content">
-    
+  <main>
+
     <!-- HOME SECTION -->
-    <section id="home" class="public-section active">
+    <section id="home" class="public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block active">
 
       <!-- HERO -->
-      <div class="hero">
-        <div class="hero-bg"></div>
-        <div class="hero-overlay"></div>
-        <div class="hero-content">
-          <span class="hero-badge"><i data-lucide="brain" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Ilmiy yondashuv &middot; 6 qadamli kurslar</span>
-          <h1 class="hero-title">Ta'limning ilg‘or<br/><span>usullarini</span><br/>kashf eting</h1>
-          <p class="hero-desc">Ta'lim nazariyasini o‘rganish, o‘quv materiallari bilan ishlash va bilimni amaliyotda sinash uchun zamonaviy platforma.</p>
-          <div class="hero-buttons">
-            <button class="btn-primary" onclick="openAuthModal('register')">
-              <i data-lucide="arrow-right-circle"></i> Platformaga Qo‘shilish
+      <div class="relative -mt-16 flex min-h-svh items-center justify-center px-5 pt-16 pb-10 text-center xl:-mt-[76px] xl:pt-[76px]">
+        <div class="absolute inset-0 bg-[url('/fon.jpg')] bg-cover bg-center"></div>
+        <div class="absolute inset-0 bg-gradient-to-b from-[#16110b]/75 via-[#16110b]/60 to-[#16110b]/85"></div>
+        <div class="relative z-10 w-full max-w-3xl">
+          <span class="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-sm font-medium text-[#EBD9BC] backdrop-blur-sm"><i data-lucide="brain"></i> Ilmiy yondashuv &middot; 6 qadamli kurslar</span>
+          <h1 class="mt-6 text-4xl leading-[1.1] font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">Ta'limning ilg‘or<br/><span class="text-[#E3C79B]">usullarini</span><br/>kashf eting</h1>
+          <p class="mx-auto mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">Ta'lim nazariyasini o‘rganish, o‘quv materiallari bilan ishlash va bilimni amaliyotda sinash uchun zamonaviy platforma.</p>
+          <div class="mx-auto mt-8 grid max-w-sm gap-3 sm:max-w-xl sm:grid-cols-2">
+            <button id="heroJoin" class="btn btn-solid min-h-13 w-full" onclick="openAuthModal('register')">
+              <i data-lucide="arrow-right-circle" class="size-5"></i> Platformaga qo‘shilish
             </button>
-            <button class="btn-outline-white" onclick="showPublicSection('public-modules')">
-              <i data-lucide="library"></i> Modullar Bilan Tanishish
+            <button id="heroModules" class="btn btn-on-photo min-h-13 w-full" onclick="showPublicSection('public-modules')">
+              <i data-lucide="library" class="size-5"></i> Modullar bilan tanishish
             </button>
           </div>
         </div>
       </div>
 
       <!-- STATS BAR -->
-      <div class="stats-bar">
-        <div class="stat-item"><span class="stat-num">6</span><span class="stat-label">Har bir moduldagi qadam</span></div>
-        <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">3</span><span class="stat-label">Foydalanuvchi roli</span></div>
-        <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">1</span><span class="stat-label">Yagona platforma</span></div>
-        <div class="stat-divider"></div>
-        <div class="stat-item"><span class="stat-num">O‘z</span><span class="stat-label">sur'atingizda o‘rganing</span></div>
+      <div class="border-b border-line bg-surface">
+        <div class="mx-auto grid max-w-6xl grid-cols-2 lg:grid-cols-4">
+        <div class="px-4 py-7 text-center lg:py-10 lg:not-first:border-l lg:not-first:border-line"><span class="block text-3xl font-bold text-ink lg:text-4xl">6</span><span class="mt-1 block text-sm text-muted sm:text-base">Har bir moduldagi qadam</span></div>
+        <div class="px-4 py-7 text-center lg:py-10 lg:not-first:border-l lg:not-first:border-line"><span class="block text-3xl font-bold text-ink lg:text-4xl">3</span><span class="mt-1 block text-sm text-muted sm:text-base">Foydalanuvchi roli</span></div>
+        <div class="px-4 py-7 text-center lg:py-10 lg:not-first:border-l lg:not-first:border-line"><span class="block text-3xl font-bold text-ink lg:text-4xl">1</span><span class="mt-1 block text-sm text-muted sm:text-base">Yagona platforma</span></div>
+        <div class="px-4 py-7 text-center lg:py-10 lg:not-first:border-l lg:not-first:border-line"><span class="block text-3xl font-bold text-ink lg:text-4xl">O‘z</span><span class="mt-1 block text-sm text-muted sm:text-base">sur'atingizda o‘rganing</span></div>
+        </div>
       </div>
 
       <!-- ABOUT -->
-      <div class="home-about">
-        <div class="container">
-          <div class="about-grid">
-            <div class="about-img-wrap">
-              <img src="assets/about_team.png?v=2" alt="Ta'lim nazariyasi — dars jarayoni va birgalikda o‘rganish" loading="lazy" />
+      <div class="page-section bg-page">
+        <div class="page-container grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+          <img src="assets/about_team.png?v=2" alt="Ta'lim nazariyasi — dars jarayoni va birgalikda o‘rganish" loading="lazy" class="h-64 w-full rounded-2xl border border-line object-cover shadow-xl sm:h-96 lg:h-[480px]"/>
+          <div>
+            <span class="section-eyebrow">Biz haqimizda</span>
+            <h2 class="section-heading">Ta'lim nazariyasi nima?</h2>
+            <p class="mt-4 text-base leading-relaxed text-muted sm:text-lg">Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va shakllarini o‘rganuvchi fan. U ta'lim-tarbiya jarayonini eng samarali tashkil etish yo‘llarini taklif etadi.</p>
+            <p class="mt-4 text-base leading-relaxed text-muted sm:text-lg">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini o‘rganasiz va ularni amalda qo‘llashni o‘zlashtirasiz.</p>
+            <div class="mt-6 grid gap-3 sm:grid-cols-2">
+                <div class="flex items-center gap-2.5 text-base text-ink"><span class="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><i data-lucide="check" class="size-3.5"></i></span> Ilmiy asoslangan metodologiya</div>
+                <div class="flex items-center gap-2.5 text-base text-ink"><span class="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><i data-lucide="check" class="size-3.5"></i></span> Bosqichma-bosqich o‘quv jarayoni</div>
+                <div class="flex items-center gap-2.5 text-base text-ink"><span class="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><i data-lucide="check" class="size-3.5"></i></span> O‘zlashtirish jarayoni saqlanadi</div>
+                <div class="flex items-center gap-2.5 text-base text-ink"><span class="grid size-6 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"><i data-lucide="check" class="size-3.5"></i></span> O‘qituvchi qo‘shgan materiallar</div>
             </div>
-            <div class="about-text">
-              <span class="section-tag">Biz Haqimizda</span>
-              <h2 class="section-title">Ta'lim nazariyasi nima?</h2>
-              <p>Ta'lim nazariyasi (didaktika) &mdash; bu ta'lim jarayonining qonuniyatlari, tamoyillari, usullari va shakllarini o‘rganuvchi fan. U ta'lim-tarbiya jarayonini eng samarali tashkil etish yo‘llarini taklif etadi.</p>
-              <p style="margin-top:15px">Bizning platformamiz orqali siz ta'lim nazariyasining asosiy tamoyillarini o‘rganasiz va ularni amalda qo‘llashni o‘zlashtirasiz.</p>
-              <div class="about-features">
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Ilmiy asoslangan metodologiya</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> Bosqichma-bosqich o‘quv jarayoni</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> O‘zlashtirish jarayoni saqlanadi</div>
-                <div class="feat-item"><span class="feat-check"><i data-lucide="check"></i></span> O‘qituvchi qo‘shgan materiallar</div>
-              </div>
-              <button class="btn-primary" style="margin-top:30px" onclick="openAuthModal('register')">
-                <i data-lucide="arrow-right"></i> Boshlash
-              </button>
-            </div>
+            <button class="btn btn-solid mt-8 w-full sm:w-auto" onclick="openAuthModal('register')">
+              Boshlash <i data-lucide="arrow-right"></i>
+            </button>
           </div>
         </div>
       </div>
 
       <!-- FEATURES -->
-      <div class="home-features">
-        <div class="container">
-          <div class="section-header">
-            <span class="section-tag">Xizmatlarimiz</span>
-            <h2 class="section-title">Nima taklif etamiz?</h2>
-            <p class="section-desc">Talabalar bilimni o‘rganadi, o‘qituvchilar esa kurs materiallari, grafik tahlillar va javoblarni boshqaradi.</p>
-          </div>
-          <div class="features-grid">
-            <div class="feat-card">
-              <div class="feat-icon"><i data-lucide="graduation-cap"></i></div>
-              <h3>O‘qituvchilar uchun</h3>
-              <p>Modullarni boshqaring, video va matnli materiallar qo‘shing, talabalar topshiriqlarini tekshiring.</p>
+      <div class="page-section bg-surface">
+        <div class="page-container">
+        <div class="mx-auto mb-10 max-w-2xl text-center lg:mb-14">
+          <span class="section-eyebrow">Xizmatlarimiz</span>
+          <h2 class="section-heading">Nima taklif etamiz?</h2>
+          <p class="mt-3 text-base leading-relaxed text-muted sm:text-lg">Talabalar bilimni o‘rganadi, o‘qituvchilar esa kurs materiallari, grafik tahlillar va javoblarni boshqaradi.</p>
+        </div>
+          <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="rounded-2xl border border-line bg-page p-6 transition duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg lg:p-7">
+              <div class="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><i data-lucide="graduation-cap" class="size-6"></i></div>
+              <h3 class="mt-4 text-xl font-semibold text-ink">O‘qituvchilar uchun</h3>
+              <p class="mt-2 text-base leading-relaxed text-muted">Modullarni boshqaring, video va matnli materiallar qo‘shing, talabalar topshiriqlarini tekshiring.</p>
             </div>
-            <div class="feat-card">
-              <div class="feat-icon"><i data-lucide="users"></i></div>
-              <h3>Talabalar uchun</h3>
-              <p>Modullarni ketma-ket o‘rganing, savollarga javob bering va o‘zlashtirish jarayonini kuzating.</p>
+            <div class="rounded-2xl border border-line bg-page p-6 transition duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg lg:p-7">
+              <div class="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><i data-lucide="users" class="size-6"></i></div>
+              <h3 class="mt-4 text-xl font-semibold text-ink">Talabalar uchun</h3>
+              <p class="mt-2 text-base leading-relaxed text-muted">Modullarni ketma-ket o‘rganing, savollarga javob bering va o‘zlashtirish jarayonini kuzating.</p>
             </div>
-            <div class="feat-card">
-              <div class="feat-icon"><i data-lucide="monitor-play"></i></div>
-              <h3>Online kurslar</h3>
-              <p>O‘qituvchi kiritgan video darslar, taqdimotlar va amaliy topshiriqlar majmuasi.</p>
+            <div class="rounded-2xl border border-line bg-page p-6 transition duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg lg:p-7">
+              <div class="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><i data-lucide="monitor-play" class="size-6"></i></div>
+              <h3 class="mt-4 text-xl font-semibold text-ink">Online kurslar</h3>
+              <p class="mt-2 text-base leading-relaxed text-muted">O‘qituvchi kiritgan video darslar, taqdimotlar va amaliy topshiriqlar majmuasi.</p>
             </div>
-            <div class="feat-card">
-              <div class="feat-icon"><i data-lucide="bar-chart-2"></i></div>
-              <h3>Grafik tahlillar</h3>
-              <p>Test natijalari, bajarilgan qadamlar va reytinglar interaktiv grafiklarda aks etadi.</p>
+            <div class="rounded-2xl border border-line bg-page p-6 transition duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg lg:p-7">
+              <div class="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><i data-lucide="bar-chart-2" class="size-6"></i></div>
+              <h3 class="mt-4 text-xl font-semibold text-ink">Grafik tahlillar</h3>
+              <p class="mt-2 text-base leading-relaxed text-muted">Test natijalari, bajarilgan qadamlar va reytinglar interaktiv grafiklarda aks etadi.</p>
             </div>
           </div>
         </div>
       </div>
 
       <!-- QUOTE -->
-      <div class="home-quote">
-        <div class="container">
-          <p class="quote-text">Ta'lim inson kamolotiga yo‘l ochadi.</p>
-        </div>
+      <div class="bg-primary px-5 py-14 text-center lg:py-20">
+        <p class="mx-auto max-w-3xl text-2xl leading-snug font-semibold text-on-primary sm:text-3xl lg:text-4xl">Ta'lim inson kamolotiga yo‘l ochadi.</p>
       </div>
 
     </section>
 
     <!-- MODULES INFO SECTION -->
-    <section id="public-modules" class="public-section">
-      <div class="container section">
-        <div class="section-header">
-          <span class="section-tag">O‘quv Dasturi</span>
-          <h2 class="section-title">Ta'lim Nazariyasi Modullari</h2>
-          <p class="section-desc">Har bir modul nazariy va amaliy qismlarni o‘z ichiga oladi. O‘quv jarayoni bosqichma-bosqich tashkil etilgan.</p>
+    <section id="public-modules" class="public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block">
+      <div class="page-container page-section">
+        <div class="mx-auto mb-10 max-w-2xl text-center lg:mb-14">
+          <span class="section-eyebrow">O‘quv dasturi</span>
+          <h2 class="section-heading">Ta'lim Nazariyasi modullari</h2>
+          <p class="mt-3 text-base leading-relaxed text-muted sm:text-lg">Har bir modul nazariy va amaliy qismlarni o‘z ichiga oladi. O‘quv jarayoni bosqichma-bosqich tashkil etilgan.</p>
         </div>
-        <div class="public-grid" id="publicModulesList">
+        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" id="publicModulesList">
           <!-- Populated by JS -->
         </div>
       </div>
     </section>
 
     <!-- STUDENT MODULE VIEW SECTION -->
-    <section id="public-module-view" class="public-section">
-      <div class="container section" id="publicModuleViewContainer">
+    <section id="public-module-view" class="public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block">
+      <div class="page-container page-section" id="publicModuleViewContainer">
         <!-- RENDERED BY JS -->
       </div>
     </section>
 
     <!-- LEARNING GUIDES -->
-    <section id="public-news" class="public-section">
-      <div class="container section">
-        <div class="section-header">
-          <span class="section-tag">Foydali mavzular</span>
-          <h2 class="section-title">O‘qitish va o‘rganish bo‘yicha tavsiyalar</h2>
+    <section id="public-news" class="public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block">
+      <div class="page-container page-section">
+        <div class="mx-auto mb-10 max-w-2xl text-center lg:mb-14">
+          <span class="section-eyebrow">Foydali mavzular</span>
+          <h2 class="section-heading">O‘qitish va o‘rganish bo‘yicha tavsiyalar</h2>
         </div>
-        <div class="public-grid" id="publicNewsList">
+        <div class="grid gap-5 sm:grid-cols-2" id="publicNewsList">
           <!-- Populated by JS -->
         </div>
       </div>
     </section>
 
     <!-- CONTACT SECTION -->
-    <section id="public-contact" class="public-section">
-      <div class="container section">
-        <div class="section-header">
-          <span class="section-tag">Aloqa</span>
-          <h2 class="section-title">Biz bilan bog‘laning</h2>
+    <section id="public-contact" class="public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block">
+      <div class="page-container page-section">
+        <div class="mx-auto mb-10 max-w-2xl text-center lg:mb-14">
+          <span class="section-eyebrow">Aloqa</span>
+          <h2 class="section-heading">Biz bilan bog‘laning</h2>
         </div>
-        <div class="contact-wrap">
-          <div class="contact-info">
-            <p><i data-lucide="map-pin"></i> Toshkent sh., Mirzo Ulug‘bek ko‘chasi, 45-uy</p>
-            <p><i data-lucide="phone"></i> +998 90 123 45 67</p>
-            <p><i data-lucide="mail"></i> info@talimnazariyasi.uz</p>
+        <div class="grid overflow-hidden rounded-2xl border border-line bg-surface lg:grid-cols-5">
+          <div class="flex flex-col justify-center gap-5 bg-primary p-7 text-base text-on-primary sm:p-10 lg:col-span-2">
+            <p class="flex items-center gap-3"><i data-lucide="map-pin" class="size-5"></i> Toshkent sh., Mirzo Ulug‘bek ko‘chasi, 45-uy</p>
+            <p class="flex items-center gap-3"><i data-lucide="phone" class="size-5"></i> +998 90 123 45 67</p>
+            <p class="flex items-center gap-3"><i data-lucide="mail" class="size-5"></i> info@talimnazariyasi.uz</p>
           </div>
-          <form class="contact-form" onsubmit="sendContactMessage(event)">
-            <input type="text" id="contactName" placeholder="Ismingiz" autocomplete="name" required />
-            <input type="email" id="contactEmail" placeholder="Emailingiz" autocomplete="email" required />
-            <textarea id="contactMessage" rows="4" placeholder="Xabaringiz..." required></textarea>
-            <button type="submit" class="btn-primary">
+          <form class="flex flex-col gap-4 p-6 sm:p-10 lg:col-span-3" onsubmit="sendContactMessage(event)">
+            <label for="contactName" class="sr-only">Ismingiz</label>
+            <input type="text" id="contactName" class="field" placeholder="Ismingiz" autocomplete="name" required />
+            <label for="contactEmail" class="sr-only">Emailingiz</label>
+            <input type="email" id="contactEmail" class="field" placeholder="Emailingiz" autocomplete="email" required />
+            <label for="contactMessage" class="sr-only">Xabaringiz</label>
+            <textarea id="contactMessage" class="field" rows="4" placeholder="Xabaringiz..." required></textarea>
+            <button type="submit" class="btn btn-solid self-start">
               <i data-lucide="send"></i> Email orqali yuborish
             </button>
           </form>
@@ -227,158 +221,156 @@
 </div>
 
 <!-- ════════ AUTH MODAL ════════ -->
-<div id="authModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="authTitle" onclick="closeAuthModal(event)">
-  <div class="auth-card" onclick="event.stopPropagation()">
-    <button class="modal-close-btn" aria-label="Yopish" onclick="document.getElementById('authModal').classList.remove('active')">&times;</button>
-    
-    <div class="auth-header">
-      <h2 id="authTitle" class="gradient-text">Tizimga Kirish</h2>
-      <p id="authSubtitle">Platformadan foydalanish uchun o‘z rolingizni tanlang</p>
+<div id="authModal" class="modal-overlay modal-shell" role="dialog" aria-modal="true" aria-labelledby="authTitle" onclick="closeAuthModal(event)">
+  <div class="auth-card relative max-h-dvh w-full overflow-y-auto rounded-t-2xl border border-line bg-surface p-6 pb-8 text-center shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-10" onclick="event.stopPropagation()">
+    <button class="absolute top-3 right-3 grid size-11 place-items-center rounded-lg text-2xl text-muted transition-colors hover:text-ink" aria-label="Yopish" onclick="document.getElementById('authModal').classList.remove('active')">&times;</button>
+
+    <div class="mb-6 px-6 sm:mb-8">
+      <h2 id="authTitle" class="text-2xl font-bold tracking-tight text-ink sm:text-3xl">Tizimga Kirish</h2>
+      <p id="authSubtitle" class="mt-2 text-base text-muted">Platformadan foydalanish uchun o‘z rolingizni tanlang</p>
     </div>
 
-    <!-- Login Form -->
-    <form id="loginForm" class="auth-form active" onsubmit="handleLogin(event)">
-      <div class="role-tabs">
-        <div class="role-tab active" data-role="student" onclick="selectRole('student', this)">
+    <!-- Login -->
+    <form id="loginForm" class="auth-form hidden animate-fade-in [&.active]:block active" onsubmit="handleLogin(event)">
+      <div class="mb-5 grid grid-cols-3 gap-2">
+        <div class="role-tab role-choice active" data-role="student" onclick="selectRole('student', this)">
           <i data-lucide="user"></i> Talaba
         </div>
-        <div class="role-tab" data-role="teacher" onclick="selectRole('teacher', this)">
+        <div class="role-tab role-choice" data-role="teacher" onclick="selectRole('teacher', this)">
           <i data-lucide="graduation-cap"></i> O‘qituvchi
         </div>
-        <div class="role-tab" data-role="admin" onclick="selectRole('admin', this)">
-          <i data-lucide="shield"></i> Administrator
+        <div class="role-tab role-choice" data-role="admin" onclick="selectRole('admin', this)">
+          <i data-lucide="shield"></i> Admin
         </div>
       </div>
-      <div class="form-group">
-        <label for="loginUser">Gmail</label>
-        <input type="text" id="loginUser" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="username" required/>
+      <div class="mb-4 text-left">
+        <label for="loginUser" class="field-label">Gmail</label>
+        <input type="text" id="loginUser" class="field" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="username" required/>
       </div>
-      <div class="form-group">
-        <label for="loginPass">Parol</label>
-        <input type="password" id="loginPass" placeholder="Parolni kiriting" maxlength="200" autocomplete="current-password" required/>
+      <div class="mb-4 text-left">
+        <label for="loginPass" class="field-label">Parol</label>
+        <input type="password" id="loginPass" class="field" placeholder="Parolni kiriting" maxlength="200" autocomplete="current-password" required/>
       </div>
-      <div id="loginError" class="error-msg" role="alert"></div>
-      <button type="submit" class="btn-primary btn-full">
-        <i data-lucide="log-in"></i> Kirish
-      </button>
-      <div class="auth-switch"><span onclick="switchAuth('forgot')">Parolni unutdingizmi?</span></div>
-      <div class="auth-switch">Hisobingiz yo‘qmi? <span onclick="switchAuth('register')">Ro‘yxatdan o‘tish</span></div>
+      <div id="loginError" class="error-msg mb-3 min-h-5 text-sm text-danger" role="alert"></div>
+      <button type="submit" class="btn btn-solid w-full"><i data-lucide="log-in"></i> Kirish</button>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-base text-muted"><button type="button" class="text-link" onclick="switchAuth('forgot')">Parolni unutdingizmi?</button></div>
+      <div class="mt-2 text-base text-muted">Hisobingiz yo‘qmi? <button type="button" class="text-link" onclick="switchAuth('register')">Ro‘yxatdan o‘tish</button></div>
     </form>
 
-    <!-- Register Form -->
-    <form id="registerForm" class="auth-form" onsubmit="handleRegister(event)">
-      <div class="role-tabs" role="group" aria-label="Rolni tanlang">
-        <div class="role-tab active" data-role="student" aria-pressed="true" onclick="selectRegisterRole('student', this)">
+    <!-- Register -->
+    <form id="registerForm" class="auth-form hidden animate-fade-in [&.active]:block" onsubmit="handleRegister(event)">
+      <div class="mb-5 grid grid-cols-2 gap-2" role="group" aria-label="Rolni tanlang">
+        <div class="role-tab role-choice active" data-role="student" aria-pressed="true" onclick="selectRegisterRole('student', this)">
           <i data-lucide="user"></i> Talaba
         </div>
-        <div class="role-tab" data-role="teacher" aria-pressed="false" onclick="selectRegisterRole('teacher', this)">
+        <div class="role-tab role-choice" data-role="teacher" aria-pressed="false" onclick="selectRegisterRole('teacher', this)">
           <i data-lucide="graduation-cap"></i> O‘qituvchi
         </div>
       </div>
-      <div class="form-group">
-        <label for="regName">F.I.Sh (Familiya, Ism, Sharif)</label>
-        <input type="text" id="regName" placeholder="To‘liq ismingiz" maxlength="100" autocomplete="name" required/>
+      <div class="mb-4 text-left">
+        <label for="regName" class="field-label">F.I.Sh (Familiya, Ism, Sharif)</label>
+        <input type="text" id="regName" class="field" placeholder="To‘liq ismingiz" maxlength="100" autocomplete="name" required/>
       </div>
-      <div class="form-group">
-        <label for="regLogin">Gmail</label>
-        <input type="email" id="regLogin" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
+      <div class="mb-4 text-left">
+        <label for="regLogin" class="field-label">Gmail</label>
+        <input type="email" id="regLogin" class="field" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
       </div>
-      <div class="form-group">
-        <label for="regPass">Parol yaratish</label>
-        <input type="password" id="regPass" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
+      <div class="mb-4 text-left">
+        <label for="regPass" class="field-label">Parol yaratish</label>
+        <input type="password" id="regPass" class="field" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
       </div>
-      <div id="registerError" class="error-msg" role="alert"></div>
-      <button type="submit" class="btn-primary btn-full">
-        <i data-lucide="mail"></i> Kod yuborish
-      </button>
-      <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kirish</span></div>
+      <div id="registerError" class="error-msg mb-3 min-h-5 text-sm text-danger" role="alert"></div>
+      <button type="submit" class="btn btn-solid w-full"><i data-lucide="mail"></i> Kod yuborish</button>
+      <div class="mt-5 text-base text-muted">Hisobingiz bormi? <button type="button" class="text-link" onclick="switchAuth('login')">Kirish</button></div>
     </form>
 
     <!-- Registration: emailed code -->
-    <form id="registerCodeForm" class="auth-form" onsubmit="handleRegisterCode(event)">
-      <div class="form-group">
-        <label for="regCode">Tasdiqlash kodi</label>
-        <input type="text" id="regCode" class="code-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
+    <form id="registerCodeForm" class="auth-form hidden animate-fade-in [&.active]:block" onsubmit="handleRegisterCode(event)">
+      <div class="mb-4 text-left">
+        <label for="regCode" class="field-label">Tasdiqlash kodi</label>
+        <input type="text" id="regCode" class="field text-center text-2xl tracking-[0.5em] tabular-nums" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
       </div>
-      <div id="registerCodeError" class="error-msg" role="alert"></div>
-      <button type="submit" class="btn-primary btn-full"><i data-lucide="check"></i> Tasdiqlash</button>
-      <div class="auth-switch">
-        <button type="button" class="link-action" id="regResend" onclick="resendRegisterCode()">Kodni qayta yuborish</button>
-        <span onclick="switchAuth('register')">Orqaga</span>
+      <div id="registerCodeError" class="error-msg mb-3 min-h-5 text-sm text-danger" role="alert"></div>
+      <button type="submit" class="btn btn-solid w-full"><i data-lucide="check"></i> Tasdiqlash</button>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-base text-muted">
+        <button type="button" class="text-link disabled:no-underline" id="regResend" onclick="resendRegisterCode()">Kodni qayta yuborish</button>
+        <button type="button" class="text-link" onclick="switchAuth('register')">Orqaga</button>
       </div>
     </form>
 
     <!-- Password reset: request -->
-    <form id="forgotForm" class="auth-form" onsubmit="handleForgot(event)">
-      <div class="form-group">
-        <label for="forgotEmail">Gmail</label>
-        <input type="email" id="forgotEmail" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
+    <form id="forgotForm" class="auth-form hidden animate-fade-in [&.active]:block" onsubmit="handleForgot(event)">
+      <div class="mb-4 text-left">
+        <label for="forgotEmail" class="field-label">Gmail</label>
+        <input type="email" id="forgotEmail" class="field" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
       </div>
-      <div id="forgotError" class="error-msg" role="alert"></div>
-      <button type="submit" class="btn-primary btn-full"><i data-lucide="mail"></i> Kod yuborish</button>
-      <div class="auth-switch"><span onclick="switchAuth('login')">Kirishga qaytish</span></div>
+      <div id="forgotError" class="error-msg mb-3 min-h-5 text-sm text-danger" role="alert"></div>
+      <button type="submit" class="btn btn-solid w-full"><i data-lucide="mail"></i> Kod yuborish</button>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-base text-muted"><button type="button" class="text-link" onclick="switchAuth('login')">Kirishga qaytish</button></div>
     </form>
 
     <!-- Password reset: new password -->
-    <form id="forgotCodeForm" class="auth-form" onsubmit="handleForgotCode(event)">
-      <div class="form-group">
-        <label for="forgotCode">Tasdiqlash kodi</label>
-        <input type="text" id="forgotCode" class="code-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
+    <form id="forgotCodeForm" class="auth-form hidden animate-fade-in [&.active]:block" onsubmit="handleForgotCode(event)">
+      <div class="mb-4 text-left">
+        <label for="forgotCode" class="field-label">Tasdiqlash kodi</label>
+        <input type="text" id="forgotCode" class="field text-center text-2xl tracking-[0.5em] tabular-nums" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
       </div>
-      <div class="form-group">
-        <label for="forgotPass">Yangi parol</label>
-        <input type="password" id="forgotPass" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
+      <div class="mb-4 text-left">
+        <label for="forgotPass" class="field-label">Yangi parol</label>
+        <input type="password" id="forgotPass" class="field" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
       </div>
-      <div id="forgotCodeError" class="error-msg" role="alert"></div>
-      <button type="submit" class="btn-primary btn-full"><i data-lucide="key-round"></i> Parolni yangilash</button>
-      <div class="auth-switch"><span onclick="switchAuth('forgot')">Orqaga</span></div>
+      <div id="forgotCodeError" class="error-msg mb-3 min-h-5 text-sm text-danger" role="alert"></div>
+      <button type="submit" class="btn btn-solid w-full"><i data-lucide="key-round"></i> Parolni yangilash</button>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-base text-muted"><button type="button" class="text-link" onclick="switchAuth('forgot')">Orqaga</button></div>
     </form>
   </div>
 </div>
 
 <!-- ════════ PRIVATE PLATFORM SYSTEM ════════ -->
-<div id="screen-app" class="screen">
-  <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
-  <aside id="sidebar">
-    <div class="sidebar-logo brand-logo" onclick="returnToWebsite()" style="cursor:pointer;">
-      <img src="assets/logo.png?v=4" alt="" width="36" height="36" class="brand-logo-img" style="width:36px;height:36px;"/>
-      <span class="brand-name" style="font-size:18px;">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
+<div id="screen-app" class="screen hidden h-dvh w-full overflow-hidden bg-page text-base leading-normal [&.active]:flex">
+  <div id="sidebarBackdrop" class="fixed inset-0 z-[99] hidden bg-black/40 [&.active]:block lg:[&.active]:hidden" onclick="toggleSidebar()"></div>
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-[100] flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-line bg-surface transition-transform duration-300 lg:static lg:translate-x-0 [&.open]:translate-x-0">
+    <div class="sidebar-logo flex h-16 shrink-0 cursor-pointer items-center gap-2.5 border-b border-line px-5" onclick="returnToWebsite()">
+      <img src="assets/logo.png?v=4" alt="" width="36" height="36" class="size-9 object-contain"/>
+      <span class="text-lg font-bold tracking-tight text-ink">Ta'lim<span class="text-primary">Nazariyasi</span></span>
     </div>
-    <nav id="sidebarNav"></nav>
-    <div class="sidebar-user" id="sidebarUser"></div>
-    <button class="btn-logout" onclick="logout()">
-      <i data-lucide="log-out"></i> Chiqish
-    </button>
+    <nav id="sidebarNav" class="flex-1 space-y-1 overflow-y-auto p-3"></nav>
+    <div class="border-t border-line p-3">
+      <div id="sidebarUser" class="flex items-center gap-3 rounded-xl p-2"></div>
+      <button class="btn-logout btn btn-line mt-2 w-full" onclick="logout()">
+        <i data-lucide="log-out"></i> Chiqish
+      </button>
+    </div>
   </aside>
 
-  <main id="mainContent" tabindex="-1">
-    <div class="topbar">
-      <div style="display:flex; align-items:center; gap:15px;">
-        <button class="hamburger-btn" onclick="toggleSidebar()" aria-label="Menyu">
-          <i data-lucide="menu"></i>
+  <main id="mainContent" tabindex="-1" class="flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none">
+    <div class="topbar flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6">
+      <div class="flex min-w-0 items-center gap-2">
+        <button class="icon-btn border-0 lg:hidden" onclick="toggleSidebar()" aria-label="Menyu">
+          <i data-lucide="menu" class="size-5"></i>
         </button>
-        <h2 id="pageTitle">Bosh sahifa</h2>
+        <h1 id="pageTitle" class="truncate text-xl font-bold tracking-tight text-ink sm:text-2xl">Bosh sahifa</h1>
       </div>
-      <div class="topbar-right">
-        <button class="btn-outline" style="padding:6px 14px; font-size:11px; gap:6px;" onclick="returnToWebsite()">
+      <div class="flex shrink-0 items-center gap-2">
+        <button class="btn btn-line hidden sm:inline-flex" onclick="returnToWebsite()">
           <i data-lucide="arrow-left"></i> Saytga qaytish
         </button>
-        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <button type="button" id="topbarUser" class="topbar-user" aria-label="Profilim" onclick="navigate('profile')"></button>
+        <button type="button" data-theme-toggle class="icon-btn" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
+        <button type="button" id="topbarUser" class="flex h-11 items-center gap-2 rounded-xl border border-line px-3 text-[15px] font-medium text-ink transition-colors duration-200 hover:border-primary" aria-label="Profilim" onclick="navigate('profile')"></button>
       </div>
     </div>
-    <div id="pageContainer"></div>
+    <div id="pageContainer" class="min-h-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6"></div>
     <!-- MOBILE BOTTOM NAVIGATION (Thumb-friendly UX) -->
-    <nav id="mobileBottomNav" class="mobile-bottom-nav" aria-label="Mobil pastki menyu"></nav>
+    <nav id="mobileBottomNav" class="fixed inset-x-0 bottom-0 z-[800] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-line bg-surface px-1.5 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Mobil pastki menyu"></nav>
   </main>
 </div>
 
 <!-- MODULE STEP MODAL -->
-<div id="stepModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="closeModal(event, 'stepModal')">
+<div id="stepModal" class="modal-overlay modal-shell" role="dialog" aria-modal="true" aria-labelledby="modalTitle" onclick="closeModal(event, 'stepModal')">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="modalTitle">Qadam</h3>
-      <button onclick="document.getElementById('stepModal').classList.remove('active')" class="modal-close-btn" aria-label="Yopish">&times;</button>
+      <button onclick="document.getElementById('stepModal').classList.remove('active')" class="grid size-11 place-items-center rounded-lg text-2xl text-muted transition-colors hover:text-ink" aria-label="Yopish">&times;</button>
     </div>
     <div id="modalBody" class="modal-body"></div>
     <div class="modal-footer" id="modalFooter"></div>
@@ -410,6 +402,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=22"></script>
+<script src="app.js?v=24"></script>
 </body>
 </html>
