@@ -54,6 +54,23 @@ async function askAi(res, user, kind, text, count) {
   return { questions, truncated };
 }
 
+// Fills answers the file left unmarked. A failure here only means the teacher marks them by hand.
+async function fillMissingAnswers(user, questions) {
+  const missing = questions.flatMap((question, index) => (Number.isInteger(question.correct) ? [] : [index]));
+  if (!missing.length) return { questions, answered_by_ai: 0 };
+  try {
+    if (!(await consumeLimit(`quiz-ai:user:${user.id}`, MAX_AI_REQUESTS_PER_HOUR, 3600))) return { questions, answered_by_ai: 0 };
+    const solved = await llm.solveQuestions(questions, missing);
+    const filled = questions.map((question, index) => (
+      solved.has(index) ? { ...question, correct: solved.get(index), ai_marked: true } : question
+    ));
+    return { questions: filled, answered_by_ai: solved.size };
+  } catch (error) {
+    if (error instanceof llm.AssistantError) return { questions, answered_by_ai: 0 };
+    throw error;
+  }
+}
+
 async function extract(res, user, body) {
   const { mode, file_id: fileId } = body;
   if (!['parsed', 'generate'].includes(mode)) return res.status(400).json({ error: 'Rejim noto‘g‘ri.' });
@@ -72,7 +89,7 @@ async function extract(res, user, body) {
   if (mode === 'parsed') {
     const found = parseTests(text);
     const parsed = found.length ? normalizeQuestions(found.slice(0, 200), { allowMissing: true }) : null;
-    if (parsed) return res.json({ questions: parsed, source: 'file', truncated: false });
+    if (parsed) return res.json({ ...(await fillMissingAnswers(user, parsed)), source: 'file', truncated: false });
   }
 
   const result = await askAi(res, user, mode === 'generate' ? 'generate' : 'extract', text, count);
@@ -80,7 +97,7 @@ async function extract(res, user, body) {
   if (!result.questions.length) {
     return res.status(422).json({ error: 'Faylda test topilmadi. "AI test tuzsin" rejimini tanlang.' });
   }
-  return res.json({ ...result, source: 'ai' });
+  return res.json({ ...result, ...(mode === 'parsed' ? await fillMissingAnswers(user, result.questions) : {}), source: 'ai' });
 }
 
 async function readPaper(req, res, user) {

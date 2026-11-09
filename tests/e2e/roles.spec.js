@@ -66,7 +66,8 @@ async function publishFullModule(page, browser, title, order) {
 }
 
 async function answerQuizCorrectly(page) {
-  const correct = ['Pedagogika', 'To‘rt', 'Toshkent'];
+  // The third answer is wrong on purpose, so result views have something to show.
+  const correct = ['Pedagogika', 'To‘rt', 'Buxoro'];
   const groups = page.locator('.student-question');
   await expect(groups).toHaveCount(3);
   const count = await groups.count();
@@ -125,7 +126,7 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
     await expect(studentPage.locator('.step-item')).toHaveCount(6);
 
     await doStep(studentPage, 0, answerQuizCorrectly);
-    await expect(studentPage.locator('#toast')).toContainText('3/3');
+    await expect(studentPage.locator('#toast')).toContainText('2/3');
     await doStep(studentPage, 1);
     await doStep(studentPage, 2);
     await doStep(studentPage, 3);
@@ -140,10 +141,24 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
   await test.step('the teacher opens the student from the leaderboard', async () => {
     await openMenu(teacherPage, 'Modullar ko‘rinishi');
     await openMenu(teacherPage, 'Tahlil va Grafika');
+    await expect(teacherPage.locator('tr', { hasText: studentName })).toContainText('2/3');
     await teacherPage.getByRole('button', { name: studentName }).click();
     const work = teacherPage.locator('.work-module', { hasText: moduleTitle });
+    const missed = work.locator('.quiz-wrong-list li');
+    await expect(missed).toHaveCount(1);
+    await expect(missed).toContainText('Poytaxt qaysi?');
+    await expect(missed.locator('.quiz-wrong-answer')).toContainText('Buxoro');
+    await expect(missed.locator('.quiz-right-answer')).toContainText('Toshkent');
     await expect(work.getByText('Mening rejam')).toBeVisible();
     await expect(work.getByText('javob.pdf')).toBeVisible();
+  });
+
+  await test.step('the submissions page shows the test result', async () => {
+    await openMenu(teacherPage, 'Talaba javoblari');
+    await teacherPage.locator('#submissionModule').selectOption({ label: await teacherPage.locator('#submissionModule option', { hasText: moduleTitle }).innerText() });
+    const card = teacherPage.locator('.submission-card', { hasText: 'Diagnostika testi' }).filter({ hasText: studentName });
+    await expect(card).toContainText('2/3');
+    await expect(card.locator('.quiz-wrong-answer')).toContainText('Buxoro');
   });
 
   await test.step('the admin sees both accounts and can download the submission', async () => {

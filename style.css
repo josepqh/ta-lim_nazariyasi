@@ -753,3 +753,13 @@ body:has(.ai-chat-panel:not([hidden])) .toast { top: 16px; bottom: auto; }
 @media (max-width: 600px) {
   .module-basics { grid-template-columns: 1fr; gap: 0; }
 }
+
+.quiz-result { margin-top: 12px; padding: 14px 16px; background: var(--bg-color); border: 1px solid var(--border-color); font-size: 14px; }
+.quiz-result-score { margin-bottom: 8px; }
+.quiz-result-label { font-size: 13px; font-weight: 600; color: var(--danger); margin-bottom: 4px; }
+.quiz-wrong-list { padding-left: 20px; }
+.quiz-wrong-list li { padding: 7px 0; border-bottom: 1px solid var(--border-color); }
+.quiz-wrong-list li:last-child { border-bottom: none; }
+.quiz-q { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.quiz-wrong-answer { display: block; color: var(--danger); font-size: 13px; overflow-wrap: anywhere; }
+.quiz-right-answer { display: block; color: var(--success); font-size: 13px; overflow-wrap: anywhere; }

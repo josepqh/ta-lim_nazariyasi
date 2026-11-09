@@ -19,6 +19,13 @@ function normalizeAnswer(value) {
     .toLocaleLowerCase('uz');
 }
 
+// The per-question breakdown holds answers other students could still be asked.
+function forStudent(row) {
+  if (!row?.step_responses?.diag_detail) return row;
+  const { diag_detail: _hidden, ...stepResponses } = row.step_responses;
+  return { ...row, step_responses: stepResponses };
+}
+
 function parseOptionalId(value) {
   if (value === undefined || value === '') return null;
   const id = Number(value);
@@ -33,10 +40,11 @@ async function readProgress(req, res, user) {
 
   if (user.role === 'student') {
     if (studentId !== null && studentId !== user.id) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
-    return res.json(await sql`
+    const rows = await sql`
       SELECT * FROM np_progress
       WHERE user_id=${user.id} AND (${moduleId}::int IS NULL OR module_id=${moduleId}::int)
-        AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)`);
+        AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)`;
+    return res.json(rows.map(forStudent));
   }
 
   return res.json(await sql`
@@ -99,7 +107,7 @@ async function completeStep(res, user, body) {
     FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`;
   const progress = current[0] || { completed_steps: [], total_score: 0, step_responses: {} };
   const completedSteps = Array.isArray(progress.completed_steps) ? progress.completed_steps : [];
-  if (completedSteps.includes(stepType)) return res.json(progress);
+  if (completedSteps.includes(stepType)) return res.json(forStudent(progress));
   if (stepIndex > 0 && !completedSteps.includes(STEP_TYPES[stepIndex - 1])) {
     return res.status(409).json({ error: 'Avval oldingi qadamni bajaring.' });
   }
@@ -160,10 +168,10 @@ async function completeStep(res, user, body) {
       SET completed_steps=${steps}, total_score=${score}, step_responses=${serializedResponses}, updated_at=NOW()
       WHERE NOT (np_progress.completed_steps ? ${stepType}::text)
     RETURNING *`;
-  if (rows.length) return res.json(rows[0]);
+  if (rows.length) return res.json(forStudent(rows[0]));
 
   const latest = await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`;
-  return res.json(latest[0]);
+  return res.json(forStudent(latest[0]));
 }
 
 module.exports = async (req, res) => {

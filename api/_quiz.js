@@ -181,7 +181,12 @@ function gradeAnswers(questions, userId, moduleId, answers) {
     if (!Number.isInteger(chosen) || chosen < 0 || chosen >= entry.optionOrder.length) return null;
     const question = questions[entry.questionIndex];
     const original = entry.optionOrder[chosen];
-    detail.push({ question: question.text, chosen: question.options[original], correct: original === question.correct });
+    detail.push({
+      question: question.text,
+      chosen: question.options[original],
+      right: question.options[question.correct],
+      correct: original === question.correct
+    });
   }
   return { correct: detail.filter((item) => item.correct).length, total: detail.length, detail };
 }

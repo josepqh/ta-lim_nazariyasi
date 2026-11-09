@@ -435,6 +435,31 @@ describe('diagnostic tests', () => {
     assert.equal(aiCalls, 0);
   });
 
+  test('unmarked tests get their answers from AI and are flagged for review', async () => {
+    const saved = llm.solveQuestions;
+    let positions;
+    llm.solveQuestions = async (_, missing) => { positions = missing; return new Map([[0, 1]]); };
+    const up = await uploadSource(teacher, 'plain.docx', makeDocx(['1. Poytaxt qaysi?', 'A) Samarqand', 'B) Toshkent', '2. Ikki karra ikki?', 'A) uch', 'B) to‘rt', 'Yana ma’lumot bor']));
+    const res = await teacher.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'parsed' });
+    llm.solveQuestions = saved;
+    assert.deepEqual(positions, [0, 1]);
+    assert.equal(res.body.answered_by_ai, 1);
+    assert.equal(res.body.questions[0].correct, 1);
+    assert.equal(res.body.questions[0].ai_marked, true);
+    assert.equal(res.body.questions[1].correct, null);
+  });
+
+  test('if AI is unavailable, unmarked tests still come back for manual marking', async () => {
+    const saved = llm.solveQuestions;
+    llm.solveQuestions = async () => { throw new llm.AssistantError(429, 'busy'); };
+    const up = await uploadSource(teacher, 'plain2.docx', makeDocx(['1. Poytaxt qaysi?', 'A) Samarqand', 'B) Toshkent']));
+    const res = await teacher.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'parsed' });
+    llm.solveQuestions = saved;
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.answered_by_ai, 0);
+    assert.equal(res.body.questions[0].correct, null);
+  });
+
   test('an information file produces the requested number of AI questions', async () => {
     let requested;
     const saved = llm.generateQuestions;
@@ -477,6 +502,16 @@ describe('diagnostic tests', () => {
     assert.equal(done.statusCode, 200, JSON.stringify(done.body));
     assert.deepEqual(done.body.step_responses.diag_result, { correct: 6, total: 10, score: 9 });
     assert.equal(done.body.total_score, 9);
-    assert.equal(done.body.step_responses.diag_detail.length, 10);
+    assert.equal(done.body.step_responses.diag_detail, undefined);
+    const own = await student.get('progress', { module_id: String(id) });
+    assert.equal(own.body[0].step_responses.diag_detail, undefined);
+    assert.equal(own.body[0].step_responses.diag_result.correct, 6);
+
+    const seen = await teacher.get('progress', { module_id: String(id) });
+    const detail = seen.body[0].step_responses.diag_detail;
+    assert.equal(detail.filter((item) => !item.correct).length, 4);
+    const miss = detail.find((item) => !item.correct);
+    assert.match(miss.chosen, /^xato/);
+    assert.match(miss.right, /^togri/);
   });
 });

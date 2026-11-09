@@ -806,11 +806,13 @@ async function renderAnalytics(container) {
     const uid = p.user_id;
     const name = p.student_name || p.student_login || `Talaba #${uid}`;
     if (!studentMap[uid]) {
-      studentMap[uid] = { id: uid, name, completedSteps: 0, score: 0, finishedModules: 0 };
+      studentMap[uid] = { id: uid, name, completedSteps: 0, score: 0, finishedModules: 0, testCorrect: 0, testTotal: 0 };
     }
     const steps = (p.completed_steps || []).length;
     studentMap[uid].completedSteps += steps;
     studentMap[uid].score += (p.total_score || 0);
+    studentMap[uid].testCorrect += Number(p.step_responses?.diag_result?.correct) || 0;
+    studentMap[uid].testTotal += Number(p.step_responses?.diag_result?.total) || 0;
     if (steps >= 6) studentMap[uid].finishedModules++;
   });
 
@@ -860,6 +862,7 @@ async function renderAnalytics(container) {
               <th style="width:70px;">O‘rin</th>
               <th>Talaba F.I.Sh</th>
               <th>Bajarilgan qadamlar</th>
+              <th>Test natijasi</th>
               <th>Tugatilgan modullar</th>
               <th>Toplangan ball</th>
               <th>Holat</th>
@@ -869,7 +872,7 @@ async function renderAnalytics(container) {
   `;
 
   if (!leaderboard.length) {
-    html += `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Hozircha talabalar natijalari mavjud emas.</td></tr>`;
+    html += `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-muted)">Hozircha talabalar natijalari mavjud emas.</td></tr>`;
   } else {
     leaderboard.forEach((st, idx) => {
       const rank = idx + 1;
@@ -883,6 +886,7 @@ async function renderAnalytics(container) {
           <td data-label="O‘rin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
           <td data-label="Talaba"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
           <td data-label="Qadamlar"><i data-lucide="check" style="width:14px;color:var(--success);"></i> ${st.completedSteps} ta qadam</td>
+          <td data-label="Test">${st.testTotal ? `<strong>${st.testCorrect}/${st.testTotal}</strong> <span class="muted-text">(${st.testTotal - st.testCorrect} ta xato)</span>` : '—'}</td>
           <td data-label="Modullar"><span class="badge ${st.finishedModules > 0 ? 'badge-success' : 'badge-muted'}">${st.finishedModules} ta modul</span></td>
           <td data-label="Ball"><strong>${st.score} XP</strong></td>
           <td data-label="Holat">
@@ -1148,6 +1152,7 @@ async function renderManageModules(container) {
   container.innerHTML = html;
   if (!editModuleId) {
     quizState.new = [];
+    quizMeta.new = {};
     renderQuizPreview('new');
   }
   refreshIcons();
@@ -1308,6 +1313,7 @@ async function addModule() {
 
 // ===== DIAGNOSTIC TEST BUILDER =====
 const quizState = { new: [], modal: [] };
+const quizMeta = { new: {}, modal: {} };
 const MAX_QUIZ_SOURCE_SIZE = 30 * 1024 * 1024;
 
 function quizBuilderHtml(prefix) {
@@ -1320,7 +1326,7 @@ function quizBuilderHtml(prefix) {
       <div class="form-group">
         <label for="${prefix}QuizFile">Fayl (.docx yoki .pdf)</label>
         <input type="file" id="${prefix}QuizFile" class="file-input" accept=".docx,.pdf"/>
-        <small class="field-hint" id="${prefix}QuizHint">To‘g‘ri javob * yoki + bilan, qalin yozuv bilan yoki fayl oxiridagi kalit bilan (1-A, 2-C) belgilangan bo‘lsin.</small>
+        <small class="field-hint" id="${prefix}QuizHint">To‘g‘ri javob * yoki +, qalin yozuv yoki fayl oxiridagi kalit (1-A, 2-C) bilan olinadi. Belgilanmagan bo‘lsa, AI o‘zi aniqlaydi.</small>
       </div>
       <div class="form-group" id="${prefix}QuizCountWrap" hidden>
         <label for="${prefix}QuizCount">Testlar soni (1–30)</label>
@@ -1336,7 +1342,7 @@ function syncQuizMode(prefix) {
   document.getElementById(`${prefix}QuizCountWrap`).hidden = !generate;
   document.getElementById(`${prefix}QuizHint`).textContent = generate
     ? 'AI faqat fayldagi ma’lumotga tayanib test tuzadi. Saqlashdan oldin tekshirib chiqing.'
-    : 'To‘g‘ri javob * yoki + bilan, qalin yozuv bilan yoki fayl oxiridagi kalit bilan (1-A, 2-C) belgilangan bo‘lsin.';
+    : 'To‘g‘ri javob * yoki +, qalin yozuv yoki fayl oxiridagi kalit (1-A, 2-C) bilan olinadi. Belgilanmagan bo‘lsa, AI o‘zi aniqlaydi.';
 }
 
 async function prepareQuiz(prefix) {
@@ -1356,14 +1362,16 @@ async function prepareQuiz(prefix) {
       const uploaded = await uploadFile(file, { stepType: 'diag', purpose: 'quiz_source' });
       const result = await requestAPI('/quiz', 'POST', { action: 'extract', file_id: uploaded.id, mode, count });
       quizState[prefix] = result.questions;
-      renderQuizPreview(prefix, result);
+      quizMeta[prefix] = result;
+      renderQuizPreview(prefix);
     } catch (error) {
       preview.innerHTML = `<p class="input-feedback-error show" role="alert">${escapeHTML(error.message)}</p>`;
     }
   });
 }
 
-function renderQuizPreview(prefix, result = {}) {
+function renderQuizPreview(prefix) {
+  const result = quizMeta[prefix];
   const preview = document.getElementById(`${prefix}QuizPreview`);
   if (!preview) return;
   const questions = quizState[prefix];
@@ -1376,12 +1384,13 @@ function renderQuizPreview(prefix, result = {}) {
   preview.innerHTML = `
     <p class="quiz-summary"><strong>${questions.length} ta savol.</strong> ${missing ? `<span class="quiz-missing">${missing} ta savolda to‘g‘ri javobni belgilang.</span>` : 'Hammasida to‘g‘ri javob belgilangan.'}</p>
     ${result.source === 'ai' ? '<p class="field-hint">Savollarni AI tayyorladi, xato bo‘lishi mumkin. Tekshirib chiqing.</p>' : ''}
+    ${result.answered_by_ai ? `<p class="field-hint">${result.answered_by_ai} ta savolning to‘g‘ri javobini AI aniqladi, xato bo‘lishi mumkin. Tekshirib chiqing.</p>` : ''}
     ${result.truncated ? '<p class="field-hint">Fayl juda uzun: AI faqat uning boshlang‘ich qismidan foydalandi.</p>' : ''}
     <ol class="quiz-list">
       ${questions.map((question, index) => `
         <li class="${Number.isInteger(question.correct) ? '' : 'quiz-unset'}">
           <div class="quiz-question-head">
-            <span>${escapeHTML(question.text)}</span>
+            <span>${escapeHTML(question.text)}${question.ai_marked ? ' <span class="badge badge-muted">AI belgiladi</span>' : ''}</span>
             <button type="button" class="quiz-remove" aria-label="${index + 1}-savolni o‘chirish" onclick="removeQuizQuestion('${prefix}', ${index})"><i data-lucide="trash-2"></i></button>
           </div>
           ${question.options.map((option, optionIndex) => `
@@ -1396,6 +1405,7 @@ function renderQuizPreview(prefix, result = {}) {
 
 function setQuizCorrect(prefix, index, optionIndex) {
   quizState[prefix][index].correct = optionIndex;
+  quizState[prefix][index].ai_marked = false;
   renderQuizPreview(prefix);
 }
 
@@ -1481,6 +1491,7 @@ async function openContentModal(moduleId, stepType) {
       </div>
     `;
   } else if (stepType === 'diag') {
+    quizMeta.modal = {};
     quizState.modal = Array.isArray(existing.questions) ? existing.questions.map(q => ({ ...q })) : [];
     body.innerHTML = quizBuilderHtml('modal');
     renderQuizPreview('modal');
@@ -1601,13 +1612,24 @@ async function loadSubmissions() {
     });
   });
 
-  if (!submissions.length) {
+  const quizCards = rows.filter(row => row.step_responses?.diag_result).map(row => `
+    <article class="card submission-card" style="margin-bottom:20px;">
+      <div class="submission-heading">
+        <div>
+          <h3 style="font-size:18px;">${escapeHTML(row.student_name || row.student_login || 'Talaba')}</h3>
+          <p>${escapeHTML(row.module_title || '')} &middot; <span class="badge badge-primary">1. Diagnostika testi</span></p>
+        </div>
+      </div>
+      ${quizResultHtml(row.step_responses)}
+    </article>`).join('');
+
+  if (!submissions.length && !quizCards) {
     list.innerHTML = '<div class="card"><p style="color:var(--text-muted)">Ushbu modul bo‘yicha topshirilgan yozma topshiriqlar hozircha yo‘q.</p></div>';
     refreshIcons();
     return;
   }
 
-  list.innerHTML = submissions.map(({ row, step, response, file }) => {
+  list.innerHTML = quizCards + submissions.map(({ row, step, response, file }) => {
     const reviews = row.step_responses?.reviews || {};
     const existingReview = reviews[step]?.feedback || '';
 
@@ -1902,6 +1924,33 @@ function openStudentDetail(id) {
   navigate('student-detail');
 }
 
+function quizResultHtml(responses) {
+  const result = responses?.diag_result;
+  if (!result) return '';
+  const detail = Array.isArray(responses.diag_detail) ? responses.diag_detail : [];
+  const wrong = detail.filter(item => !item.correct);
+  const right = detail.filter(item => item.correct);
+  return `
+    <div class="quiz-result">
+      <p class="quiz-result-score"><strong>Test natijasi: ${Number(result.correct)}/${Number(result.total)}</strong> &middot; ${Number(result.score)} ball</p>
+      ${wrong.length ? `
+        <p class="quiz-result-label">Xato javoblar (${wrong.length} ta):</p>
+        <ol class="quiz-wrong-list">
+          ${wrong.map(item => `
+            <li>
+              <span class="quiz-q">${escapeHTML(item.question)}</span>
+              <span class="quiz-wrong-answer">Talaba javobi: ${escapeHTML(item.chosen)}</span>
+              ${item.right ? `<span class="quiz-right-answer">To‘g‘ri javob: ${escapeHTML(item.right)}</span>` : ''}
+            </li>`).join('')}
+        </ol>` : '<p class="muted-text">Barcha savollarga to‘g‘ri javob bergan.</p>'}
+      ${right.length ? `
+        <details class="quiz-detail">
+          <summary>To‘g‘ri javoblar (${right.length} ta)</summary>
+          <ol>${right.map(item => `<li>${escapeHTML(item.question)}<br/><span class="quiz-right-answer">${escapeHTML(item.chosen)}</span></li>`).join('')}</ol>
+        </details>` : ''}
+    </div>`;
+}
+
 function studentWorkHtml(rows) {
   const byModule = new Map(rows.map(row => [Number(row.module_id), row]));
   return modulesCache.map(module => {
@@ -1931,12 +1980,8 @@ function studentWorkHtml(rows) {
             <span>${step.title}</span>
             <span class="work-step-badges">${verdict}<span class="badge ${done ? 'badge-success' : 'badge-muted'}">${done ? 'Bajarilgan' : 'Bajarilmagan'}</span></span>
           </div>
-          ${typeof answer === 'string' && answer ? `<div class="submission-response">${escapeHTML(answer)}</div>` : ''}
-          ${step.id === 'diag' && Array.isArray(responses.diag_detail) ? `
-            <details class="quiz-detail">
-              <summary>Javoblarni ko‘rish</summary>
-              <ol>${responses.diag_detail.map(item => `<li class="${item.correct ? 'quiz-right' : 'quiz-wrong'}">${escapeHTML(item.question)}<br/><span>${item.correct ? 'To‘g‘ri' : 'Noto‘g‘ri'}: ${escapeHTML(item.chosen)}</span></li>`).join('')}</ol>
-            </details>` : ''}
+          ${typeof answer === 'string' && answer && !(step.id === 'diag' && responses.diag_result) ? `<div class="submission-response">${escapeHTML(answer)}</div>` : ''}
+          ${step.id === 'diag' ? quizResultHtml(responses) : ''}
           ${fileCardHtml(file)}
           ${reviewBoxHtml(review)}
         </li>`;
