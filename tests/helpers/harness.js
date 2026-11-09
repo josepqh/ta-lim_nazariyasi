@@ -10,7 +10,7 @@ const TEST_ADMIN = { login: 'local_admin', password: 'local-admin-password' };
 function toDriverParam(value) {
   if (value === null || value === undefined) return null;
   if (typeof value === 'object') return JSON.stringify(value);
-  return String(value); // The Neon HTTP driver also sends every parameter as text.
+  return String(value); // The pg driver also sends these as text.
 }
 
 async function createDatabase(dataDir) {
@@ -69,6 +69,14 @@ function createResponse() {
 async function createHarness({ dataDir } = {}) {
   const { db, sql } = await createDatabase(dataDir);
   const handlers = loadHandlers(sql);
+  const outbox = [];
+  // Called only by the test suite; the local server must keep sending real mail.
+  function stubMail() {
+    const mail = require(path.join(API_DIR, '_mail.js'));
+    mail.sendCode = async (to, code, purpose) => { outbox.push({ to, code, purpose }); };
+    mail.sendExistingAccountNotice = async (to) => { outbox.push({ to, notice: true }); };
+  }
+  const registered = new Set();
   await runSetup(handlers);
 
   // A small client that keeps its own session cookie, like one browser.
@@ -86,11 +94,16 @@ async function createHarness({ dataDir } = {}) {
       call,
       post: (name, body) => call(name, { method: 'POST', body }),
       get: (name, query = {}) => call(name, { query }),
-      register: (login, role) => call('auth', {
-        method: 'POST',
-        body: { action: 'register', name: `Name ${login}`, login, password: 'a-valid-password', role }
-      }),
-      login: (login, password) => call('auth', { method: 'POST', body: { action: 'login', login, password } }),
+      async register(name, role) {
+        const email = `${name}@gmail.com`;
+        const started = await call('auth', { method: 'POST', body: { action: 'register_start', name: `Name ${name}`, email, password: 'a-valid-password', role } });
+        if (started.statusCode !== 200) return started;
+        const { code } = outbox.findLast((item) => item.to === email);
+        await sql`UPDATE np_email_codes SET last_sent_at = NOW() - INTERVAL '2 minutes' WHERE email=${email}`;
+        registered.add(name);
+        return call('auth', { method: 'POST', body: { action: 'register_verify', email, code } });
+      },
+      login: (login, password) => call('auth', { method: 'POST', body: { action: 'login', login: registered.has(login) ? `${login}@gmail.com` : login, password } }),
       async upload({ moduleId, stepType, purpose, filename, bytes }) {
         const init = await this.post('files', {
           action: 'init', module_id: moduleId, step_type: stepType, purpose, filename, size: bytes.length
@@ -108,7 +121,7 @@ async function createHarness({ dataDir } = {}) {
     };
   }
 
-  return { db, sql, handlers, client };
+  return { db, sql, handlers, client, outbox, stubMail };
 }
 
 module.exports = { TEST_ADMIN, createHarness, createResponse };

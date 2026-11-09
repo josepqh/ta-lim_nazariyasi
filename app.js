@@ -364,19 +364,63 @@ function closeAuthModal(e) {
   if (e.target.id === 'authModal') e.target.classList.remove('active');
 }
 
-function switchAuth(type) {
+const AUTH_VIEWS = {
+  login: { form: 'loginForm', title: 'Tizimga Kirish', subtitle: 'Platformadan foydalanish uchun o‘z rolingizni tanlang' },
+  register: { form: 'registerForm', title: 'Ro‘yxatdan o‘tish', subtitle: 'Rolingizni tanlang va Gmail manzilingizni kiriting' },
+  registerCode: { form: 'registerCodeForm', title: 'Gmailni tasdiqlang', subtitle: '' },
+  forgot: { form: 'forgotForm', title: 'Parolni tiklash', subtitle: 'Gmail manzilingizga tasdiqlash kodi yuboramiz' },
+  forgotCode: { form: 'forgotCodeForm', title: 'Yangi parol', subtitle: '' }
+};
+const CODE_SENT_TEXT = (email) => `${email} manziliga 6 xonali kod yuborildi. Xat kelmasa, Spam papkasini tekshiring.`;
+let pendingRegistration = null;
+let pendingResetEmail = '';
+let resendTimer = null;
+
+function switchAuth(type, subtitle) {
+  const view = AUTH_VIEWS[type] || AUTH_VIEWS.login;
   document.querySelectorAll('.auth-form').forEach(f => f.classList.remove('active'));
-  document.getElementById('loginError').textContent = '';
-  if (type === 'login') {
-    document.getElementById('authTitle').textContent = 'Tizimga Kirish';
-    document.getElementById('authSubtitle').textContent = "Platformadan foydalanish uchun o‘z rolingizni tanlang";
-    document.getElementById('loginForm').classList.add('active');
-  } else {
-    document.getElementById('authTitle').textContent = "Ro‘yxatdan o‘tish";
-    document.getElementById('authSubtitle').textContent = "Rolingizni tanlang va yangi hisob yarating";
-    document.getElementById('registerForm').classList.add('active');
-  }
+  document.querySelectorAll('#authModal .error-msg').forEach(el => { el.textContent = ''; });
+  document.getElementById('authTitle').textContent = view.title;
+  document.getElementById('authSubtitle').textContent = subtitle || view.subtitle;
+  document.getElementById(view.form).classList.add('active');
   refreshIcons();
+}
+
+function startResendCooldown() {
+  const button = document.getElementById('regResend');
+  let seconds = 60;
+  clearInterval(resendTimer);
+  button.disabled = true;
+  button.textContent = `Qayta yuborish (${seconds})`;
+  resendTimer = setInterval(() => {
+    seconds -= 1;
+    if (seconds > 0) {
+      button.textContent = `Qayta yuborish (${seconds})`;
+      return;
+    }
+    clearInterval(resendTimer);
+    button.disabled = false;
+    button.textContent = 'Kodni qayta yuborish';
+  }, 1000);
+}
+
+async function submitAuthForm(event, busyText, errorId, work) {
+  event.preventDefault();
+  const errorEl = document.getElementById(errorId);
+  errorEl.textContent = '';
+  const button = event.target.querySelector('button[type="submit"]');
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.textContent = busyText;
+  try {
+    await work();
+  } catch (error) {
+    errorEl.textContent = error.message || 'Xatolik yuz berdi.';
+  } finally {
+    button.disabled = false;
+    button.innerHTML = original;
+    refreshIcons();
+  }
 }
 
 function selectRole(role, btn) {
@@ -417,31 +461,75 @@ async function handleLogin(e) {
   }
 }
 
-async function handleRegister(e) {
-  e.preventDefault();
-  const name = document.getElementById('regName').value.trim();
-  const login = document.getElementById('regLogin').value.trim();
-  const pass = document.getElementById('regPass').value;
-  const role = document.querySelector('#registerForm .role-tab.active')?.dataset.role || 'student';
-  const errEl = document.getElementById('registerError');
-  errEl.textContent = '';
+function handleRegister(event) {
+  return submitAuthForm(event, 'Yuborilmoqda…', 'registerError', async () => {
+    const registration = {
+      name: document.getElementById('regName').value.trim(),
+      email: document.getElementById('regLogin').value.trim(),
+      password: document.getElementById('regPass').value,
+      role: document.querySelector('#registerForm .role-tab.active')?.dataset.role || 'student'
+    };
+    await requestAPI('/auth', 'POST', { action: 'register_start', ...registration });
+    pendingRegistration = registration;
+    document.getElementById('regCode').value = '';
+    switchAuth('registerCode', CODE_SENT_TEXT(registration.email));
+    startResendCooldown();
+    document.getElementById('regCode').focus();
+  });
+}
 
-  const submitBtn = e.target.querySelector('button[type="submit"]');
-  const oldText = submitBtn.innerHTML;
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Ro‘yxatdan o‘tilmoqda...';
-
+async function resendRegisterCode() {
+  const errorEl = document.getElementById('registerCodeError');
+  errorEl.textContent = '';
   try {
-    const user = await requestAPI('/auth', 'POST', { action: 'register', login, password: pass, name, role });
-    showToast("Ro‘yxatdan muvaffaqiyatli o‘tdingiz!");
-    await startSession(user);
-  } catch (err) {
-    errEl.textContent = err.message || "Ro‘yxatdan o‘tishda xatolik yuz berdi.";
-  } finally {
-    submitBtn.disabled = false;
-    submitBtn.innerHTML = oldText;
-    refreshIcons();
+    await requestAPI('/auth', 'POST', { action: 'register_start', ...pendingRegistration });
+    showToast('Yangi kod yuborildi ✅');
+    startResendCooldown();
+  } catch (error) {
+    errorEl.textContent = error.message;
   }
+}
+
+function handleRegisterCode(event) {
+  return submitAuthForm(event, 'Tekshirilmoqda…', 'registerCodeError', async () => {
+    const user = await requestAPI('/auth', 'POST', {
+      action: 'register_verify',
+      email: pendingRegistration.email,
+      code: document.getElementById('regCode').value.trim()
+    });
+    pendingRegistration = null;
+    clearInterval(resendTimer);
+    showToast('Ro‘yxatdan muvaffaqiyatli o‘tdingiz!');
+    await startSession(user);
+  });
+}
+
+function handleForgot(event) {
+  return submitAuthForm(event, 'Yuborilmoqda…', 'forgotError', async () => {
+    const email = document.getElementById('forgotEmail').value.trim();
+    await requestAPI('/auth', 'POST', { action: 'reset_start', email });
+    pendingResetEmail = email;
+    document.getElementById('forgotCode').value = '';
+    document.getElementById('forgotPass').value = '';
+    switchAuth('forgotCode', `Agar ${email} bilan hisob bo‘lsa, unga 6 xonali kod yuborildi.`);
+    document.getElementById('forgotCode').focus();
+  });
+}
+
+function handleForgotCode(event) {
+  return submitAuthForm(event, 'Saqlanmoqda…', 'forgotCodeError', async () => {
+    await requestAPI('/auth', 'POST', {
+      action: 'reset_verify',
+      email: pendingResetEmail,
+      code: document.getElementById('forgotCode').value.trim(),
+      password: document.getElementById('forgotPass').value
+    });
+    document.getElementById('loginUser').value = pendingResetEmail;
+    document.getElementById('loginPass').value = '';
+    pendingResetEmail = '';
+    switchAuth('login');
+    showToast('Parol yangilandi. Endi kiring ✅');
+  });
 }
 
 async function startSession(user, modulesLoaded = false) {

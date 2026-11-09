@@ -827,3 +827,9 @@ body:has(.ai-chat-panel:not([hidden])) .toast { top: 16px; bottom: auto; }
 @media (max-width: 380px) {
   .hero-buttons button { letter-spacing: 1px; }
 }
+
+/* ===== AUTH ===== */
+.auth-card { max-height: 100dvh; overflow-y: auto; }
+.form-group input.code-input { text-align: center; font-size: 26px; letter-spacing: 10px; font-variant-numeric: tabular-nums; }
+.auth-switch { display: flex; justify-content: center; align-items: center; gap: 16px; flex-wrap: wrap; }
+.link-action { min-height: 24px; font-size: 12px; font-weight: 500; color: var(--text-main); text-decoration: underline; }

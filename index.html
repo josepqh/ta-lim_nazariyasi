@@ -13,7 +13,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="style.css?v=19"/>
+  <link rel="stylesheet" href="style.css?v=20"/>
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -246,8 +246,8 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="loginUser">Login</label>
-        <input type="text" id="loginUser" spellcheck="false" autocapitalize="none" placeholder="Loginni kiriting" maxlength="50" autocomplete="username" required/>
+        <label for="loginUser">Gmail</label>
+        <input type="text" id="loginUser" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="username" required/>
       </div>
       <div class="form-group">
         <label for="loginPass">Parol</label>
@@ -257,6 +257,7 @@
       <button type="submit" class="btn-primary btn-full">
         <i data-lucide="log-in"></i> Kirish
       </button>
+      <div class="auth-switch"><span onclick="switchAuth('forgot')">Parolni unutdingizmi?</span></div>
       <div class="auth-switch">Hisobingiz yo‘qmi? <span onclick="switchAuth('register')">Ro‘yxatdan o‘tish</span></div>
     </form>
 
@@ -275,8 +276,8 @@
         <input type="text" id="regName" placeholder="To‘liq ismingiz" maxlength="100" autocomplete="name" required/>
       </div>
       <div class="form-group">
-        <label for="regLogin">Login yaratish</label>
-        <input type="text" id="regLogin" spellcheck="false" autocapitalize="none" placeholder="Yangi login" minlength="3" maxlength="50" autocomplete="username" required/>
+        <label for="regLogin">Gmail</label>
+        <input type="email" id="regLogin" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
       </div>
       <div class="form-group">
         <label for="regPass">Parol yaratish</label>
@@ -284,9 +285,49 @@
       </div>
       <div id="registerError" class="error-msg" role="alert"></div>
       <button type="submit" class="btn-primary btn-full">
-        <i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish
+        <i data-lucide="mail"></i> Kod yuborish
       </button>
       <div class="auth-switch">Hisobingiz bormi? <span onclick="switchAuth('login')">Kirish</span></div>
+    </form>
+
+    <!-- Registration: emailed code -->
+    <form id="registerCodeForm" class="auth-form" onsubmit="handleRegisterCode(event)">
+      <div class="form-group">
+        <label for="regCode">Tasdiqlash kodi</label>
+        <input type="text" id="regCode" class="code-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
+      </div>
+      <div id="registerCodeError" class="error-msg" role="alert"></div>
+      <button type="submit" class="btn-primary btn-full"><i data-lucide="check"></i> Tasdiqlash</button>
+      <div class="auth-switch">
+        <button type="button" class="link-action" id="regResend" onclick="resendRegisterCode()">Kodni qayta yuborish</button>
+        <span onclick="switchAuth('register')">Orqaga</span>
+      </div>
+    </form>
+
+    <!-- Password reset: request -->
+    <form id="forgotForm" class="auth-form" onsubmit="handleForgot(event)">
+      <div class="form-group">
+        <label for="forgotEmail">Gmail</label>
+        <input type="email" id="forgotEmail" spellcheck="false" autocapitalize="none" placeholder="nom@gmail.com" maxlength="254" autocomplete="email" required/>
+      </div>
+      <div id="forgotError" class="error-msg" role="alert"></div>
+      <button type="submit" class="btn-primary btn-full"><i data-lucide="mail"></i> Kod yuborish</button>
+      <div class="auth-switch"><span onclick="switchAuth('login')">Kirishga qaytish</span></div>
+    </form>
+
+    <!-- Password reset: new password -->
+    <form id="forgotCodeForm" class="auth-form" onsubmit="handleForgotCode(event)">
+      <div class="form-group">
+        <label for="forgotCode">Tasdiqlash kodi</label>
+        <input type="text" id="forgotCode" class="code-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required/>
+      </div>
+      <div class="form-group">
+        <label for="forgotPass">Yangi parol</label>
+        <input type="password" id="forgotPass" placeholder="Kamida 10 belgi" minlength="10" maxlength="200" autocomplete="new-password" required/>
+      </div>
+      <div id="forgotCodeError" class="error-msg" role="alert"></div>
+      <button type="submit" class="btn-primary btn-full"><i data-lucide="key-round"></i> Parolni yangilash</button>
+      <div class="auth-switch"><span onclick="switchAuth('forgot')">Orqaga</span></div>
     </form>
   </div>
 </div>
@@ -364,6 +405,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

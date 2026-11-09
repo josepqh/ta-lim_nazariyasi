@@ -1,14 +1,15 @@
 # Ta'lim nazariyasi platformasi
 
-Yengil frontend (`index.html`, `style.css`, `app.js`) va Vercel serverless API (`api/`) asosidagi o‘quv platformasi. Ma’lumotlar Neon PostgreSQL’da saqlanadi.
+Yengil frontend (`index.html`, `style.css`, `app.js`) va Vercel serverless API (`api/`) asosidagi o‘quv platformasi. Ma’lumotlar Supabase PostgreSQL’da saqlanadi.
 
 ## Ishga tushirish
 
 Node.js 18 yoki yangiroq versiya kerak. `npm install` buyrug‘ini bajaring, so‘ng `.env.example` faylidan `.env` yarating. Quyidagi qiymatlarni to‘ldiring:
 
-- `DATABASE_URL` — Neon ulanish manzili.
+- `DATABASE_URL` — Supabase “Transaction pooler” ulanish manzili (6543-port).
 - `SETUP_SECRET` — ma’lumotlar bazasini sozlash endpointini himoyalovchi 24+ belgili sir.
-- `ADMIN_LOGIN`, `ADMIN_PASSWORD` — boshlang‘ich admin hisobi; parol kamida 10 belgi.
+- `ADMIN_LOGIN`, `ADMIN_PASSWORD` — admin hisobi (Gmail manzil); parol kamida 10 belgi.
+- `GMAIL_USER`, `GMAIL_APP_PASSWORD` — tasdiqlash kodlarini yuboradigan Gmail va uning “App password” kodi (Google hisobida 2 bosqichli himoya yoqilgan bo‘lishi kerak).
 - `ADMIN_NAME` — admin ko‘rinadigan ismi.
 - `GROQ_API_KEY` — o‘qituvchi va admin uchun AI chat kaliti (console.groq.com). Bo‘lmasa, chat oynasi ochiladi, lekin “sozlanmagan” xabarini beradi.
 
@@ -34,4 +35,4 @@ Taqdimot (`.pptx`), qo‘shimcha material va topshiriq fayllari PostgreSQL’da 
 
 ## Lokal ishlab chiqish va testlar
 
-`npm run dev` (yoki `npm start`) saytni va haqiqiy API’ni ishga tushiradi. `.env` da `DATABASE_URL` bo‘lsa, o‘sha bazaga ulanadi (avval `npm run db:setup`); bo‘lmasa ma’lumotlar lokal `.local-db/` papkasida saqlanadi. Lokal rejimda sinov hisoblari bor (login / parol): `student` / `123`, `teacher` / `123`, `admin` / `123`; ular real bazada yaratilmaydi. `npm test` API testlarini, `npm run test:e2e` brauzer testlarini ishga tushiradi (birinchi marta `npx playwright install chromium` kerak). Baza sxemasining yagona manbasi `api/setup.js`.
+`npm run dev` (yoki `npm start`) saytni va haqiqiy API’ni ishga tushiradi. `.env` da `DATABASE_URL` bo‘lsa, o‘sha bazaga ulanadi (avval `npm run db:setup`); bo‘lmasa ma’lumotlar lokal `.local-db/` papkasida saqlanadi. Lokal admin hisobi `tests/helpers/harness.js` faylida. Gmail sozlanmagan bo‘lsa, tasdiqlash kodlari terminalga chiqadi. `npm test` API testlarini, `npm run test:e2e` brauzer testlarini ishga tushiradi (birinchi marta `npx playwright install chromium` kerak). Baza sxemasining yagona manbasi `api/setup.js`.

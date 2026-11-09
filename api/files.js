@@ -108,7 +108,7 @@ async function saveChunk(res, user, body) {
     return res.status(415).json({ error: 'Fayl mazmuni uning formatiga mos emas.' });
   }
 
-  // Sent as base64 text because the HTTP driver does not transport binary parameters.
+  // Sent as base64 text so every value stays a plain text parameter.
   await sql`
     INSERT INTO np_file_chunks(file_id, chunk_index, data)
     VALUES(${file.id}::uuid, ${index}, decode(${body.data}, 'base64'))

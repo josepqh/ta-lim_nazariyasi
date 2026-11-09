@@ -18,7 +18,7 @@ module.exports = defineConfig({
   webServer: {
     command: 'node tests/dev-server.js',
     // In memory, and without .env, so tests never touch real data.
-    env: { PORT: String(PORT), LOCAL_DB_DIR: 'memory', DATABASE_URL: '', GROQ_API_KEY: '' },
+    env: { PORT: String(PORT), LOCAL_DB_DIR: 'memory', DATABASE_URL: '', GROQ_API_KEY: '', GMAIL_USER: '', E2E_MAIL: '1' },
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI
   }

@@ -1,6 +1,7 @@
 const sql = require('./_db');
 const { randomBytes, timingSafeEqual } = require('node:crypto');
 const { hashPassword } = require('./_password');
+const { normalizeGmail } = require('./_email');
 
 function hasSetupAccess(req) {
   const expected = process.env.SETUP_SECRET || '';
@@ -16,13 +17,13 @@ module.exports = async (req, res) => {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
     if (!hasSetupAccess(req)) return res.status(401).json({ error: 'Sozlash uchun ruxsat yo‘q.' });
 
-    const adminLogin = process.env.ADMIN_LOGIN || '';
+    const adminLogin = normalizeGmail(process.env.ADMIN_LOGIN) || process.env.ADMIN_LOGIN || '';
     const adminPassword = process.env.ADMIN_PASSWORD || '';
     const adminName = process.env.ADMIN_NAME || 'Administrator';
     if (!adminLogin || !adminPassword) {
       return res.status(400).json({ error: 'ADMIN_LOGIN va ADMIN_PASSWORD sozlanishi kerak.' });
     }
-    if (!/^[\p{L}\p{N}._-]{3,50}$/u.test(adminLogin)) {
+    if (!normalizeGmail(adminLogin) && !/^[\p{L}\p{N}._-]{3,50}$/u.test(adminLogin)) {
       return res.status(400).json({ error: 'ADMIN_LOGIN 3–50 ta harf, raqam, nuqta, _ yoki - dan iborat bo‘lsin.' });
     }
     if (adminPassword.length < 10 || adminPassword.length > 200) {
@@ -43,6 +44,7 @@ module.exports = async (req, res) => {
       );
     `;
     await sql`ALTER TABLE np_users ALTER COLUMN password TYPE TEXT`;
+    await sql`ALTER TABLE np_users ALTER COLUMN login TYPE TEXT`;
     await sql`ALTER TABLE np_users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`;
     await sql`ALTER TABLE np_users ADD COLUMN IF NOT EXISTS failed_login_count INTEGER DEFAULT 0`;
     await sql`ALTER TABLE np_users ADD COLUMN IF NOT EXISTS lockout_until TIMESTAMPTZ`;
@@ -191,6 +193,21 @@ module.exports = async (req, res) => {
       );
     `;
 
+    // One pending email code per mailbox and purpose; the account is created only after it is confirmed.
+    await sql`
+      CREATE TABLE IF NOT EXISTS np_email_codes (
+        email TEXT NOT NULL,
+        purpose TEXT NOT NULL CHECK (purpose IN ('register', 'reset')),
+        code_hash TEXT NOT NULL,
+        payload JSONB,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        expires_at TIMESTAMPTZ NOT NULL,
+        last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (email, purpose)
+      );
+    `;
+    await sql`DELETE FROM np_email_codes WHERE expires_at < NOW() - INTERVAL '1 day'`;
+
     // Files read to build a quiz exist before their module does.
     await sql`ALTER TABLE np_files ALTER COLUMN module_id DROP NOT NULL`;
     await sql`ALTER TABLE np_files DROP CONSTRAINT IF EXISTS np_files_purpose_check`;
@@ -226,6 +243,14 @@ module.exports = async (req, res) => {
       INSERT INTO np_users(name, login, password, role)
       VALUES(${adminName}, ${adminLogin}, ${passwordHash}, 'admin')
       ON CONFLICT(login) DO UPDATE SET name=EXCLUDED.name, password=EXCLUDED.password, role='admin', status='active', deleted_at=NULL, failed_login_count=0, lockout_until=NULL`;
+
+    // Supabase can expose public tables through its own API. With RLS on and no policies that path
+    // returns nothing, while this server connects as the table owner and is unaffected.
+    const tables = await sql`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'np\_%'`;
+    for (const { tablename } of tables) {
+      if (!/^np_[a-z_]+$/.test(tablename)) continue;
+      await sql([`ALTER TABLE ${tablename} ENABLE ROW LEVEL SECURITY`]);
+    }
 
     return res.status(200).json({ message: 'Database schema configured.' });
   } catch (error) {

@@ -45,6 +45,7 @@ const finishUntilTask = async (by, id) => {
 
 before(async () => {
   harness = await createHarness();
+  harness.stubMail();
   admin = harness.client();
   assert.equal((await admin.login(TEST_ADMIN.login, TEST_ADMIN.password)).statusCode, 200);
   teacher = harness.client();
@@ -54,6 +55,13 @@ before(async () => {
   other = harness.client();
   await other.register('student_two');
   moduleId = await buildFullModule(teacher);
+});
+
+describe('database setup', () => {
+  test('row level security is on for every table', async () => {
+    const open = await harness.sql`SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename LIKE 'np%' AND NOT rowsecurity`;
+    assert.deepEqual(open, []);
+  });
 });
 
 describe('registration and login', () => {
@@ -73,8 +81,8 @@ describe('registration and login', () => {
     const login = unique('blocked');
     const person = harness.client();
     await person.register(login);
-    assert.equal((await person.get('auth')).body.user.login, login);
-    await harness.sql`UPDATE np_users SET status='blocked' WHERE login=${login}`;
+    assert.equal((await person.get('auth')).body.user.login, `${login}@gmail.com`);
+    await harness.sql`UPDATE np_users SET status='blocked' WHERE login=${`${login}@gmail.com`}`;
     assert.equal((await person.get('auth')).body.user, null);
   });
 
@@ -136,7 +144,7 @@ describe('progress and grading', () => {
   });
 
   test('a teacher can read one student by id; a student cannot read another', async () => {
-    const [row] = await harness.sql`SELECT id FROM np_users WHERE login='student_one'`;
+    const [row] = await harness.sql`SELECT id FROM np_users WHERE login='student_one@gmail.com'`;
     const seen = await teacher.get('progress', { user_id: row.id });
     assert.ok(seen.body.length > 0);
     assert.ok(seen.body.every((item) => item.user_id === row.id && item.student_name));
@@ -246,9 +254,9 @@ describe('admin user directory', () => {
   });
 
   test('a profile shows the account and its modules, without the password', async () => {
-    const [row] = await harness.sql`SELECT id FROM np_users WHERE login='teacher_one'`;
+    const [row] = await harness.sql`SELECT id FROM np_users WHERE login='teacher_one@gmail.com'`;
     const profile = await admin.get('users', { id: String(row.id) });
-    assert.equal(profile.body.login, 'teacher_one');
+    assert.equal(profile.body.login, 'teacher_one@gmail.com');
     assert.equal(profile.body.password, undefined);
     assert.ok(profile.body.modules_created.length > 0);
     assert.equal((await admin.get('users', { id: '999999' })).statusCode, 404);
@@ -259,13 +267,131 @@ describe('registration limit', () => {
   const attempt = (ip) => harness.client().call('auth', {
     method: 'POST',
     headers: { 'x-forwarded-for': ip },
-    body: { action: 'register', name: 'Some Name', login: unique('limited'), password: 'a-valid-password' }
+    body: { action: 'register_start', name: 'Some Name', email: `${unique('limited')}@gmail.com`, password: 'a-valid-password' }
   });
 
-  test('one address is stopped after ten registrations, others are not', async () => {
-    for (let i = 0; i < 10; i++) assert.equal((await attempt('203.0.113.7')).statusCode, 201);
+  test('one address is stopped after ten code requests, others are not', async () => {
+    for (let i = 0; i < 10; i++) assert.equal((await attempt('203.0.113.7')).statusCode, 200);
     assert.equal((await attempt('203.0.113.7')).statusCode, 429);
-    assert.equal((await attempt('203.0.113.8')).statusCode, 201);
+    assert.equal((await attempt('203.0.113.8')).statusCode, 200);
+  });
+});
+
+describe('gmail verification', () => {
+  const start = (by, email, extra = {}) => by.post('auth', { action: 'register_start', name: 'Real Person', email, password: 'a-valid-password', ...extra });
+  const verify = (by, email, code) => by.post('auth', { action: 'register_verify', email, code });
+  const lastCode = (email) => harness.outbox.findLast((item) => item.to === email && item.code)?.code;
+  const expireCooldown = (email) => harness.sql`UPDATE np_email_codes SET last_sent_at = NOW() - INTERVAL '2 minutes' WHERE email=${email}`;
+  const wrong = (code) => (code === '000000' ? '000001' : '000000');
+
+  test('only gmail addresses are accepted', async () => {
+    assert.equal((await start(harness.client(), 'someone@yahoo.com')).statusCode, 400);
+    assert.equal((await start(harness.client(), 'not-an-email')).statusCode, 400);
+  });
+
+  test('no account exists until the code is confirmed', async () => {
+    const email = `${unique('pending')}@gmail.com`;
+    const person = harness.client();
+    assert.equal((await start(person, email)).statusCode, 200);
+    assert.equal((await harness.sql`SELECT 1 FROM np_users WHERE login=${email}`).length, 0);
+    assert.equal((await person.get('auth')).body.user, null);
+    assert.equal((await verify(person, email, wrong(lastCode(email)))).statusCode, 400);
+    const done = await verify(person, email, lastCode(email));
+    assert.equal(done.statusCode, 201);
+    assert.equal((await person.get('auth')).body.user.login, email);
+  });
+
+  test('a code stops working after five wrong tries and after use', async () => {
+    const email = `${unique('guess')}@gmail.com`;
+    const person = harness.client();
+    await start(person, email);
+    const code = lastCode(email);
+    for (let i = 0; i < 5; i++) assert.equal((await verify(person, email, wrong(code))).statusCode, 400);
+    assert.match((await verify(person, email, code)).body.error, /eskirgan/);
+  });
+
+  test('an expired code is refused and the password is never stored in plain text', async () => {
+    const email = `${unique('late')}@gmail.com`;
+    const person = harness.client();
+    await start(person, email);
+    const [row] = await harness.sql`SELECT payload, code_hash FROM np_email_codes WHERE email=${email}`;
+    assert.match(row.payload.password, /^scrypt\$/);
+    assert.notEqual(row.code_hash, lastCode(email));
+    await harness.sql`UPDATE np_email_codes SET expires_at = NOW() - INTERVAL '1 minute' WHERE email=${email}`;
+    assert.equal((await verify(person, email, lastCode(email))).statusCode, 400);
+  });
+
+  test('a new code must wait a minute', async () => {
+    const email = `${unique('resend')}@gmail.com`;
+    await start(harness.client(), email);
+    assert.equal((await start(harness.client(), email)).statusCode, 429);
+    await expireCooldown(email);
+    assert.equal((await start(harness.client(), email)).statusCode, 200);
+  });
+
+  test('dots and +tags cannot create a second account for one mailbox', async () => {
+    const base = unique('mailbox').replace(/_/g, '');
+    const email = `${base}@gmail.com`;
+    await start(harness.client(), email);
+    assert.equal((await verify(harness.client(), email, lastCode(email))).statusCode, 201);
+    const variant = `${base.slice(0, 3)}.${base.slice(3)}+x@gmail.com`;
+    const again = await start(harness.client(), variant);
+    assert.equal(again.statusCode, 200);
+    assert.equal(harness.outbox.at(-1).notice, true);
+  });
+
+  test('registering an existing mailbox reveals nothing and never gives a working code', async () => {
+    const name = unique('owner');
+    await harness.client().register(name);
+    const email = `${name}@gmail.com`;
+    await expireCooldown(email);
+    const res = await start(harness.client(), email, { role: 'teacher' });
+    assert.deepEqual(res.body, { ok: true, email });
+    assert.equal((await verify(harness.client(), email, '123456')).statusCode, 400);
+  });
+
+  test('a mail failure is reported and leaves no pending code', async () => {
+    const mail = require('../api/_mail');
+    const saved = mail.sendCode;
+    mail.sendCode = async () => { throw new Error('smtp down'); };
+    const email = `${unique('nomail')}@gmail.com`;
+    const res = await start(harness.client(), email);
+    mail.sendCode = saved;
+    assert.equal(res.statusCode, 503);
+    assert.equal((await harness.sql`SELECT 1 FROM np_email_codes WHERE email=${email}`).length, 0);
+  });
+
+  test('without mail settings production refuses instead of skipping verification', async () => {
+    delete require.cache[require.resolve('../api/_mail')];
+    const real = require('../api/_mail');
+    delete process.env.GMAIL_USER;
+    delete process.env.LOCAL_DEV_MAIL;
+    await assert.rejects(real.sendCode('a@gmail.com', '123456', 'register'), real.MailNotConfiguredError);
+  });
+
+  test('a password reset changes the password and ends old sessions', async () => {
+    const name = unique('forgetful');
+    const person = harness.client();
+    await person.register(name);
+    const email = `${name}@gmail.com`;
+    const visitor = harness.client();
+    assert.equal((await visitor.post('auth', { action: 'reset_start', email })).statusCode, 200);
+    const code = lastCode(email);
+    const weak = await visitor.post('auth', { action: 'reset_verify', email, code, password: 'short' });
+    assert.equal(weak.statusCode, 400);
+    assert.equal((await visitor.post('auth', { action: 'reset_verify', email, code, password: 'brand-new-password' })).statusCode, 200);
+    assert.equal((await person.get('auth')).body.user, null);
+    assert.equal((await visitor.login(email, 'a-valid-password')).statusCode, 401);
+    assert.equal((await visitor.login(email, 'brand-new-password')).statusCode, 200);
+  });
+
+  test('a reset for an unknown mailbox answers the same and sends nothing', async () => {
+    const email = `${unique('ghost')}@gmail.com`;
+    const before = harness.outbox.length;
+    const res = await harness.client().post('auth', { action: 'reset_start', email });
+    assert.equal(res.statusCode, 200);
+    assert.equal(harness.outbox.length, before);
+    assert.equal((await harness.client().post('auth', { action: 'reset_verify', email, code: '123456', password: 'brand-new-password' })).statusCode, 400);
   });
 });
 

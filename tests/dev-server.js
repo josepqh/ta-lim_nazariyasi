@@ -39,23 +39,12 @@ async function useRealDatabase() {
   return Object.fromEntries(HANDLER_NAMES.map((name) => [name, require(`../api/${name}.js`)]));
 }
 
-// Exist only in the local database; never created when DATABASE_URL is set.
-const LOCAL_TRIAL_ACCOUNTS = [
-  { name: 'Sinov Talaba', login: 'student', role: 'student' },
-  { name: 'Sinov O‘qituvchi', login: 'teacher', role: 'teacher' },
-  { name: 'Sinov Administrator', login: 'admin', role: 'admin' }
-];
-const LOCAL_TRIAL_PASSWORD = '123';
-
-async function seedTrialAccounts(sql) {
-  const { hashPassword } = require('../api/_password');
-  for (const { name, login, role } of LOCAL_TRIAL_ACCOUNTS) {
-    const password = await hashPassword(LOCAL_TRIAL_PASSWORD);
-    await sql`
-      INSERT INTO np_users(name, login, password, role)
-      VALUES(${name}, ${login}, ${password}, ${role})
-      ON CONFLICT(login) DO UPDATE SET name=EXCLUDED.name, password=EXCLUDED.password, role=EXCLUDED.role,
-        status='active', deleted_at=NULL, failed_login_count=0, lockout_until=NULL`;
+// Removes the trial accounts earlier versions added to the local database.
+async function retireTrialAccounts(sql) {
+  const trial = [['student', 'Sinov Talaba'], ['teacher', 'Sinov O‘qituvchi'], ['admin', 'Sinov Administrator']];
+  for (const [login, name] of trial) {
+    await sql`DELETE FROM np_sessions WHERE user_id IN (SELECT id FROM np_users WHERE login=${login} AND name=${name})`;
+    await sql`UPDATE np_users SET status='blocked', deleted_at=NOW() WHERE login=${login} AND name=${name} AND deleted_at IS NULL`;
   }
 }
 
@@ -94,11 +83,21 @@ async function useLocalDatabase() {
   if (dataDir) claimLocalDatabase();
   const { handlers, sql } = await createHarness({ dataDir });
   console.log(`Baza: ${dataDir ? 'lokal (.local-db, ma’lumotlar saqlanadi)' : 'xotirada'}`);
-  if (dataDir) {
-    await seedTrialAccounts(sql);
-    console.log('Sinov hisoblari (login / parol): student / 123, teacher / 123, admin / 123');
+  if (dataDir) await retireTrialAccounts(sql);
+  console.log(`Admin login: ${TEST_ADMIN.login} (parol: tests/helpers/harness.js faylida)`);
+  if (!process.env.GMAIL_USER) {
+    process.env.LOCAL_DEV_MAIL = '1';
+    console.log('Gmail sozlanmagan: tasdiqlash kodlari shu terminalga chiqadi.');
   }
   return handlers;
+}
+
+// Lets browser tests read the code a real user would get by email. Never enabled by npm start.
+const testMailbox = new Map();
+function captureTestMail() {
+  const mail = require('../api/_mail');
+  mail.sendCode = async (to, code) => { testMailbox.set(to, code); };
+  mail.sendExistingAccountNotice = async () => {};
 }
 
 function isServable(relative) {
@@ -146,6 +145,8 @@ function listen(server, port, attemptsLeft) {
 
 async function main() {
   const handlers = process.env.DATABASE_URL ? await useRealDatabase() : await useLocalDatabase();
+  const exposeMail = process.env.E2E_MAIL === '1' && process.env.LOCAL_DB_DIR === 'memory';
+  if (exposeMail) captureTestMail();
 
   const server = http.createServer(async (req, res) => {
     for (const { key, value } of securityHeaders) {
@@ -154,6 +155,11 @@ async function main() {
     try {
       const url = new URL(req.url, 'http://localhost');
       const apiName = url.pathname.match(/^\/api\/([a-z]+)$/)?.[1];
+      if (exposeMail && url.pathname === '/__test/mail') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ code: testMailbox.get(url.searchParams.get('to')) || null }));
+        return;
+      }
       if (apiName && HANDLER_NAMES.includes(apiName)) await handleApi(req, res, handlers[apiName], url);
       else if (url.pathname.startsWith('/api/')) res.writeHead(404).end('Not found');
       else serveStatic(res, url);

@@ -34,5 +34,8 @@
     "api/chat.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "regions": [
+    "bom1"
+  ]
 }

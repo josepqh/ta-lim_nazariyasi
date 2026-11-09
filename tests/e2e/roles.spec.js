@@ -9,14 +9,25 @@ const file = (name, buffer, mimeType = 'application/octet-stream') => ({ name, m
 let counter = 0;
 const unique = (prefix) => `${prefix}_${Date.now()}_${++counter}`;
 
+async function emailedCode(page, email) {
+  const response = await page.request.get(`/__test/mail?to=${encodeURIComponent(email)}`);
+  const { code } = await response.json();
+  expect(code).toMatch(/^\d{6}$/);
+  return code;
+}
+
 async function register(page, { name, login, role }) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#navAuth .btn-nav').click();
   await page.locator(`#registerForm .role-tab[data-role="${role}"]`).click();
   await page.locator('#regName').fill(name);
-  await page.locator('#regLogin').fill(login);
+  const email = `${login}@gmail.com`;
+  await page.locator('#regLogin').fill(email);
   await page.locator('#regPass').fill(PASSWORD);
   await page.locator('#registerForm button[type="submit"]').click();
+  await expect(page.locator('#registerCodeForm')).toHaveClass(/active/);
+  await page.locator('#regCode').fill(await emailedCode(page, email));
+  await page.locator('#registerCodeForm button[type="submit"]').click();
   await expect(page.locator('#screen-app')).toHaveClass(/active/);
   await expect(page.locator('#pageTitle')).toHaveText('Bosh sahifa');
 }
@@ -94,7 +105,7 @@ async function doStep(page, index, fill) {
 
 test('a wrong password shows an error and never enters the app', async ({ page }) => {
   await signIn(page, { login: 'nobody_here', password: 'wrong-password', role: 'admin' });
-  await expect(page.locator('#loginError')).toHaveText('Login yoki parol noto‘g‘ri.');
+  await expect(page.locator('#loginError')).toHaveText('Gmail yoki parol noto‘g‘ri.');
   await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
   expect(await page.evaluate(() => localStorage.length)).toBe(0);
 });
@@ -299,4 +310,43 @@ test('the phone menu holds the links and registration', async ({ page }) => {
   await expect(page.locator('#authModal')).toHaveClass(/active/);
   await expect(page.locator('#mainNav')).toBeHidden();
   await expect(page.locator('#registerForm')).toBeVisible();
+});
+
+test('registration needs the emailed code, and a forgotten password can be reset', async ({ page }) => {
+  const login = unique('realuser');
+  const email = `${login}@gmail.com`;
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('#navAuth .btn-nav').click();
+  await page.locator('#regName').fill('Real User');
+  await page.locator('#regLogin').fill(email);
+  await page.locator('#regPass').fill(PASSWORD);
+  await page.locator('#registerForm button[type="submit"]').click();
+  await expect(page.locator('#registerCodeForm')).toHaveClass(/active/);
+  await expect(page.locator('#regResend')).toBeDisabled();
+
+  const code = await emailedCode(page, email);
+  await page.locator('#regCode').fill(code === '000000' ? '000001' : '000000');
+  await page.locator('#registerCodeForm button[type="submit"]').click();
+  await expect(page.locator('#registerCodeError')).toHaveText('Kod noto‘g‘ri.');
+  await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
+
+  await page.locator('#regCode').fill(code);
+  await page.locator('#registerCodeForm button[type="submit"]').click();
+  await expect(page.locator('#screen-app')).toHaveClass(/active/);
+
+  await page.locator('.btn-logout').click();
+  await expect(page.locator('#screen-app')).not.toHaveClass(/active/);
+  await page.locator('#navAuth .btn-primary').click();
+  await page.getByText('Parolni unutdingizmi?').click();
+  await page.locator('#forgotEmail').fill(email);
+  await page.locator('#forgotForm button[type="submit"]').click();
+  await expect(page.locator('#forgotCodeForm')).toHaveClass(/active/);
+  await page.locator('#forgotCode').fill(await emailedCode(page, email));
+  await page.locator('#forgotPass').fill('a-brand-new-password');
+  await page.locator('#forgotCodeForm button[type="submit"]').click();
+  await expect(page.locator('#loginForm')).toHaveClass(/active/);
+  await expect(page.locator('#loginUser')).toHaveValue(email);
+  await page.locator('#loginPass').fill('a-brand-new-password');
+  await page.locator('#loginForm button[type="submit"]').click();
+  await expect(page.locator('#screen-app')).toHaveClass(/active/);
 });
