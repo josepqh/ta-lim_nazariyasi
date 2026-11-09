@@ -255,6 +255,7 @@ function setupEventListeners() {
     if (e.key === 'Escape') {
       document.getElementById('authModal')?.classList.remove('active');
       document.getElementById('stepModal')?.classList.remove('active');
+      if (document.getElementById('aiChat') && !document.getElementById('aiChat').hidden) toggleAiChat(false);
       const sidebar = document.getElementById('sidebar');
       if (sidebar?.classList.contains('open')) toggleSidebar();
     }
@@ -476,6 +477,7 @@ async function startSession(user, modulesLoaded = false) {
   document.getElementById('topbarUser').innerHTML = `<i data-lucide="${roleIcon}"></i> <span>${roleLabel}</span>`;
 
   buildSidebar();
+  syncAiChatAccess();
   if (!restoreRoute()) navigate('home');
   refreshIcons();
 }
@@ -484,6 +486,7 @@ async function logout() {
   await fetchAPI('/auth', 'POST', { action: 'logout' });
   currentUser = null;
   progressCache = {};
+  syncAiChatAccess();
   history.replaceState(null, '', location.pathname);
   document.getElementById('screen-app').classList.remove('active');
   document.getElementById('public-website').style.display = 'block';
@@ -647,6 +650,7 @@ function navigate(pageId, title) {
   if (!title) title = pageTitle(pageId);
   document.getElementById('pageTitle').textContent = title;
   const container = document.getElementById('pageContainer');
+  container.scrollTop = 0;
 
   syncActiveNav(pageId);
   writeRoute(pageId);
@@ -1076,28 +1080,29 @@ async function renderManageModules(container) {
   let html = `
     <div class="card">
       <h3 class="card-title"><i data-lucide="edit"></i> ${formTitle}</h3>
-      <div style="display:grid; grid-template-columns: 120px 1fr; gap:20px;">
+      <div class="module-basics">
         <div class="form-group">
-          <label>Tartib №</label>
-          <input type="number" id="newModOrder" value="${mOrder}" min="1"/>
+          <label for="newModOrder">Tartib №</label>
+          <input type="number" id="newModOrder" value="${Number(mOrder)}" min="1"/>
         </div>
         <div class="form-group">
-          <label>Modul nomi</label>
-          <input type="text" id="newModTitle" placeholder="Masalan: Ta'lim tamoyillari" value="${escapeHTML(mTitle)}"/>
+          <label for="newModTitle">Modul nomi</label>
+          <input type="text" id="newModTitle" maxlength="200" placeholder="Masalan: Ta'lim tamoyillari" value="${escapeHTML(mTitle)}"/>
         </div>
       </div>
       <div class="form-group">
-        <label>Modul haqida qisqacha ta'rif</label>
-        <input type="text" id="newModDesc" placeholder="Modul nimalarni o‘rgatadi..." value="${escapeHTML(mDesc)}" />
+        <label for="newModDesc">Modul haqida qisqacha ta'rif</label>
+        <input type="text" id="newModDesc" maxlength="5000" placeholder="Modul nimalarni o‘rgatadi…" value="${escapeHTML(mDesc)}"/>
       </div>
+      ${editModuleId ? '' : newModuleStepsHtml()}
       <div style="display:flex; gap:10px; margin-top:10px;">
-        <button class="btn-primary" onclick="addModule()">
+        <button class="btn-primary" id="saveModuleBtn" onclick="addModule()">
           <i data-lucide="save"></i> ${editModuleId ? "O‘zgarishlarni saqlash" : "Modulni yaratish"}
         </button>
         ${editModuleId ? `<button class="btn-outline" onclick="editModuleId=null; renderManageModules(document.getElementById('pageContainer'))"><i data-lucide="x"></i> Bekor qilish</button>` : ''}
       </div>
     </div>
-    
+
     <div class="card">
       <h3 class="card-title"><i data-lucide="layers"></i> Mavjud modullar va didaktik materiallar</h3>
   `;
@@ -1141,6 +1146,10 @@ async function renderManageModules(container) {
   }
   html += `</div><div id="deletedModules"></div>`;
   container.innerHTML = html;
+  if (!editModuleId) {
+    quizState.new = [];
+    renderQuizPreview('new');
+  }
   refreshIcons();
   loadDeletedModules();
 }
@@ -1173,24 +1182,230 @@ async function restoreModule(id) {
   navigate('manage-modules');
 }
 
+function newModuleStepsHtml() {
+  return `
+    <div class="module-steps">
+      <fieldset class="module-step">
+        <legend>1. Diagnostika testi</legend>
+        ${quizBuilderHtml('new')}
+      </fieldset>
+      <fieldset class="module-step">
+        <legend>2. Video dars</legend>
+        <div class="form-group">
+          <label for="newVideo">YouTube havolasi</label>
+          <input type="url" id="newVideo" placeholder="https://www.youtube.com/watch?v=…"/>
+        </div>
+      </fieldset>
+      <fieldset class="module-step">
+        <legend>3. Taqdimot</legend>
+        <div class="form-group">
+          <label for="newPresFile">PowerPoint fayli (.pptx)</label>
+          <input type="file" id="newPresFile" class="file-input" accept=".pptx"/>
+        </div>
+      </fieldset>
+      <fieldset class="module-step">
+        <legend>4. Qo‘shimcha material</legend>
+        <div class="form-group">
+          <label for="newDocFile">Fayl</label>
+          <input type="file" id="newDocFile" class="file-input" accept="${DOCUMENT_ACCEPT}"/>
+        </div>
+        <div class="form-group">
+          <label for="newDocNote">Qisqacha izoh (ixtiyoriy)</label>
+          <textarea id="newDocNote" rows="2" maxlength="30000"></textarea>
+        </div>
+      </fieldset>
+      <fieldset class="module-step">
+        <legend>5. Amaliy topshiriq</legend>
+        <div class="form-group">
+          <label for="newTask">Topshiriq matni</label>
+          <textarea id="newTask" rows="3" maxlength="30000" placeholder="Talaba bajarishi kerak bo‘lgan topshiriq…"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="newTaskFile">Ilova fayl (ixtiyoriy)</label>
+          <input type="file" id="newTaskFile" class="file-input" accept="${DOCUMENT_ACCEPT}"/>
+        </div>
+      </fieldset>
+      <fieldset class="module-step">
+        <legend>6. Refleksiv hisobot</legend>
+        <div class="form-group">
+          <label for="newRefl">Yo‘naltiruvchi savollar</label>
+          <textarea id="newRefl" rows="3" maxlength="30000" placeholder="Modul yakunida talaba nimalar haqida yozsin?"></textarea>
+        </div>
+      </fieldset>
+      <div id="moduleSaveStatus" class="field-hint" aria-live="polite"></div>
+    </div>`;
+}
+
+const fieldValue = (id) => document.getElementById(id)?.value.trim() || '';
+const pickedFile = (id) => document.getElementById(id)?.files?.[0] || null;
+
+function fail(id, message) {
+  showToast(message, 'warning');
+  document.getElementById(id)?.focus();
+  return false;
+}
+
+function validateNewModuleSteps() {
+  if (!quizReady('new')) return fail('newQuizFile', 'Diagnostika testini tayyorlang va har savolda to‘g‘ri javobni belgilang.');
+  if (!getYouTubeEmbedUrl(fieldValue('newVideo'))) return fail('newVideo', 'To‘g‘ri YouTube havolasini kiriting.');
+  if (!pickedFile('newPresFile')) return fail('newPresFile', 'Taqdimot faylini (.pptx) tanlang.');
+  if (!pickedFile('newDocFile')) return fail('newDocFile', 'Qo‘shimcha material faylini tanlang.');
+  if (!fieldValue('newTask')) return fail('newTask', 'Amaliy topshiriq matnini kiriting.');
+  if (!fieldValue('newRefl')) return fail('newRefl', 'Refleksiya savollarini kiriting.');
+  return true;
+}
+
+async function saveNewModuleSteps(moduleId) {
+  const status = document.getElementById('moduleSaveStatus');
+  const steps = [
+    ['Diagnostika testi', 'diag', async () => ({ value: '', questions: quizState.new })],
+    ['Video', 'video', async () => ({ value: fieldValue('newVideo') })],
+    ['Taqdimot', 'pres', async () => ({ value: '', file_id: (await uploadFile(pickedFile('newPresFile'), { moduleId, stepType: 'pres', purpose: 'content' })).id })],
+    ['Qo‘shimcha material', 'doc', async () => ({ value: fieldValue('newDocNote'), file_id: (await uploadFile(pickedFile('newDocFile'), { moduleId, stepType: 'doc', purpose: 'content' })).id })],
+    ['Topshiriq', 'task', async () => {
+      const file = pickedFile('newTaskFile');
+      return { value: fieldValue('newTask'), file_id: file ? (await uploadFile(file, { moduleId, stepType: 'task', purpose: 'content' })).id : null };
+    }],
+    ['Refleksiya', 'refl', async () => ({ value: fieldValue('newRefl') })]
+  ];
+  const failed = [];
+  for (const [label, stepType, build] of steps) {
+    status.textContent = `Saqlanmoqda: ${label}…`;
+    try {
+      await requestAPI('/content', 'POST', { module_id: moduleId, step_type: stepType, content: await build() });
+    } catch (error) {
+      failed.push(`${label} (${error.message})`);
+    }
+  }
+  return failed;
+}
+
 async function addModule() {
   const order_num = document.getElementById('newModOrder').value;
-  const title = document.getElementById('newModTitle').value.trim();
-  const description = document.getElementById('newModDesc').value.trim();
+  const title = fieldValue('newModTitle');
+  const description = fieldValue('newModDesc');
 
-  if (!title || !order_num) return showToast("Iltimos, tartib raqami va modul nomini to‘ldiring!");
+  if (!order_num) return fail('newModOrder', 'Iltimos, tartib raqamini kiriting.');
+  if (!title) return fail('newModTitle', 'Iltimos, modul nomini kiriting.');
+  const creating = !editModuleId;
+  if (creating && !validateNewModuleSteps()) return;
 
   const payload = { order_num: Number(order_num), title, description };
   if (editModuleId) payload.id = editModuleId;
 
-  const res = await fetchAPI('/modules', 'POST', payload);
-  if (res) {
-    showToast(editModuleId ? "Modul muvaffaqiyatli yangilandi!" : "Yangi modul yaratildi!");
+  await runBusy(document.getElementById('saveModuleBtn'), async () => {
+    const res = await fetchAPI('/modules', 'POST', payload);
+    if (!res) return;
+    const failed = creating ? await saveNewModuleSteps(res.id) : [];
+    if (failed.length) showToast(`Modul yaratildi, lekin saqlanmadi: ${failed.join('; ')}. Pastdan to‘ldiring.`, 'warning');
+    else showToast(creating ? 'Modul barcha materiallari bilan yaratildi! ✅' : 'Modul muvaffaqiyatli yangilandi! ✅');
     editModuleId = null;
     const mods = await fetchAPI('/modules');
     if (mods && Array.isArray(mods)) modulesCache = mods;
     navigate('manage-modules', 'Modullarni boshqarish');
+  });
+}
+
+// ===== DIAGNOSTIC TEST BUILDER =====
+const quizState = { new: [], modal: [] };
+const MAX_QUIZ_SOURCE_SIZE = 30 * 1024 * 1024;
+
+function quizBuilderHtml(prefix) {
+  return `
+    <div class="quiz-builder">
+      <div class="quiz-mode" role="radiogroup" aria-label="Fayl turi">
+        <label><input type="radio" name="${prefix}QuizMode" value="parsed" checked onchange="syncQuizMode('${prefix}')"/> Faylda tayyor testlar bor</label>
+        <label><input type="radio" name="${prefix}QuizMode" value="generate" onchange="syncQuizMode('${prefix}')"/> Faylda faqat ma’lumot bor, AI test tuzsin</label>
+      </div>
+      <div class="form-group">
+        <label for="${prefix}QuizFile">Fayl (.docx yoki .pdf)</label>
+        <input type="file" id="${prefix}QuizFile" class="file-input" accept=".docx,.pdf"/>
+        <small class="field-hint" id="${prefix}QuizHint">To‘g‘ri javob * yoki + bilan, qalin yozuv bilan yoki fayl oxiridagi kalit bilan (1-A, 2-C) belgilangan bo‘lsin.</small>
+      </div>
+      <div class="form-group" id="${prefix}QuizCountWrap" hidden>
+        <label for="${prefix}QuizCount">Testlar soni (1–30)</label>
+        <input type="number" id="${prefix}QuizCount" min="1" max="30" value="10"/>
+      </div>
+      <button type="button" class="btn-outline" id="${prefix}QuizPrepare" onclick="prepareQuiz('${prefix}')"><i data-lucide="sparkles"></i> Testni tayyorlash</button>
+      <div id="${prefix}QuizPreview" class="quiz-preview" aria-live="polite"></div>
+    </div>`;
+}
+
+function syncQuizMode(prefix) {
+  const generate = document.querySelector(`input[name="${prefix}QuizMode"]:checked`).value === 'generate';
+  document.getElementById(`${prefix}QuizCountWrap`).hidden = !generate;
+  document.getElementById(`${prefix}QuizHint`).textContent = generate
+    ? 'AI faqat fayldagi ma’lumotga tayanib test tuzadi. Saqlashdan oldin tekshirib chiqing.'
+    : 'To‘g‘ri javob * yoki + bilan, qalin yozuv bilan yoki fayl oxiridagi kalit bilan (1-A, 2-C) belgilangan bo‘lsin.';
+}
+
+async function prepareQuiz(prefix) {
+  const file = pickedFile(`${prefix}QuizFile`);
+  if (!file) return fail(`${prefix}QuizFile`, 'Avval .docx yoki .pdf faylni tanlang.');
+  if (!/\.(docx|pdf)$/i.test(file.name)) return fail(`${prefix}QuizFile`, 'Faqat .docx yoki .pdf fayl yuklang.');
+  if (file.size > MAX_QUIZ_SOURCE_SIZE) return fail(`${prefix}QuizFile`, 'Fayl hajmi 30 MB dan oshmasin.');
+  const mode = document.querySelector(`input[name="${prefix}QuizMode"]:checked`).value;
+  const count = Number(document.getElementById(`${prefix}QuizCount`).value);
+  if (mode === 'generate' && (!Number.isInteger(count) || count < 1 || count > 30)) return fail(`${prefix}QuizCount`, 'Testlar soni 1 dan 30 gacha bo‘lsin.');
+
+  const preview = document.getElementById(`${prefix}QuizPreview`);
+  const button = document.getElementById(`${prefix}QuizPrepare`);
+  await runBusy(button, async () => {
+    preview.innerHTML = `<p class="muted-text">${mode === 'generate' ? 'AI test tuzmoqda…' : 'Fayl o‘qilmoqda…'}</p>`;
+    try {
+      const uploaded = await uploadFile(file, { stepType: 'diag', purpose: 'quiz_source' });
+      const result = await requestAPI('/quiz', 'POST', { action: 'extract', file_id: uploaded.id, mode, count });
+      quizState[prefix] = result.questions;
+      renderQuizPreview(prefix, result);
+    } catch (error) {
+      preview.innerHTML = `<p class="input-feedback-error show" role="alert">${escapeHTML(error.message)}</p>`;
+    }
+  });
+}
+
+function renderQuizPreview(prefix, result = {}) {
+  const preview = document.getElementById(`${prefix}QuizPreview`);
+  if (!preview) return;
+  const questions = quizState[prefix];
+  if (!questions.length) {
+    preview.innerHTML = '';
+    return;
   }
+  const missing = questions.filter(q => !Number.isInteger(q.correct)).length;
+  const letters = 'ABCDEFGH';
+  preview.innerHTML = `
+    <p class="quiz-summary"><strong>${questions.length} ta savol.</strong> ${missing ? `<span class="quiz-missing">${missing} ta savolda to‘g‘ri javobni belgilang.</span>` : 'Hammasida to‘g‘ri javob belgilangan.'}</p>
+    ${result.source === 'ai' ? '<p class="field-hint">Savollarni AI tayyorladi, xato bo‘lishi mumkin. Tekshirib chiqing.</p>' : ''}
+    ${result.truncated ? '<p class="field-hint">Fayl juda uzun: AI faqat uning boshlang‘ich qismidan foydalandi.</p>' : ''}
+    <ol class="quiz-list">
+      ${questions.map((question, index) => `
+        <li class="${Number.isInteger(question.correct) ? '' : 'quiz-unset'}">
+          <div class="quiz-question-head">
+            <span>${escapeHTML(question.text)}</span>
+            <button type="button" class="quiz-remove" aria-label="${index + 1}-savolni o‘chirish" onclick="removeQuizQuestion('${prefix}', ${index})"><i data-lucide="trash-2"></i></button>
+          </div>
+          ${question.options.map((option, optionIndex) => `
+            <label class="quiz-option">
+              <input type="radio" name="${prefix}Correct${index}" ${question.correct === optionIndex ? 'checked' : ''} onchange="setQuizCorrect('${prefix}', ${index}, ${optionIndex})"/>
+              <span>${letters[optionIndex]}) ${escapeHTML(option)}</span>
+            </label>`).join('')}
+        </li>`).join('')}
+    </ol>`;
+  refreshIcons();
+}
+
+function setQuizCorrect(prefix, index, optionIndex) {
+  quizState[prefix][index].correct = optionIndex;
+  renderQuizPreview(prefix);
+}
+
+function removeQuizQuestion(prefix, index) {
+  quizState[prefix].splice(index, 1);
+  renderQuizPreview(prefix);
+}
+
+function quizReady(prefix) {
+  return quizState[prefix].length > 0 && quizState[prefix].every(q => Number.isInteger(q.correct));
 }
 
 async function deleteModule(id) {
@@ -1266,17 +1481,9 @@ async function openContentModal(moduleId, stepType) {
       </div>
     `;
   } else if (stepType === 'diag') {
-    body.innerHTML = `
-      <div class="form-group">
-        <label for="teacherUploadVal">Diagnostika savoli</label>
-        <textarea id="teacherUploadVal" rows="3" placeholder="Savol matnini kiriting...">${escapeHTML(existingVal)}</textarea>
-      </div>
-      <div class="form-group">
-        <label for="teacherUploadVal2">To‘g‘ri javob (O‘quvchi tekshiruvi uchun)</label>
-        <input type="text" id="teacherUploadVal2" placeholder="To‘g‘ri javob so‘zi yoki jumlasi..." value="${escapeHTML(existingAns)}"/>
-        <small class="field-hint">Eslatma: Talaba javobi tekshirilganda katta-kichik harflar farqlanmaydi.</small>
-      </div>
-    `;
+    quizState.modal = Array.isArray(existing.questions) ? existing.questions.map(q => ({ ...q })) : [];
+    body.innerHTML = quizBuilderHtml('modal');
+    renderQuizPreview('modal');
   } else if (stepType === 'pres' || stepType === 'doc') {
     body.innerHTML = `
       ${teacherFileFieldHtml(stepType, teacherUploadContext.existingFile)}
@@ -1312,13 +1519,14 @@ async function saveTeacherContent() {
   const usesFileAsMaterial = stepType === 'pres' || stepType === 'doc';
 
   if (usesFileAsMaterial && !picked && !existingFile) return showToast('Iltimos, faylni tanlang.', 'warning');
-  if (!usesFileAsMaterial && !val) return showToast('Iltimos, material matnini kiriting.', 'warning');
+  if (!usesFileAsMaterial && stepType !== 'diag' && !val) return showToast('Iltimos, material matnini kiriting.', 'warning');
 
   const content = { value: val };
   if (stepType === 'diag') {
-    content.answer = document.getElementById('teacherUploadVal2')?.value.trim() || '';
-    if (!content.answer) return showToast('Testning to‘g‘ri javobini kiriting.', 'warning');
+    if (!quizReady('modal')) return showToast('Testni tayyorlang va har savolda to‘g‘ri javobni belgilang.', 'warning');
+    content.questions = quizState.modal;
   }
+
   if (stepType === 'video' && !getYouTubeEmbedUrl(val)) {
     return showToast('Noto‘g‘ri YouTube havolasi! Iltimos, to‘g‘ri YouTube URL kiriting.', 'error');
   }
@@ -1480,12 +1688,19 @@ function openStep(stepIndex, isPublic = false) {
   const noteHtml = customContent.value ? `<div class="step-text">${escapeHTML(customContent.value)}</div>` : '';
 
   if (type === 'quiz') {
-    body.innerHTML = hasMaterial ? `
-      <div class="quiz-question">${escapeHTML(customContent.value)}</div>
-      <label for="stepAnswer" class="step-label">Javobingiz</label>
-      <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni shu yerga yozing..." autocomplete="off"/>
-    ` : NO_MATERIAL_HTML;
-    footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuborish</button>` : CLOSE_STEP_BUTTON;
+    const count = customContent.questions_count || customContent.questions?.length || 0;
+    if (count) {
+      body.innerHTML = `<p class="muted-text">${count} ta test savoli. Har bir talabada savollar va javoblar tartibi boshqacha.</p>`;
+      footer.innerHTML = CLOSE_STEP_BUTTON;
+      if (currentUser?.role === 'student' && !isDone) loadStudentQuiz(isPublic);
+    } else {
+      body.innerHTML = hasMaterial ? `
+        <div class="quiz-question">${escapeHTML(customContent.value)}</div>
+        <label for="stepAnswer" class="step-label">Javobingiz</label>
+        <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni shu yerga yozing..." autocomplete="off"/>
+      ` : NO_MATERIAL_HTML;
+      footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuborish</button>` : CLOSE_STEP_BUTTON;
+    }
   } else if (type === 'video') {
     const embed = customContent.value ? getYouTubeEmbedUrl(customContent.value) : null;
     body.innerHTML = embed
@@ -1528,7 +1743,10 @@ function openStep(stepIndex, isPublic = false) {
   } else if (isDone && currentUser.role === 'student') {
     if (myResponse || myFile) {
       const isDiag = id === 'diag';
-      const diagBadge = isDiag ? (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">To‘g‘ri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>') : '';
+      const quizScore = responses.diag_result;
+      const diagBadge = !isDiag ? '' : quizScore
+        ? `<span class="badge badge-primary" style="margin-left:8px;">+${quizScore.score} ball</span>`
+        : (responses.diag_correct ? '<span class="badge badge-success" style="margin-left:8px;">To‘g‘ri (+15 ball)</span>' : '<span class="badge badge-muted" style="margin-left:8px;">Qabul qilindi (0 ball)</span>');
       body.innerHTML += `
         <div class="submitted-box">
           <strong class="step-label">Siz topshirgan javob: ${diagBadge}</strong>
@@ -1547,6 +1765,27 @@ function openStep(stepIndex, isPublic = false) {
   refreshIcons();
 }
 
+let studentQuiz = null;
+
+async function loadStudentQuiz(isPublic) {
+  studentQuiz = null;
+  const paper = await fetchAPI(`/quiz?module_id=${currentModuleId}`);
+  if (!paper || currentStepId !== 'diag') return;
+  studentQuiz = paper;
+  const letters = 'ABCDEFGH';
+  document.getElementById('modalBody').innerHTML = paper.questions.map((question, index) => `
+    <fieldset class="student-question">
+      <legend>${index + 1}. ${escapeHTML(question.text)}</legend>
+      ${question.options.map((option, optionIndex) => `
+        <label class="quiz-option">
+          <input type="radio" name="studentQ${index}" value="${optionIndex}"/>
+          <span>${letters[optionIndex]}) ${escapeHTML(option)}</span>
+        </label>`).join('')}
+    </fieldset>`).join('');
+  document.getElementById('modalFooter').innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Testni yakunlash</button>`;
+  refreshIcons();
+}
+
 function reviewBoxHtml(review) {
   if (!review?.feedback) return '';
   return `
@@ -1560,7 +1799,16 @@ async function completeStep(isPublic = false, button = null) {
   if (!currentUser) return openAuthModal('login');
 
   let response = '';
-  if (currentStepId === 'diag') {
+  let quizPayload = null;
+  if (currentStepId === 'diag' && studentQuiz) {
+    const answers = studentQuiz.questions.map((_, index) => {
+      const checked = document.querySelector(`input[name="studentQ${index}"]:checked`);
+      return checked ? Number(checked.value) : null;
+    });
+    const unanswered = answers.findIndex(answer => answer === null);
+    if (unanswered >= 0) return showToast(`Iltimos, ${unanswered + 1}-savolga javob bering.`, 'warning');
+    quizPayload = { answers, version: studentQuiz.version };
+  } else if (currentStepId === 'diag') {
     response = document.getElementById('stepAnswer')?.value.trim() || '';
     if (!response) return showToast('Iltimos, javobni kiriting.', 'warning');
   }
@@ -1573,14 +1821,17 @@ async function completeStep(isPublic = false, button = null) {
 
   await runBusy(button, async () => {
     try {
-      const payload = { module_id: currentModuleId, step_type: currentStepId, response };
+      const payload = { module_id: currentModuleId, step_type: currentStepId, response, ...quizPayload };
       if (picked) {
         const file = await uploadFile(picked, { moduleId: currentModuleId, stepType: 'task', purpose: 'submission' }, setUploadProgress);
         payload.file_id = file.id;
       }
       const res = await requestAPI('/progress', 'POST', payload);
       progressCache[currentModuleId] = res;
-      if (currentStepId === 'diag') {
+      const quizResult = res.step_responses?.diag_result;
+      if (currentStepId === 'diag' && quizResult) {
+        showToast(`Natija: ${quizResult.correct}/${quizResult.total} (+${quizResult.score} ball) ✅`);
+      } else if (currentStepId === 'diag') {
         showToast(res.step_responses?.diag_correct ? 'To‘g‘ri javob! +15 ball ✅' : 'Javobingiz qabul qilindi (0 ball).', res.step_responses?.diag_correct ? 'success' : 'info');
       } else {
         showToast('Qadam muvaffaqiyatli bajarildi! ✅');
@@ -1672,7 +1923,7 @@ function studentWorkHtml(rows) {
       const answer = responses[step.id];
       const file = step.id === 'task' ? responses.task_file : null;
       const verdict = step.id === 'diag' && done
-        ? (responses.diag_correct ? '<span class="badge badge-success">To‘g‘ri</span>' : '<span class="badge badge-muted">Noto‘g‘ri</span>')
+        ? (responses.diag_result ? `<span class="badge badge-primary">${responses.diag_result.correct}/${responses.diag_result.total}</span>` : responses.diag_correct ? '<span class="badge badge-success">To‘g‘ri</span>' : '<span class="badge badge-muted">Noto‘g‘ri</span>')
         : '';
       return `
         <li class="work-step">
@@ -1681,6 +1932,11 @@ function studentWorkHtml(rows) {
             <span class="work-step-badges">${verdict}<span class="badge ${done ? 'badge-success' : 'badge-muted'}">${done ? 'Bajarilgan' : 'Bajarilmagan'}</span></span>
           </div>
           ${typeof answer === 'string' && answer ? `<div class="submission-response">${escapeHTML(answer)}</div>` : ''}
+          ${step.id === 'diag' && Array.isArray(responses.diag_detail) ? `
+            <details class="quiz-detail">
+              <summary>Javoblarni ko‘rish</summary>
+              <ol>${responses.diag_detail.map(item => `<li class="${item.correct ? 'quiz-right' : 'quiz-wrong'}">${escapeHTML(item.question)}<br/><span>${item.correct ? 'To‘g‘ri' : 'Noto‘g‘ri'}: ${escapeHTML(item.chosen)}</span></li>`).join('')}</ol>
+            </details>` : ''}
           ${fileCardHtml(file)}
           ${reviewBoxHtml(review)}
         </li>`;
@@ -1959,6 +2215,102 @@ function selectRegisterRole(role, element) {
 window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.modal-overlay').forEach(watchModalFocus);
 });
+
+// ===== AI CHAT (TEACHER & ADMIN) =====
+const AI_CHAT_EMPTY_TEXT = 'Dars rejasi, test savollari yoki baholash mezonlari bo‘yicha savol bering.';
+const AI_CHAT_MAX_HISTORY = 29;
+let aiChatHistory = [];
+let aiChatBusy = false;
+
+function syncAiChatAccess() {
+  const allowed = STAFF_ROLES.includes(currentUser?.role);
+  document.getElementById('aiChat').hidden = !allowed;
+  if (!allowed) {
+    toggleAiChat(false);
+    resetAiChat();
+  }
+}
+
+function toggleAiChat(force) {
+  const panel = document.getElementById('aiChatPanel');
+  const toggle = document.getElementById('aiChatToggle');
+  const open = force === undefined ? panel.hidden : force;
+  panel.hidden = !open;
+  toggle.setAttribute('aria-expanded', String(open));
+  toggle.setAttribute('aria-label', open ? 'AI yordamchini yopish' : 'AI yordamchini ochish');
+  if (open) {
+    renderAiChatEmptyState();
+    document.getElementById('aiChatInput').focus();
+  }
+}
+
+function renderAiChatEmptyState() {
+  const list = document.getElementById('aiChatMessages');
+  if (list.childElementCount) return;
+  const note = document.createElement('p');
+  note.className = 'ai-chat-empty';
+  note.textContent = AI_CHAT_EMPTY_TEXT;
+  list.appendChild(note);
+}
+
+function resetAiChat() {
+  aiChatHistory = [];
+  document.getElementById('aiChatMessages').replaceChildren();
+  if (!document.getElementById('aiChatPanel').hidden) renderAiChatEmptyState();
+}
+
+// Text goes through textContent: model output is never treated as HTML.
+function addAiChatBubble(kind, text) {
+  const list = document.getElementById('aiChatMessages');
+  list.querySelector('.ai-chat-empty')?.remove();
+  const bubble = document.createElement('div');
+  bubble.className = `ai-chat-bubble ai-chat-${kind}`;
+  bubble.textContent = text;
+  if (kind === 'error') bubble.setAttribute('role', 'alert');
+  list.appendChild(bubble);
+  list.scrollTop = list.scrollHeight;
+  return bubble;
+}
+
+function onAiChatKey(event) {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    event.target.form.requestSubmit();
+  }
+}
+
+async function sendAiMessage(event) {
+  event.preventDefault();
+  const input = document.getElementById('aiChatInput');
+  const text = input.value.trim();
+  if (!text || aiChatBusy) return;
+
+  aiChatBusy = true;
+  document.getElementById('aiChatSend').disabled = true;
+  input.value = '';
+  addAiChatBubble('user', text);
+  const pending = addAiChatBubble('assistant', 'Yozmoqda…');
+  pending.classList.add('ai-chat-pending');
+
+  // Keeps complete question-answer pairs, so the list always starts with the user's turn.
+  const recent = aiChatHistory.slice(-(AI_CHAT_MAX_HISTORY - (AI_CHAT_MAX_HISTORY % 2 ? 1 : 0)));
+  const messages = [...recent, { role: 'user', content: text }];
+  try {
+    const { reply } = await requestAPI('/chat', 'POST', { messages });
+    pending.classList.remove('ai-chat-pending');
+    pending.textContent = reply;
+    aiChatHistory = [...messages, { role: 'assistant', content: reply }];
+  } catch (error) {
+    pending.remove();
+    addAiChatBubble('error', error.message);
+    if (!input.value) input.value = text;
+  } finally {
+    aiChatBusy = false;
+    document.getElementById('aiChatSend').disabled = false;
+    document.getElementById('aiChatMessages').scrollTop = 1e9;
+    input.focus();
+  }
+}
 
 // INITIALIZATION
 window.addEventListener('DOMContentLoaded', initPublicSite);

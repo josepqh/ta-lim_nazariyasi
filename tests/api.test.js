@@ -294,3 +294,189 @@ describe('module deletion', () => {
     assert.equal((await teacher.post('modules', { action: 'restore', id: first.body.id })).statusCode, 409);
   });
 });
+
+describe('AI chat', () => {
+  const llm = require('../api/_llm');
+  const original = llm.askAssistant;
+  const ask = (by, messages) => by.post('chat', { messages });
+  const hello = [{ role: 'user', content: 'Salom' }];
+
+  test('only teachers and admins may use it', async () => {
+    assert.equal((await ask(harness.client(), hello)).statusCode, 401);
+    assert.equal((await ask(student, hello)).statusCode, 403);
+  });
+
+  test('a missing API key is reported instead of a made-up answer', async () => {
+    const saved = process.env.GROQ_API_KEY;
+    delete process.env.GROQ_API_KEY;
+    const res = await ask(teacher, hello);
+    if (saved) process.env.GROQ_API_KEY = saved;
+    assert.equal(res.statusCode, 503);
+    assert.match(res.body.error, /sozlanmagan/);
+  });
+
+  test('malformed conversations are rejected before reaching the model', async () => {
+    let calls = 0;
+    llm.askAssistant = async () => { calls++; return 'x'; };
+    for (const bad of [[], 'text', [{ role: 'assistant', content: 'x' }], [{ role: 'system', content: 'x' }],
+      [{ role: 'user', content: 'a'.repeat(8001) }], [{ role: 'user', content: 'a' }, { role: 'assistant', content: 'b' }]]) {
+      assert.equal((await ask(teacher, bad)).statusCode, 400);
+    }
+    llm.askAssistant = original;
+    assert.equal(calls, 0);
+  });
+
+  test('admin gets the reply and only the chat text is sent to the model', async () => {
+    let received;
+    llm.askAssistant = async (messages) => { received = messages; return 'Javob'; };
+    const res = await ask(admin, [...hello.map((m) => ({ ...m, extra: 'dropped' }))]);
+    llm.askAssistant = original;
+    assert.equal(res.body.reply, 'Javob');
+    assert.deepEqual(received, [{ role: 'user', content: 'Salom' }]);
+  });
+
+  test('each user is limited per hour', async () => {
+    const heavy = harness.client();
+    await heavy.register(unique('chatty'), 'teacher');
+    llm.askAssistant = async () => 'ok';
+    for (let i = 0; i < 40; i++) assert.equal((await ask(heavy, hello)).statusCode, 200);
+    const blocked = await ask(heavy, hello);
+    llm.askAssistant = original;
+    assert.equal(blocked.statusCode, 429);
+  });
+});
+
+describe('diagnostic tests', () => {
+  const { gradeAnswers, parseTests, studentPaper } = require('../api/_quiz');
+  const llm = require('../api/_llm');
+  const zlib = require('node:zlib');
+
+  // Smallest valid .docx: an uncompressed zip holding one document part.
+  function makeDocx(paragraphs) {
+    const body = paragraphs.map((p) => `<w:p><w:r><w:t xml:space="preserve">${p}</w:t></w:r></w:p>`).join('');
+    const parts = [
+      ['[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+      ['_rels/.rels', '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="r1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>'],
+      ['word/document.xml', `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`]
+    ];
+    const local = [];
+    const central = [];
+    let offset = 0;
+    for (const [name, text] of parts) {
+      const data = Buffer.from(text);
+      const crc = zlib.crc32(data);
+      const nameBytes = Buffer.from(name);
+      const header = Buffer.alloc(30);
+      header.writeUInt32LE(0x04034b50, 0); header.writeUInt16LE(20, 4); header.writeUInt32LE(crc, 14);
+      header.writeUInt32LE(data.length, 18); header.writeUInt32LE(data.length, 22); header.writeUInt16LE(nameBytes.length, 26);
+      const entry = Buffer.alloc(46);
+      entry.writeUInt32LE(0x02014b50, 0); entry.writeUInt16LE(20, 4); entry.writeUInt16LE(20, 6); entry.writeUInt32LE(crc, 16);
+      entry.writeUInt32LE(data.length, 20); entry.writeUInt32LE(data.length, 24); entry.writeUInt16LE(nameBytes.length, 28); entry.writeUInt32LE(offset, 42);
+      local.push(header, nameBytes, data);
+      central.push(entry, nameBytes);
+      offset += 30 + nameBytes.length + data.length;
+    }
+    const centralBytes = Buffer.concat(central);
+    const end = Buffer.alloc(22);
+    end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(parts.length, 8); end.writeUInt16LE(parts.length, 10);
+    end.writeUInt32LE(centralBytes.length, 12); end.writeUInt32LE(offset, 16);
+    return Buffer.concat([...local, centralBytes, end]);
+  }
+
+  const makeQuestions = (n) => Array.from({ length: n }, (_, i) => ({
+    text: `Savol ${i + 1}`,
+    options: [`togri ${i + 1}`, `xato a ${i + 1}`, `xato b ${i + 1}`, `xato c ${i + 1}`],
+    correct: 0
+  }));
+
+  async function uploadSource(by, filename, bytes) {
+    return by.upload({ stepType: 'diag', purpose: 'quiz_source', filename, bytes });
+  }
+
+  test('the parser reads star marks, answer keys, one-line options and wrapped text', () => {
+    assert.deepEqual(parseTests('Fan testlari\n1. Poytaxt qaysi?\nA) Samarqand\n*B) Toshkent\nC) Buxoro\n2) Ikki\nkarra ikki?\nA. uch\nB. to‘rt +').map((q) => q.correct), [1, 1]);
+    const wrapped = parseTests('1. Ikki\nkarra ikki?\nA. uch\nB. to‘rt +');
+    assert.equal(wrapped[0].text, 'Ikki karra ikki?');
+    assert.deepEqual(parseTests('1. Bir?\nA) x\nB) y\n2. Ikki?\nA) m  B) n\nJavoblar\n1-B 2-A').map((q) => q.correct), [1, 0]);
+    assert.equal(parseTests('1. Bir?\nA) x\nB) y')[0].correct, null);
+    assert.deepEqual(parseTests('Bu oddiy matn. Unda test yo‘q.\nYana bir jumla.'), []);
+  });
+
+  test('students get different orders and the key never reaches them', () => {
+    const questions = makeQuestions(20);
+    const one = studentPaper(questions, 1, 5);
+    const two = studentPaper(questions, 2, 5);
+    assert.notDeepEqual(one.questions.map((q) => q.text), two.questions.map((q) => q.text));
+    assert.deepEqual(one, studentPaper(questions, 1, 5));
+    assert.ok(!JSON.stringify(one).includes('correct'));
+    const positions = new Set(Array.from({ length: 40 }, (_, user) => studentPaper(questions, user, 5).questions[0].options.findIndex((o) => o.startsWith('togri'))));
+    assert.ok(positions.size > 1);
+  });
+
+  test('grading follows each student’s own positions', () => {
+    const questions = makeQuestions(10);
+    const paper = studentPaper(questions, 7, 3);
+    const answers = paper.questions.map((q) => q.options.findIndex((o) => o.startsWith('togri')));
+    assert.equal(gradeAnswers(questions, 7, 3, answers).correct, 10);
+    assert.equal(gradeAnswers(questions, 7, 3, [0]), null);
+  });
+
+  test('a docx with tests is read without calling AI', async () => {
+    let aiCalls = 0;
+    const saved = llm.extractQuestions;
+    llm.extractQuestions = async () => { aiCalls++; return []; };
+    const up = await uploadSource(teacher, 'test.docx', makeDocx(['1. Poytaxt qaysi?', 'A) Samarqand', '*B) Toshkent', '2. Ikki karra ikki?', 'A) uch', '+B) to‘rt']));
+    assert.equal(up.statusCode, 200, JSON.stringify(up.body));
+    const res = await teacher.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'parsed' });
+    llm.extractQuestions = saved;
+    assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+    assert.equal(res.body.source, 'file');
+    assert.deepEqual(res.body.questions.map((q) => q.correct), [1, 1]);
+    assert.equal(aiCalls, 0);
+  });
+
+  test('an information file produces the requested number of AI questions', async () => {
+    let requested;
+    const saved = llm.generateQuestions;
+    llm.generateQuestions = async (_, count) => { requested = count; return [{ text: 'S?', options: ['a', 'b', 'c', 'd'], correct_index: 2 }]; };
+    const up = await uploadSource(teacher, 'info.docx', makeDocx(['Didaktika ta’lim jarayonining qonuniyatlarini o‘rganadigan fan sohasidir.']));
+    const res = await teacher.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'generate', count: 7 });
+    llm.generateQuestions = saved;
+    assert.equal(requested, 7);
+    assert.equal(res.body.source, 'ai');
+    assert.equal(res.body.questions[0].correct, 2);
+    assert.equal((await teacher.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'generate', count: 31 })).statusCode, 400);
+  });
+
+  test('only staff may read source files for quizzes', async () => {
+    assert.equal((await uploadSource(student, 'a.docx', makeDocx(['x']))).statusCode, 403);
+    const up = await uploadSource(teacher, 'b.docx', makeDocx(['1. Bir savol matni bu yerda?', 'A) x', 'B) y']));
+    assert.equal((await student.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'parsed' })).statusCode, 403);
+    assert.equal((await admin.post('quiz', { action: 'extract', file_id: up.body.id, mode: 'parsed' })).statusCode, 404);
+  });
+
+  test('a question without a correct answer cannot be saved', async () => {
+    const id = await addModule(teacher);
+    const res = await teacher.post('content', { module_id: id, step_type: 'diag', content: { value: '', questions: [{ text: 'S', options: ['a', 'b'], correct: null }] } });
+    assert.equal(res.statusCode, 400);
+  });
+
+  test('a student takes the shuffled test and is scored on the server', async () => {
+    const id = await addModule(teacher);
+    await addContent(teacher, id, 'diag', { value: '', questions: makeQuestions(10) });
+    const content = await student.get('content', { module_id: String(id) });
+    const row = content.body.find((r) => r.step_type === 'diag');
+    assert.equal(row.content.questions, undefined);
+    assert.equal(row.content.questions_count, 10);
+
+    const paper = (await student.get('quiz', { module_id: String(id) })).body;
+    const answers = paper.questions.map((q, i) => (i < 6 ? q.options.findIndex((o) => o.startsWith('togri')) : q.options.findIndex((o) => o.startsWith('xato'))));
+    assert.equal((await student.post('progress', { module_id: id, step_type: 'diag', answers, version: 'stale' })).statusCode, 409);
+    assert.equal((await student.post('progress', { module_id: id, step_type: 'diag', answers: [0], version: paper.version })).statusCode, 400);
+    const done = await student.post('progress', { module_id: id, step_type: 'diag', answers, version: paper.version });
+    assert.equal(done.statusCode, 200, JSON.stringify(done.body));
+    assert.deepEqual(done.body.step_responses.diag_result, { correct: 6, total: 10, score: 9 });
+    assert.equal(done.body.total_score, 9);
+    assert.equal(done.body.step_responses.diag_detail.length, 10);
+  });
+});

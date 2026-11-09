@@ -1,6 +1,7 @@
 const sql = require('./_db');
 const { requireUser } = require('./_auth');
 const { findAttachable, isUuid } = require('./_files');
+const { gradeAnswers, quizVersion } = require('./_quiz');
 
 const STEP_TYPES = ['diag', 'video', 'pres', 'doc', 'task', 'refl'];
 const REVIEWABLE_STEPS = ['task', 'refl'];
@@ -78,7 +79,7 @@ async function hasMaterial(moduleId, stepType) {
     SELECT content FROM np_module_content
     WHERE module_id=${moduleId} AND step_type=${stepType} LIMIT 1`;
   const content = rows[0]?.content;
-  return Boolean(content && (content.value || content.file?.id));
+  return Boolean(content && (content.value || content.file?.id || content.questions?.length));
 }
 
 async function completeStep(res, user, body) {
@@ -117,13 +118,27 @@ async function completeStep(res, user, body) {
     responses.task_file = attachment;
   }
 
-  if (stepType === 'diag' && !response) return res.status(400).json({ error: 'Javobni kiriting.' });
+  const quizRows = stepType === 'diag'
+    ? await sql`SELECT content->'questions' AS questions FROM np_module_content WHERE module_id=${moduleId} AND step_type='diag' LIMIT 1`
+    : [];
+  const quiz = Array.isArray(quizRows[0]?.questions) && quizRows[0].questions.length ? quizRows[0].questions : null;
+
+  if (stepType === 'diag' && !quiz && !response) return res.status(400).json({ error: 'Javobni kiriting.' });
   if (stepType === 'refl' && !response) return res.status(400).json({ error: 'Javob matnini kiriting.' });
   if (stepType === 'task' && !response && !attachment) return res.status(400).json({ error: 'Javob matnini yozing yoki fayl biriktiring.' });
 
   let earned = 0;
   if (stepType === 'task') earned = STEP_SCORE;
-  if (stepType === 'diag') {
+  if (quiz) {
+    if (body.version !== quizVersion(quiz)) return res.status(409).json({ error: 'Test yangilandi. Sahifani yangilab, qayta yeching.' });
+    const result = gradeAnswers(quiz, user.id, moduleId, body.answers);
+    if (!result) return res.status(400).json({ error: 'Barcha savollarga javob bering.' });
+    earned = Math.round((STEP_SCORE * result.correct) / result.total);
+    responses.diag = `${result.correct}/${result.total}`;
+    responses.diag_correct = result.correct === result.total;
+    responses.diag_result = { correct: result.correct, total: result.total, score: earned };
+    responses.diag_detail = result.detail;
+  } else if (stepType === 'diag') {
     const rows = await sql`
       SELECT content->>'answer' AS answer FROM np_module_content
       WHERE module_id=${moduleId} AND step_type='diag' LIMIT 1`;
@@ -131,7 +146,7 @@ async function completeStep(res, user, body) {
     responses.diag_correct = isCorrect;
     if (isCorrect) earned = STEP_SCORE;
   }
-  if (response) responses[stepType] = response;
+  if (response && !quiz) responses[stepType] = response;
 
   const steps = JSON.stringify([...completedSteps, stepType]);
   const score = Number(progress.total_score || 0) + earned;

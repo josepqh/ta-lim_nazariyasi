@@ -1,6 +1,7 @@
 const sql = require('./_db');
 const { getSessionUser, requireUser } = require('./_auth');
 const { deleteOtherContentFiles, findAttachable } = require('./_files');
+const { normalizeQuestions } = require('./_quiz');
 
 const STEP_TYPES = new Set(['diag', 'video', 'pres', 'doc', 'task', 'refl']);
 const FILE_REQUIRED_STEPS = new Set(['pres', 'doc']);
@@ -40,6 +41,10 @@ module.exports = async (req, res) => {
         if (row.step_type !== 'diag' || !row.content || typeof row.content !== 'object') return row;
         const publicContent = { ...row.content };
         delete publicContent.answer;
+        if (Array.isArray(publicContent.questions)) {
+          publicContent.questions_count = publicContent.questions.length;
+          delete publicContent.questions;
+        }
         return { ...row, content: publicContent };
       });
       return res.json(publicRows);
@@ -57,8 +62,11 @@ module.exports = async (req, res) => {
       if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
       if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
       if (value.length > 30000) return res.status(400).json({ error: 'Material 30 000 belgidan oshmasin.' });
-      if (!FILE_REQUIRED_STEPS.has(stepType) && !value) return res.status(400).json({ error: 'Material matnini kiriting.' });
-      if (stepType === 'diag' && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigancha).' });
+      const hasQuestions = stepType === 'diag' && body.content?.questions !== undefined;
+      const questions = hasQuestions ? normalizeQuestions(body.content.questions) : null;
+      if (hasQuestions && !questions) return res.status(400).json({ error: 'Test savollari to‘liq emas: har savolda to‘g‘ri javob belgilansin.' });
+      if (!FILE_REQUIRED_STEPS.has(stepType) && !value && !questions) return res.status(400).json({ error: 'Material matnini kiriting.' });
+      if (stepType === 'diag' && !questions && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigancha).' });
       if (stepType === 'video' && !isYouTubeUrl(value)) return res.status(400).json({ error: 'HTTPS YouTube havolasini kiriting.' });
 
       const active = await sql`SELECT 1 FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
@@ -74,7 +82,8 @@ module.exports = async (req, res) => {
       if (FILE_REQUIRED_STEPS.has(stepType) && !file) return res.status(400).json({ error: 'Faylni yuklang.' });
 
       const content = { value };
-      if (stepType === 'diag') content.answer = answer;
+      if (questions) content.questions = questions;
+      else if (stepType === 'diag') content.answer = answer;
       if (file) content.file = file;
       const serialized = JSON.stringify(content);
 

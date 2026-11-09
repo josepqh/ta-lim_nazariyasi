@@ -6,6 +6,7 @@ const {
 } = require('./_files');
 
 const MAX_PENDING_UPLOADS = 5;
+const QUIZ_SOURCE_EXTENSIONS = ['docx', 'pdf'];
 const STAFF = ['teacher', 'admin'];
 
 async function startUpload(res, user, body) {
@@ -16,13 +17,14 @@ async function startUpload(res, user, body) {
   const size = Number(body.size);
   const extension = extensionOf(filename);
 
-  if (!['content', 'submission'].includes(purpose)) return res.status(400).json({ error: 'Fayl maqsadi noto‘g‘ri.' });
-  if (purpose === 'content' && !STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
+  if (!['content', 'submission', 'quiz_source'].includes(purpose)) return res.status(400).json({ error: 'Fayl maqsadi noto‘g‘ri.' });
+  if (['content', 'quiz_source'].includes(purpose) && !STAFF.includes(user.role)) return res.status(403).json({ error: 'Bu amal uchun ruxsat yo‘q.' });
   if (purpose === 'submission' && user.role !== 'student') return res.status(403).json({ error: 'Topshiriqni faqat talaba yuklaydi.' });
   if (purpose === 'submission' && stepType !== 'task') return res.status(400).json({ error: 'Fayl faqat amaliy topshiriqqa biriktiriladi.' });
-  if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+  const isQuizSource = purpose === 'quiz_source';
+  if (!isQuizSource && (!Number.isSafeInteger(moduleId) || moduleId < 1)) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
 
-  const allowed = ALLOWED_EXTENSIONS[stepType];
+  const allowed = isQuizSource ? QUIZ_SOURCE_EXTENSIONS : ALLOWED_EXTENSIONS[stepType];
   if (!allowed) return res.status(400).json({ error: 'Bu qadamga fayl biriktirilmaydi.' });
   if (!filename || !allowed.includes(extension)) {
     return res.status(415).json({ error: `Ruxsat etilgan formatlar: ${allowed.join(', ')}.` });
@@ -31,8 +33,13 @@ async function startUpload(res, user, body) {
     return res.status(413).json({ error: 'Fayl hajmi 30 MB dan oshmasin.' });
   }
 
-  const modules = await sql`SELECT id FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
-  if (!modules.length) return res.status(404).json({ error: 'Modul topilmadi.' });
+  if (isQuizSource) {
+    // A source file only lives until its questions are read; keep one per teacher.
+    await sql`DELETE FROM np_files WHERE owner_id=${user.id} AND purpose='quiz_source'`;
+  } else {
+    const modules = await sql`SELECT id FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
+    if (!modules.length) return res.status(404).json({ error: 'Modul topilmadi.' });
+  }
 
   await sql`DELETE FROM np_files WHERE owner_id=${user.id} AND status='uploading' AND created_at < NOW() - INTERVAL '1 day'`;
 
@@ -55,7 +62,7 @@ async function startUpload(res, user, body) {
   const totalChunks = Math.ceil(size / CHUNK_SIZE);
   const rows = await sql`
     INSERT INTO np_files(owner_id, module_id, step_type, purpose, filename, extension, size_bytes, total_chunks)
-    VALUES(${user.id}, ${moduleId}, ${stepType}, ${purpose}, ${filename}, ${extension}, ${size}, ${totalChunks})
+    VALUES(${user.id}, ${isQuizSource ? null : moduleId}, ${isQuizSource ? 'quiz_source' : stepType}, ${purpose}, ${filename}, ${extension}, ${size}, ${totalChunks})
     RETURNING id`;
   return res.status(201).json({ id: rows[0].id, chunk_size: CHUNK_SIZE, total_chunks: totalChunks });
 }

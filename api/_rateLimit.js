@@ -9,10 +9,7 @@ function clientIp(req) {
 
 // Counted in the database because serverless instances share no memory.
 // Addresses are stored only as hashes.
-async function isWithinLimit(scope, req, limit, windowSeconds) {
-  const ip = clientIp(req);
-  if (!ip) return true;
-  const bucket = `${scope}:${createHash('sha256').update(ip).digest('hex')}`;
+async function consumeLimit(bucket, limit, windowSeconds) {
   const rows = await sql`
     INSERT INTO np_rate_limits(bucket, window_start, hits)
     VALUES(${bucket}, NOW(), 1)
@@ -25,4 +22,10 @@ async function isWithinLimit(scope, req, limit, windowSeconds) {
   return rows[0].hits <= limit;
 }
 
-module.exports = { isWithinLimit };
+async function isWithinLimit(scope, req, limit, windowSeconds) {
+  const ip = clientIp(req);
+  if (!ip) return true;
+  return consumeLimit(`${scope}:${createHash('sha256').update(ip).digest('hex')}`, limit, windowSeconds);
+}
+
+module.exports = { consumeLimit, isWithinLimit };

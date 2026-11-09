@@ -8,9 +8,11 @@ const path = require('node:path');
 const { TEST_ADMIN, createHarness, createResponse } = require('./helpers/harness');
 
 const ROOT = path.join(__dirname, '..');
-const HANDLER_NAMES = ['auth', 'content', 'files', 'modules', 'progress', 'users'];
+const HANDLER_NAMES = ['auth', 'chat', 'content', 'files', 'modules', 'progress', 'quiz', 'users'];
 const NEVER_SERVED = new Set(['node_modules', 'tests', 'api', 'test-results', 'playwright-report', 'package.json', 'package-lock.json', 'run_setup.js', 'playwright.config.js', 'vercel.json', 'README.md']);
 const MAX_PORT_ATTEMPTS = 10;
+const LOCK_FILE = path.join(ROOT, '.local-db.lock');
+let localDatabaseClaimed = false;
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml'
@@ -37,11 +39,65 @@ async function useRealDatabase() {
   return Object.fromEntries(HANDLER_NAMES.map((name) => [name, require(`../api/${name}.js`)]));
 }
 
+// Exist only in the local database; never created when DATABASE_URL is set.
+const LOCAL_TRIAL_ACCOUNTS = [
+  { name: 'Sinov Talaba', login: 'student', role: 'student' },
+  { name: 'Sinov O‘qituvchi', login: 'teacher', role: 'teacher' },
+  { name: 'Sinov Administrator', login: 'admin', role: 'admin' }
+];
+const LOCAL_TRIAL_PASSWORD = '123';
+
+async function seedTrialAccounts(sql) {
+  const { hashPassword } = require('../api/_password');
+  for (const { name, login, role } of LOCAL_TRIAL_ACCOUNTS) {
+    const password = await hashPassword(LOCAL_TRIAL_PASSWORD);
+    await sql`
+      INSERT INTO np_users(name, login, password, role)
+      VALUES(${name}, ${login}, ${password}, ${role})
+      ON CONFLICT(login) DO UPDATE SET name=EXCLUDED.name, password=EXCLUDED.password, role=EXCLUDED.role,
+        status='active', deleted_at=NULL, failed_login_count=0, lockout_until=NULL`;
+  }
+}
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The local database file supports one process, and a second server would also run stale code unnoticed.
+function claimLocalDatabase() {
+  if (fs.existsSync(LOCK_FILE)) {
+    const { pid, port } = JSON.parse(fs.readFileSync(LOCK_FILE, 'utf8'));
+    if (isProcessAlive(pid)) {
+      console.error(`Sayt allaqachon ishlayapti: http://localhost:${port} (jarayon ${pid}).`);
+      console.error(`Qayta ishga tushirish uchun avval uni to‘xtating: kill ${pid}`);
+      process.exit(1);
+    }
+  }
+  writeLock(null);
+  const release = () => fs.rmSync(LOCK_FILE, { force: true });
+  process.on('exit', release);
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(0));
+  localDatabaseClaimed = true;
+}
+
+function writeLock(port) {
+  fs.writeFileSync(LOCK_FILE, JSON.stringify({ pid: process.pid, port }));
+}
+
 async function useLocalDatabase() {
   const dataDir = process.env.LOCAL_DB_DIR === 'memory' ? undefined : path.join(ROOT, '.local-db');
-  const { handlers } = await createHarness({ dataDir });
+  if (dataDir) claimLocalDatabase();
+  const { handlers, sql } = await createHarness({ dataDir });
   console.log(`Baza: ${dataDir ? 'lokal (.local-db, ma’lumotlar saqlanadi)' : 'xotirada'}`);
-  console.log(`Admin login: ${TEST_ADMIN.login} (parol: tests/helpers/harness.js faylida)`);
+  if (dataDir) {
+    await seedTrialAccounts(sql);
+    console.log('Sinov hisoblari (login / parol): student / 123, teacher / 123, admin / 123');
+  }
   return handlers;
 }
 
@@ -82,7 +138,10 @@ function listen(server, port, attemptsLeft) {
     if (error.code === 'EADDRINUSE' && attemptsLeft > 0) return listen(server, port + 1, attemptsLeft - 1);
     throw error;
   });
-  server.listen(port, () => console.log(`Sayt ishga tushdi: http://localhost:${port}`));
+  server.listen(port, () => {
+    if (localDatabaseClaimed) writeLock(port);
+    console.log(`Sayt ishga tushdi: http://localhost:${port}`);
+  });
 }
 
 async function main() {

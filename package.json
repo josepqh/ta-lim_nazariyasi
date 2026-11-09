@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.9.5",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "mammoth": "^1.13.0",
+    "unpdf": "^2.1.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",

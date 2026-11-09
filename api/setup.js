@@ -191,6 +191,11 @@ module.exports = async (req, res) => {
       );
     `;
 
+    // Files read to build a quiz exist before their module does.
+    await sql`ALTER TABLE np_files ALTER COLUMN module_id DROP NOT NULL`;
+    await sql`ALTER TABLE np_files DROP CONSTRAINT IF EXISTS np_files_purpose_check`;
+    await sql`ALTER TABLE np_files ADD CONSTRAINT np_files_purpose_check CHECK (purpose IN ('content', 'submission', 'quiz_source'))`;
+
     // Retire the accounts seeded by the old demo setup; history stays, but they can no longer sign in or be listed.
     const demoAccounts = [
       { login: 'admin', password: 'admin123', name: 'Asosiy Admin' },

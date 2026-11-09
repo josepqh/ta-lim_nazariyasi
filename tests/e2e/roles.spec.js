@@ -10,7 +10,7 @@ let counter = 0;
 const unique = (prefix) => `${prefix}_${Date.now()}_${++counter}`;
 
 async function register(page, { name, login, role }) {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#navAuth .btn-nav').click();
   await page.locator(`#registerForm .role-tab[data-role="${role}"]`).click();
   await page.locator('#regName').fill(name);
@@ -22,7 +22,7 @@ async function register(page, { name, login, role }) {
 }
 
 async function signIn(page, { login, password, role }) {
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#navAuth .btn-primary').click();
   await page.locator(`#loginForm .role-tab[data-role="${role}"]`).click();
   await page.locator('#loginUser').fill(login);
@@ -32,34 +32,55 @@ async function signIn(page, { login, password, role }) {
 
 const openMenu = (page, title) => page.locator('#sidebarNav .nav-item', { hasText: title }).click();
 
-async function createModule(page, title, order) {
+async function quizPdf(browser) {
+  const page = await browser.newPage();
+  const lines = ['1. Didaktika qaysi fan sohasi?', 'A) Kimyo', '*B) Pedagogika', 'C) Fizika', 'D) Tarix',
+    '2. Ikki karra ikki necha?', '*A) To‘rt', 'B) Uch', 'C) Besh', 'D) Olti',
+    '3. Poytaxt qaysi?', 'A) Samarqand', 'B) Buxoro', '*C) Toshkent', 'D) Xiva'];
+  await page.setContent(lines.map((line) => `<p>${line}</p>`).join(''));
+  const pdf = await page.pdf();
+  await page.close();
+  return pdf;
+}
+
+async function fillNewModuleForm(page, browser, title, order) {
   await openMenu(page, 'Modullarni boshqarish');
   await page.locator('#newModOrder').fill(String(order));
   await page.locator('#newModTitle').fill(title);
+  await page.locator('#newQuizFile').setInputFiles(file('test.pdf', await quizPdf(browser)));
+  await page.locator('#newQuizPrepare').click();
+  await expect(page.locator('#newQuizPreview .quiz-summary')).toContainText('3 ta savol');
+  await expect(page.locator('#newQuizPreview .quiz-summary')).toContainText('Hammasida');
+  await page.locator('#newVideo').fill('https://www.youtube.com/watch?v=aaaaaaaaaaa');
+  await page.locator('#newPresFile').setInputFiles(file('dars.pptx', PPTX));
+  await page.locator('#newDocFile').setInputFiles(file('qollanma.pdf', PDF));
+  await page.locator('#newTask').fill('Dars rejasini tuzing');
+  await page.locator('#newRefl').fill('Nimani o‘rgandingiz?');
+}
+
+async function publishFullModule(page, browser, title, order) {
+  await fillNewModuleForm(page, browser, title, order);
   await page.getByRole('button', { name: 'Modulni yaratish' }).click();
+  await expect(page.locator('#toast')).toContainText('barcha materiallari');
   await expect(page.getByText(title, { exact: true })).toBeVisible();
 }
 
-async function attach(page, moduleTitle, buttonName, fill) {
-  const card = page.locator('#pageContainer > .card > div', { hasText: moduleTitle });
-  await card.getByRole('button', { name: buttonName }).click();
-  await expect(page.locator('#teacherSaveBtn')).toBeVisible();
-  await fill(page);
-  await page.locator('#teacherSaveBtn').click();
-  await expect(page.locator('#stepModal')).not.toHaveClass(/active/);
-}
-
-async function publishFullModule(page, title, order) {
-  await createModule(page, title, order);
-  await attach(page, title, 'Test savoli', async (p) => {
-    await p.locator('#teacherUploadVal').fill('Didaktika qaysi fan sohasi?');
-    await p.locator('#teacherUploadVal2').fill('pedagogika');
-  });
-  await attach(page, title, 'Video (URL)', (p) => p.locator('#teacherUploadVal').fill('https://www.youtube.com/watch?v=aaaaaaaaaaa'));
-  await attach(page, title, 'Taqdimot', (p) => p.locator('#teacherUploadFile').setInputFiles(file('dars.pptx', PPTX)));
-  await attach(page, title, 'Qo‘shimcha matn', (p) => p.locator('#teacherUploadFile').setInputFiles(file('qollanma.pdf', PDF)));
-  await attach(page, title, 'Topshiriq', (p) => p.locator('#teacherUploadVal').fill('Dars rejasini tuzing'));
-  await attach(page, title, 'Refleksiya', (p) => p.locator('#teacherUploadVal').fill('Nimani o‘rgandingiz?'));
+async function answerQuizCorrectly(page) {
+  const correct = ['Pedagogika', 'To‘rt', 'Toshkent'];
+  const groups = page.locator('.student-question');
+  await expect(groups).toHaveCount(3);
+  const count = await groups.count();
+  for (let i = 0; i < count; i++) {
+    let done = false;
+    for (const text of correct) {
+      const option = groups.nth(i).locator('.quiz-option', { hasText: text });
+      if (await option.count()) {
+        await option.locator('input').check();
+        done = true;
+      }
+    }
+    expect(done).toBe(true);
+  }
 }
 
 async function doStep(page, index, fill) {
@@ -89,7 +110,7 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
 
   await test.step('a teacher registers and publishes a module', async () => {
     await register(teacherPage, { name: teacherName, login: teacherLogin, role: 'teacher' });
-    await publishFullModule(teacherPage, moduleTitle, 1000 + Math.floor(Math.random() * 100000));
+    await publishFullModule(teacherPage, browser, moduleTitle, 1000 + Math.floor(Math.random() * 100000));
     await openMenu(teacherPage, 'Tahlil va Grafika');
     await expect(teacherPage.getByText('Aziz Talaba')).toHaveCount(0);
   });
@@ -103,8 +124,8 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
     await studentPage.locator('.module-card', { hasText: moduleTitle }).click();
     await expect(studentPage.locator('.step-item')).toHaveCount(6);
 
-    await doStep(studentPage, 0, (p) => p.locator('#stepAnswer').fill('Pedagogika'));
-    await expect(studentPage.locator('#toast')).toContainText('To‘g‘ri javob');
+    await doStep(studentPage, 0, answerQuizCorrectly);
+    await expect(studentPage.locator('#toast')).toContainText('3/3');
     await doStep(studentPage, 1);
     await doStep(studentPage, 2);
     await doStep(studentPage, 3);
@@ -141,10 +162,10 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
   });
 });
 
-test('a deleted module can be restored', async ({ page }) => {
+test('a deleted module can be restored', async ({ page, browser }) => {
   const title = unique('Tiklanadigan');
   await register(page, { name: 'Restore Teacher', login: unique('restorer'), role: 'teacher' });
-  await createModule(page, title, 200000 + Math.floor(Math.random() * 100000));
+  await publishFullModule(page, browser, title, 200000 + Math.floor(Math.random() * 100000));
 
   page.on('dialog', (dialog) => dialog.accept());
   const row = page.locator('#pageContainer > .card > div', { hasText: title });
@@ -156,4 +177,61 @@ test('a deleted module can be restored', async ({ page }) => {
 
   await expect(page.locator('#deletedModules li', { hasText: title })).toHaveCount(0);
   await expect(page.getByText(title, { exact: true })).toBeVisible();
+});
+
+test('sidebar and header line up and stay fixed while the page scrolls', async ({ page }) => {
+  await register(page, { name: 'Layout Teacher', login: unique('layout'), role: 'teacher' });
+  const logoBox = await page.locator('.sidebar-logo').boundingBox();
+  const headerBox = await page.locator('.topbar').boundingBox();
+  expect(logoBox.y + logoBox.height).toBe(headerBox.y + headerBox.height);
+
+  await page.locator('#pageContainer').evaluate((element) => {
+    element.insertAdjacentHTML('beforeend', '<div style="height:3000px"></div>');
+    element.scrollTop = 1500;
+  });
+  expect(await page.locator('#pageContainer').evaluate((element) => element.scrollTop)).toBe(1500);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect((await page.locator('.topbar').boundingBox()).y).toBe(headerBox.y);
+  expect((await page.locator('#sidebar').boundingBox()).y).toBe(0);
+});
+
+test('AI chat is offered to teachers only, and shows replies as plain text', async ({ browser }) => {
+  const studentPage = await (await browser.newContext()).newPage();
+  await register(studentPage, { name: 'Chat Student', login: unique('chatstudent'), role: 'student' });
+  await expect(studentPage.locator('#aiChatToggle')).toBeHidden();
+
+  const page = await (await browser.newContext()).newPage();
+  await register(page, { name: 'Chat Teacher', login: unique('chatteacher'), role: 'teacher' });
+  const box = await page.locator('#aiChatToggle').boundingBox();
+  const viewport = page.viewportSize();
+  expect(box.x + box.width).toBeGreaterThan(viewport.width - 40);
+  expect(box.y + box.height).toBeGreaterThan(viewport.height - 40);
+
+  await page.route('**/api/chat', (route) => route.fulfill({ json: { reply: '<img src=x onerror=alert(1)> Tayyor' } }));
+  await page.locator('#aiChatToggle').click();
+  await page.locator('#aiChatInput').fill('Dars rejasi tuzing');
+  await page.locator('#aiChatInput').press('Enter');
+  await expect(page.locator('.ai-chat-user')).toHaveText('Dars rejasi tuzing');
+  await expect(page.locator('.ai-chat-assistant')).toHaveText('<img src=x onerror=alert(1)> Tayyor');
+  await expect(page.locator('.ai-chat-assistant img')).toHaveCount(0);
+
+  await page.unroute('**/api/chat');
+  await page.locator('#aiChatInput').fill('Yana savol');
+  await page.locator('#aiChatInput').press('Enter');
+  await expect(page.locator('.ai-chat-error')).toContainText('sozlanmagan');
+  await expect(page.locator('#aiChatInput')).toHaveValue('Yana savol');
+
+  await page.getByRole('button', { name: 'Yopish' }).last().click();
+  await expect(page.locator('#aiChatPanel')).toBeHidden();
+});
+
+test('a module needs all its materials before it is created', async ({ page }) => {
+  await register(page, { name: 'Form Teacher', login: unique('former'), role: 'teacher' });
+  await openMenu(page, 'Modullarni boshqarish');
+  await page.locator('#newModOrder').fill(String(400000 + Math.floor(Math.random() * 100000)));
+  const title = unique('Tolamagan');
+  await page.locator('#newModTitle').fill(title);
+  await page.getByRole('button', { name: 'Modulni yaratish' }).click();
+  await expect(page.locator('#toast')).toContainText('Diagnostika testini');
+  await expect(page.getByText(title, { exact: true })).toHaveCount(0);
 });

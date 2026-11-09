@@ -42,7 +42,7 @@ function loadHandlers(sql) {
   });
   const dbPath = path.join(API_DIR, '_db.js');
   require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: sql };
-  return Object.fromEntries(['auth', 'content', 'files', 'modules', 'progress', 'setup', 'users']
+  return Object.fromEntries(['auth', 'chat', 'content', 'files', 'modules', 'progress', 'quiz', 'setup', 'users']
     .map((name) => [name, require(path.join(API_DIR, `${name}.js`))]));
 }
 

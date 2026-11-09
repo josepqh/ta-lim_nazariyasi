@@ -6,13 +6,14 @@
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F5"/>
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B1A18"/>
   <title>Ta'lim Nazariyasi — Zamonaviy Ta'lim Platformasi</title>
-  <link rel="icon" type="image/png" href="assets/logo-256.png"/>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet"/>
+  <link rel="icon" type="image/png" href="assets/logo.png?v=4"/>
+  <link rel="apple-touch-icon" href="assets/logo.png?v=4"/>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet" media="print" onload="this.media='all'"/>
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" integrity="sha384-uTYyvsSSUZeaPhb5RbKlQa0zY/WpX/QHfvg2mczXyBQOpkWPEDy9lczyp+w7SKXu" crossorigin="anonymous"></script>
+  <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js" integrity="sha384-zYPBGXwO4633CABX/5Spf6emCKUJCfoOkhOMYyxMsatqQZPnDblmmOewfjsIVWCM" crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="style.css?v=13"/>
+  <script src="assets/vendor/chart-4.4.7.umd.js"></script>
+  <link rel="stylesheet" href="style.css?v=17"/>
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -23,10 +24,9 @@
   <nav class="navbar" id="navbar">
     <div class="nav-container">
       <a href="#" class="logo brand-logo" onclick="showPublicSection('home')">
-        <img src="assets/logo-256.png" alt="Ta'lim Nazariyasi Logo" class="brand-logo-img"/>
+        <img src="assets/logo.png?v=4" alt="" width="42" height="42" class="brand-logo-img"/>
         <div class="brand-text-wrap">
           <span class="brand-name">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
-          <span class="brand-tagline">Neyropedagogik Platforma</span>
         </div>
       </a>
       <button class="mobile-menu-btn" type="button" aria-label="Menyuni ochish" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
@@ -295,7 +295,7 @@
   <div id="sidebarBackdrop" class="sidebar-backdrop" onclick="toggleSidebar()"></div>
   <aside id="sidebar">
     <div class="sidebar-logo brand-logo" onclick="returnToWebsite()" style="cursor:pointer;">
-      <img src="assets/logo-256.png" alt="Ta'lim Nazariyasi Logo" class="brand-logo-img" style="width:36px;height:36px;"/>
+      <img src="assets/logo.png?v=4" alt="" width="36" height="36" class="brand-logo-img" style="width:36px;height:36px;"/>
       <span class="brand-name" style="font-size:18px;">Ta'lim<span class="brand-highlight">Nazariyasi</span></span>
     </div>
     <nav id="sidebarNav"></nav>
@@ -338,9 +338,31 @@
   </div>
 </div>
 
+<!-- AI CHAT (teacher and admin only) -->
+<div id="aiChat" class="ai-chat" hidden>
+  <section id="aiChatPanel" class="ai-chat-panel" role="dialog" aria-labelledby="aiChatTitle" hidden>
+    <header class="ai-chat-header">
+      <h3 id="aiChatTitle"><i data-lucide="bot"></i> AI yordamchi</h3>
+      <div class="ai-chat-actions">
+        <button type="button" aria-label="Yangi suhbat" title="Yangi suhbat" onclick="resetAiChat()"><i data-lucide="rotate-ccw"></i></button>
+        <button type="button" aria-label="Yopish" title="Yopish" onclick="toggleAiChat(false)"><i data-lucide="x"></i></button>
+      </div>
+    </header>
+    <div id="aiChatMessages" class="ai-chat-messages" aria-live="polite"></div>
+    <form class="ai-chat-form" onsubmit="sendAiMessage(event)">
+      <label for="aiChatInput" class="visually-hidden">Xabaringiz</label>
+      <textarea id="aiChatInput" rows="2" maxlength="8000" placeholder="Savolingizni yozing…" onkeydown="onAiChatKey(event)"></textarea>
+      <button type="submit" id="aiChatSend" class="ai-chat-send" aria-label="Yuborish"><i data-lucide="send"></i></button>
+    </form>
+  </section>
+  <button type="button" id="aiChatToggle" class="ai-chat-toggle" aria-label="AI yordamchini ochish" aria-expanded="false" aria-controls="aiChatPanel" onclick="toggleAiChat()">
+    <i data-lucide="bot"></i>
+  </button>
+</div>
+
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=13"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>

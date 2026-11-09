@@ -10,6 +10,7 @@ Node.js 18 yoki yangiroq versiya kerak. `npm install` buyrug‘ini bajaring, so�
 - `SETUP_SECRET` — ma’lumotlar bazasini sozlash endpointini himoyalovchi 24+ belgili sir.
 - `ADMIN_LOGIN`, `ADMIN_PASSWORD` — boshlang‘ich admin hisobi; parol kamida 10 belgi.
 - `ADMIN_NAME` — admin ko‘rinadigan ismi.
+- `GROQ_API_KEY` — o‘qituvchi va admin uchun AI chat kaliti (console.groq.com). Bo‘lmasa, chat oynasi ochiladi, lekin “sozlanmagan” xabarini beradi.
 
 Sirlarni yaratish uchun `openssl rand -base64 48` buyrug‘idan foydalanish mumkin. `.env` repoga qo‘shilmaydi.
 
@@ -33,4 +34,4 @@ Taqdimot (`.pptx`), qo‘shimcha material va topshiriq fayllari PostgreSQL’da 
 
 ## Lokal ishlab chiqish va testlar
 
-`npm run dev` (yoki `npm start`) saytni va haqiqiy API’ni ishga tushiradi. `.env` da `DATABASE_URL` bo‘lsa, o‘sha bazaga ulanadi (avval `npm run db:setup`); bo‘lmasa ma’lumotlar lokal `.local-db/` papkasida saqlanadi. Lokal admin hisobi `tests/helpers/harness.js` faylida. `npm test` API testlarini, `npm run test:e2e` brauzer testlarini ishga tushiradi (birinchi marta `npx playwright install chromium` kerak). Baza sxemasining yagona manbasi `api/setup.js`.
+`npm run dev` (yoki `npm start`) saytni va haqiqiy API’ni ishga tushiradi. `.env` da `DATABASE_URL` bo‘lsa, o‘sha bazaga ulanadi (avval `npm run db:setup`); bo‘lmasa ma’lumotlar lokal `.local-db/` papkasida saqlanadi. Lokal rejimda sinov hisoblari bor (login / parol): `student` / `123`, `teacher` / `123`, `admin` / `123`; ular real bazada yaratilmaydi. `npm test` API testlarini, `npm run test:e2e` brauzer testlarini ishga tushiradi (birinchi marta `npx playwright install chromium` kerak). Baza sxemasining yagona manbasi `api/setup.js`.
