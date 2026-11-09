@@ -16,7 +16,7 @@
   --color-overlay: var(--overlay);
   --color-success: var(--success);
   --color-danger: var(--danger);
-  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme {
