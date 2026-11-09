@@ -350,3 +350,52 @@ test('registration needs the emailed code, and a forgotten password can be reset
   await page.locator('#loginForm button[type="submit"]').click();
   await expect(page.locator('#screen-app')).toHaveClass(/active/);
 });
+
+test('the corner label opens the user’s own profile', async ({ page }) => {
+  await register(page, { name: 'Profil Egasi', login: unique('profiler'), role: 'teacher' });
+  await page.locator('#topbarUser').click();
+  await expect(page.locator('#pageTitle')).toHaveText('Profilim');
+  await expect(page.locator('#profileName')).toHaveText('Profil Egasi');
+  await expect(page.locator('.profile-grid')).toContainText('@gmail.com');
+
+  await page.locator('#profileNameInput').fill('Yangi Ism');
+  await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
+  await expect(page.locator('#profileName')).toHaveText('Yangi Ism');
+  await expect(page.locator('#sidebarUser')).toContainText('Yangi Ism');
+
+  await page.locator('#profileCurrentPass').fill('wrong-password');
+  await page.locator('#profileNewPass').fill('another-long-password');
+  await page.getByRole('button', { name: 'Parolni yangilash' }).click();
+  await expect(page.locator('#profilePassError')).toHaveText('Joriy parol noto‘g‘ri.');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#profileName')).toHaveText('Yangi Ism');
+});
+
+test('the theme toggle overrides the system and is remembered', async ({ browser }) => {
+  const context = await browser.newContext({ colorScheme: 'dark' });
+  const page = await context.newPage();
+  const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#navAuth .theme-toggle')).toHaveAttribute('aria-label', 'Kunduzgi rejim');
+  const dark = await background();
+
+  await page.locator('#navAuth .theme-toggle').click();
+  await expect.poll(background).not.toBe(dark);
+  const light = await background();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  expect(await background()).toBe(light);
+
+  await page.locator('#navAuth .theme-toggle').click();
+  await expect.poll(background).toBe(dark);
+  await context.close();
+});
+
+test('the phone menu offers the theme toggle', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#navAuth .theme-toggle')).toBeHidden();
+  await page.locator('.mobile-menu-btn').click();
+  await page.locator('.theme-menu-item').click();
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+});

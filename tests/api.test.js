@@ -641,3 +641,52 @@ describe('diagnostic tests', () => {
     assert.match(miss.right, /^togri/);
   });
 });
+
+describe('own profile', () => {
+  const patch = (by, body) => by.call('profile', { method: 'PATCH', body });
+
+  test('guests are refused and each user sees only their own account', async () => {
+    assert.equal((await harness.client().get('profile')).statusCode, 401);
+    const mine = await student.get('profile');
+    assert.equal(mine.body.login, 'student_one@gmail.com');
+    assert.equal(mine.body.password, undefined);
+  });
+
+  test('a user can rename only themselves, and role cannot change this way', async () => {
+    const name = unique('renamer');
+    const person = harness.client();
+    await person.register(name);
+    assert.equal((await patch(person, { name: 'x' })).statusCode, 400);
+    const res = await patch(person, { name: 'New Name', role: 'admin', id: 1 });
+    assert.equal(res.body.name, 'New Name');
+    assert.equal(res.body.role, 'student');
+    const [admin_] = await harness.sql`SELECT name FROM np_users WHERE id=1`;
+    assert.notEqual(admin_.name, 'New Name');
+  });
+
+  test('changing the password needs the current one and signs out other devices', async () => {
+    const name = unique('changer');
+    const phone = harness.client();
+    await phone.register(name);
+    const laptop = harness.client();
+    assert.equal((await laptop.login(name, 'a-valid-password')).statusCode, 200);
+
+    assert.equal((await phone.post('profile', { current_password: 'wrong-password', new_password: 'another-password' })).statusCode, 400);
+    assert.equal((await phone.post('profile', { current_password: 'a-valid-password', new_password: 'short' })).statusCode, 400);
+    assert.equal((await phone.post('profile', { current_password: 'a-valid-password', new_password: 'another-password' })).statusCode, 200);
+
+    assert.equal((await laptop.get('auth')).body.user, null);
+    assert.ok((await phone.get('auth')).body.user);
+    assert.equal((await harness.client().login(name, 'a-valid-password')).statusCode, 401);
+    assert.equal((await harness.client().login(name, 'another-password')).statusCode, 200);
+  });
+
+  test('guessing the current password is limited', async () => {
+    const name = unique('guesser');
+    const person = harness.client();
+    await person.register(name);
+    const attempt = () => person.post('profile', { current_password: 'wrong-password', new_password: 'another-password' });
+    for (let i = 0; i < 5; i++) assert.equal((await attempt()).statusCode, 400);
+    assert.equal((await attempt()).statusCode, 429);
+  });
+});

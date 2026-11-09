@@ -2,6 +2,7 @@
 <html lang="uz">
 <head>
   <meta charset="UTF-8"/>
+  <script>try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t; } catch (e) {}</script>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#FAF8F5"/>
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1B1A18"/>
@@ -13,7 +14,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="style.css?v=20"/>
+  <link rel="stylesheet" href="style.css?v=21"/>
 </head>
 <body>
 <a class="skip-link" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -37,9 +38,11 @@
         <li><a href="#" onclick="showPublicSection('public-modules')"><i data-lucide="layers"></i> Modullar</a></li>
         <li><a href="#" onclick="showPublicSection('public-news')"><i data-lucide="newspaper"></i> Maqolalar</a></li>
         <li><a href="#" onclick="showPublicSection('public-contact')"><i data-lucide="mail"></i> Aloqa</a></li>
+        <li class="nav-menu-theme"><button type="button" class="theme-menu-item" onclick="toggleTheme()"></button></li>
         <li class="nav-menu-auth"><button type="button" class="btn-outline" onclick="openAuthModal('register')"><i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish</button></li>
       </ul>
       <div class="nav-auth" id="navAuth">
+        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
         <button class="btn-nav" onclick="openAuthModal('register')">
           <i data-lucide="user-plus"></i> Ro‘yxatdan o‘tish
         </button>
@@ -48,6 +51,7 @@
         </button>
       </div>
       <div class="nav-user" id="navUser" style="display:none; align-items:center; gap:15px;">
+        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
         <span id="navUserName" style="font-weight:500; color:var(--text-main); display:inline-flex; align-items:center; gap:6px;"></span>
         <button class="btn-primary" onclick="logout()" style="padding:6px 14px; font-size:12px; gap:6px;">
           <i data-lucide="log-out"></i> Chiqish
@@ -359,7 +363,8 @@
         <button class="btn-outline" style="padding:6px 14px; font-size:11px; gap:6px;" onclick="returnToWebsite()">
           <i data-lucide="arrow-left"></i> Saytga qaytish
         </button>
-        <div id="topbarUser" class="topbar-user"></div>
+        <button type="button" class="theme-toggle" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
+        <button type="button" id="topbarUser" class="topbar-user" aria-label="Profilim" onclick="navigate('profile')"></button>
       </div>
     </div>
     <div id="pageContainer"></div>
@@ -405,6 +410,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=21"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>

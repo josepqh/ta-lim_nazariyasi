@@ -8,7 +8,7 @@ const path = require('node:path');
 const { TEST_ADMIN, createHarness, createResponse } = require('./helpers/harness');
 
 const ROOT = path.join(__dirname, '..');
-const HANDLER_NAMES = ['auth', 'chat', 'content', 'files', 'modules', 'progress', 'quiz', 'users'];
+const HANDLER_NAMES = ['auth', 'chat', 'content', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
 const NEVER_SERVED = new Set(['node_modules', 'tests', 'api', 'test-results', 'playwright-report', 'package.json', 'package-lock.json', 'run_setup.js', 'playwright.config.js', 'vercel.json', 'README.md']);
 const MAX_PORT_ATTEMPTS = 10;
 const LOCK_FILE = path.join(ROOT, '.local-db.lock');

@@ -641,6 +641,7 @@ function pageTitle(pageId) {
   }
   if (pageId === 'student-detail') return 'Talaba ishlari';
   if (pageId === 'user-profile') return 'Profil';
+  if (pageId === 'profile') return 'Profilim';
   return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Bosh sahifa';
 }
 
@@ -761,6 +762,7 @@ function navigate(pageId, title) {
     case 'student-detail': renderStudentDetail(container); break;
     case 'users': renderUsers(container); break;
     case 'user-profile': renderUserProfile(container); break;
+    case 'profile': renderMyProfile(container); break;
     default: container.innerHTML = '<div class="card">Sahifa topilmadi.</div>';
   }
   refreshIcons();
@@ -2297,6 +2299,126 @@ async function renderUserProfile(container) {
   refreshIcons();
 }
 
+// ===== MY PROFILE =====
+function syncDisplayedName() {
+  const name = escapeHTML(currentUser.name || currentUser.login);
+  document.getElementById('sidebarUser').innerHTML = `<i data-lucide="user-check"></i> <span>${name}</span>`;
+  const icon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
+  document.getElementById('navUserName').innerHTML = `<i data-lucide="${icon}"></i> ${name}`;
+  refreshIcons();
+}
+
+async function renderMyProfile(container) {
+  const profile = await fetchAPI('/profile');
+  if (!document.getElementById('pageContainer').contains(container)) return;
+  if (!profile) {
+    container.innerHTML = '<div class="card">Profilni yuklab bo‘lmadi.</div>';
+    return;
+  }
+  const initial = (profile.name || profile.login).trim().charAt(0).toUpperCase();
+  const progress = Object.values(progressCache);
+  const finished = progress.filter(p => (p.completed_steps || []).length >= 6).length;
+  const score = progress.reduce((sum, p) => sum + (Number(p.total_score) || 0), 0);
+
+  container.innerHTML = `
+    <div class="card">
+      <div class="profile-head">
+        <div class="profile-avatar" aria-hidden="true">${escapeHTML(initial)}</div>
+        <div>
+          <h3 id="profileName">${escapeHTML(profile.name || profile.login)}</h3>
+          <p class="muted-text">${escapeHTML(ROLE_LABELS[profile.role] || profile.role)}</p>
+        </div>
+      </div>
+      <dl class="profile-grid">
+        <div><dt>Gmail</dt><dd>${escapeHTML(profile.login)}</dd></div>
+        <div><dt>Ro‘yxatdan o‘tgan</dt><dd>${escapeHTML(formatDate(profile.created_at))}</dd></div>
+        <div><dt>Oxirgi kirish</dt><dd>${escapeHTML(formatDate(profile.last_login_at))}</dd></div>
+        ${profile.role === 'student' ? `
+          <div><dt>Tugatilgan modullar</dt><dd>${finished} ta</dd></div>
+          <div><dt>To‘plangan ball</dt><dd>${score} ball</dd></div>` : ''}
+      </dl>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Ismni o‘zgartirish</h3>
+      <form class="profile-form" onsubmit="saveProfileName(event)">
+        <div class="form-group">
+          <label for="profileNameInput">F.I.Sh</label>
+          <input id="profileNameInput" type="text" minlength="2" maxlength="100" autocomplete="name" value="${escapeHTML(profile.name || '')}" required/>
+        </div>
+        <div id="profileNameError" class="profile-error" role="alert"></div>
+        <button type="submit" class="btn-primary"><i data-lucide="save"></i> Saqlash</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3 class="card-title">Parolni almashtirish</h3>
+      <form class="profile-form" onsubmit="saveProfilePassword(event)">
+        <div class="form-group">
+          <label for="profileCurrentPass">Joriy parol</label>
+          <input id="profileCurrentPass" type="password" maxlength="200" autocomplete="current-password" required/>
+        </div>
+        <div class="form-group">
+          <label for="profileNewPass">Yangi parol</label>
+          <input id="profileNewPass" type="password" minlength="10" maxlength="200" autocomplete="new-password" placeholder="Kamida 10 belgi" required/>
+        </div>
+        <div id="profilePassError" class="profile-error" role="alert"></div>
+        <button type="submit" class="btn-primary"><i data-lucide="key-round"></i> Parolni yangilash</button>
+      </form>
+    </div>`;
+  refreshIcons();
+}
+
+function saveProfileName(event) {
+  return submitAuthForm(event, 'Saqlanmoqda…', 'profileNameError', async () => {
+    const updated = await requestAPI('/profile', 'PATCH', { name: document.getElementById('profileNameInput').value.trim() });
+    currentUser.name = updated.name;
+    syncDisplayedName();
+    document.getElementById('profileName').textContent = updated.name;
+    showToast('Ism saqlandi ✅');
+  });
+}
+
+function saveProfilePassword(event) {
+  return submitAuthForm(event, 'Saqlanmoqda…', 'profilePassError', async () => {
+    await requestAPI('/profile', 'POST', {
+      current_password: document.getElementById('profileCurrentPass').value,
+      new_password: document.getElementById('profileNewPass').value
+    });
+    event.target.reset();
+    showToast('Parol yangilandi ✅');
+  });
+}
+
+// ===== THEME =====
+function activeTheme() {
+  const chosen = document.documentElement.dataset.theme;
+  if (chosen) return chosen;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function syncThemeButtons() {
+  const dark = activeTheme() === 'dark';
+  const label = dark ? 'Kunduzgi rejim' : 'Tungi rejim';
+  const icon = dark ? 'sun' : 'moon';
+  document.querySelectorAll('.theme-toggle').forEach(button => {
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+    button.innerHTML = `<i data-lucide="${icon}"></i>`;
+  });
+  document.querySelectorAll('.theme-menu-item').forEach(button => {
+    button.innerHTML = `<i data-lucide="${icon}"></i> ${label}`;
+  });
+  refreshIcons();
+}
+
+function toggleTheme() {
+  const next = activeTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch { /* storage unavailable */ }
+  syncThemeButtons();
+}
+
+window.addEventListener('DOMContentLoaded', syncThemeButtons);
+
 // ===== URL ROUTING (a page refresh keeps the current view) =====
 function writeRoute(pageId) {
   const params = { 'module-view': currentModuleId, 'student-detail': currentStudentId, 'user-profile': currentProfileId };
@@ -2307,7 +2429,7 @@ function writeRoute(pageId) {
 function restoreRoute() {
   const [, pageId, rawId] = location.hash.match(/^#\/([a-z-]+)(?:\/(\d+))?$/) || [];
   if (!pageId) return false;
-  const known = pageId === 'home' || pageId === 'modules' || pageId in PAGE_ROLES || pageId === 'module-view';
+  const known = pageId === 'home' || pageId === 'modules' || pageId === 'profile' || pageId in PAGE_ROLES || pageId === 'module-view';
   if (!known) return false;
   const needsId = ['module-view', 'student-detail', 'user-profile'].includes(pageId);
   if (needsId && !rawId) return false;
