@@ -136,11 +136,23 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
     });
     await doStep(studentPage, 5, (p) => p.locator('#stepResponse').fill('Ko‘p narsa o‘rgandim'));
     await expect(studentPage.locator('.celebration-box')).toBeVisible();
+    await expect(studentPage.locator('.step-item.completed')).toHaveCount(6);
   });
 
   await test.step('the teacher opens the student from the leaderboard', async () => {
     await openMenu(teacherPage, 'Modullar ko‘rinishi');
+    await expect(teacherPage.locator('.module-card', { hasText: moduleTitle }).locator('.mod-status.done')).toHaveCount(0);
+    await teacherPage.locator('.module-card', { hasText: moduleTitle }).click();
+    await expect(teacherPage.locator('.step-item')).toHaveCount(6);
+    await expect(teacherPage.locator('.step-item.completed')).toHaveCount(0);
+    await expect(teacherPage.locator('.steps-list')).not.toContainText('Bajarildi');
+
     await openMenu(teacherPage, 'Tahlil va Grafika');
+    const moduleRow = teacherPage.locator('.module-stats-table tr', { hasText: moduleTitle });
+    await expect(moduleRow.locator('td[data-label="Boshlaganlar"]')).toHaveText('1 ta');
+    await expect(moduleRow.locator('td[data-label="Tugatganlar"]')).toHaveText('1 ta');
+    await expect(moduleRow.locator('td[data-label="Jarayonda"]')).toHaveText('0 ta');
+    await expect(moduleRow.locator('td[data-label="O‘rtacha test"]')).toHaveText('67%');
     await expect(teacherPage.locator('tr', { hasText: studentName })).toContainText('2/3');
     await teacherPage.getByRole('button', { name: studentName }).click();
     const work = teacherPage.locator('.work-module', { hasText: moduleTitle });

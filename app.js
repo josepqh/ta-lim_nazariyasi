@@ -759,8 +759,8 @@ async function renderModules(container) {
             <p style="margin-top:8px; font-size:12px; color:var(--primary); font-weight:500;">Materiallar va bosqichlarni ko‘rish &rarr;</p>
           `}
         </div>
-        <div class="mod-status ${isDone || currentUser.role !== 'student' ? 'done' : ''}">
-          <i data-lucide="${isDone ? 'check-circle' : 'play-circle'}"></i>
+        <div class="mod-status ${isDone ? 'done' : ''}">
+          <i data-lucide="${isDone ? 'check-circle' : (currentUser.role === 'student' ? 'play-circle' : 'eye')}"></i>
         </div>
       </div>
     `;
@@ -816,6 +816,21 @@ async function renderAnalytics(container) {
     if (steps >= 6) studentMap[uid].finishedModules++;
   });
 
+  const moduleStats = modulesCache.map(module => {
+    const relevant = allProgress.filter(p => p.module_id === module.id);
+    const finished = relevant.filter(p => (p.completed_steps || []).length >= 6).length;
+    const quizzes = relevant.map(p => p.step_responses?.diag_result).filter(Boolean);
+    const quizTotal = quizzes.reduce((sum, quiz) => sum + Number(quiz.total), 0);
+    const quizCorrect = quizzes.reduce((sum, quiz) => sum + Number(quiz.correct), 0);
+    return {
+      module,
+      started: relevant.length,
+      finished,
+      inProgress: relevant.length - finished,
+      quizAverage: quizTotal ? Math.round((quizCorrect / quizTotal) * 100) : null
+    };
+  });
+
   const leaderboard = Object.values(studentMap).sort((a, b) => b.completedSteps - a.completedSteps || b.score - a.score);
 
   let html = `
@@ -841,6 +856,28 @@ async function renderAnalytics(container) {
           ${hasStepData ? '<canvas id="chartSteps"></canvas>' : '<p class="muted-text empty-text">Hozircha ma\'lumot yo‘q.</p>'}
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title" style="display:flex; align-items:center; gap:8px;"><i data-lucide="layers"></i> Modullar kesimida</h3>
+      ${moduleStats.length ? `
+        <div style="overflow-x:auto;">
+          <table class="leaderboard-table module-stats-table">
+            <thead>
+              <tr><th>Modul</th><th>Boshlaganlar</th><th>Tugatganlar</th><th>Jarayonda</th><th>O‘rtacha test natijasi</th></tr>
+            </thead>
+            <tbody>
+              ${moduleStats.map(({ module, started, finished, inProgress, quizAverage }) => `
+                <tr>
+                  <td data-label="Modul"><strong>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</strong></td>
+                  <td data-label="Boshlaganlar">${started} ta</td>
+                  <td data-label="Tugatganlar"><span class="badge ${finished ? 'badge-success' : 'badge-muted'}">${finished} ta</span></td>
+                  <td data-label="Jarayonda">${inProgress} ta</td>
+                  <td data-label="O‘rtacha test">${quizAverage === null ? '—' : `${quizAverage}%`}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : '<p class="muted-text">Hozircha modullar yo‘q.</p>'}
     </div>
 
     <!-- Leaderboard / Reyting jadvali -->
@@ -1032,7 +1069,8 @@ async function renderModuleView(container, isPublic = false) {
   `;
 
   STEP_TYPES.forEach((step, idx) => {
-    const isCompleted = currentUser && currentUser.role !== 'student' ? true : completed.includes(step.id);
+    const isStudent = currentUser?.role === 'student';
+    const isCompleted = isStudent && completed.includes(step.id);
     const isLocked = currentUser && currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx - 1].id);
     const hasContent = !!(currentStepContents[step.id]?.value || currentStepContents[step.id]?.file?.id);
 
@@ -1052,7 +1090,7 @@ async function renderModuleView(container, isPublic = false) {
           </div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : '<span class="badge badge-primary">Boshlash &rarr;</span>')}
+          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : `<span class="badge badge-primary">${currentUser && !isStudent ? 'Ko‘rish' : 'Boshlash'} &rarr;</span>`)}
         </div>
       </div>
     `;
