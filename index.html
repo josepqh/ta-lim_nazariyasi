@@ -14,7 +14,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="assets/tailwind.css?v=6"/>
+  <link rel="stylesheet" href="assets/tailwind.css?v=8"/>
 </head>
 <body class="min-h-dvh overflow-x-hidden bg-page font-sans text-[15px] leading-[1.7] text-ink">
 <a class="fixed -top-16 left-3 z-[3000] rounded-xl bg-ink px-4 py-2.5 text-surface focus:top-3" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -50,7 +50,7 @@
       </div>
       <div id="navUser" class="order-2 items-center gap-2 xl:flex-1 xl:justify-end" style="display:none">
         <button type="button" data-theme-toggle class="icon-btn hidden sm:inline-flex" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <span id="navUserName" class="hidden min-w-0 items-center gap-1.5 truncate font-medium text-ink sm:inline-flex"></span>
+        <span id="navUserName" class="hidden min-w-0 items-center gap-1.5 font-medium wrap-anywhere text-ink sm:inline-flex"></span>
         <button class="btn btn-solid" onclick="logout()">
           <i data-lucide="log-out"></i> Chiqish
         </button>
@@ -344,7 +344,7 @@
   </aside>
 
   <main id="mainContent" tabindex="-1" class="flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none">
-    <div class="topbar flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6">
+    <div class="topbar flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface py-2 px-4 sm:px-6 lg:py-0">
       <div class="flex min-w-0 items-center gap-2">
         <button class="icon-btn border-0 lg:hidden in-[.in-lesson]:hidden" onclick="toggleSidebar()" aria-label="Menyu">
           <i data-lucide="menu" class="size-5"></i>
@@ -353,7 +353,7 @@
           <i data-lucide="arrow-left" class="size-5"></i>
         </button>
         <button class="hidden items-center gap-2 text-[15px] font-medium text-muted transition-colors hover:text-primary lg:in-[.in-lesson]:inline-flex" onclick="navigate('modules')">Modullar <i data-lucide="chevron-right"></i></button>
-        <h1 id="pageTitle" class="truncate text-lg font-semibold tracking-tight text-ink sm:text-xl">Bosh sahifa</h1>
+        <h1 id="pageTitle" class="min-w-0 text-base leading-tight font-semibold tracking-tight wrap-anywhere text-ink sm:text-xl">Bosh sahifa</h1>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <button class="btn btn-line hidden sm:inline-flex" onclick="returnToWebsite()">
@@ -406,6 +406,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=25"></script>
+<script src="app.js?v=27"></script>
 </body>
 </html>

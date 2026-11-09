@@ -434,3 +434,50 @@ test('a step without material offers to add it in place', async ({ page, browser
   await page.locator('#stepBody').getByRole('button', { name: 'Test qo‘shish' }).click();
   await expect(page.locator('#stepModal')).toHaveClass(ACTIVE);
 });
+
+test('table headers line up with the values below them', async ({ page, browser }) => {
+  await register(page, { name: 'Aligned Student', login: unique('aligned'), role: 'student' });
+  const admin = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
+  await openMenu(admin, 'Foydalanuvchilar');
+  await expect(admin.locator('.leaderboard-table tbody tr').first()).toBeVisible();
+
+  const offsets = await admin.evaluate(() => {
+    const textBox = (cell) => {
+      const range = document.createRange();
+      range.selectNodeContents(cell);
+      return range.getBoundingClientRect();
+    };
+    const headers = [...document.querySelectorAll('.leaderboard-table th')];
+    const cells = [...document.querySelector('.leaderboard-table tbody tr').children];
+    return headers.map((header, index) => {
+      const top = textBox(header);
+      const bottom = textBox(cells[index]);
+      const left = header.classList.contains('col-left');
+      return Math.abs(left ? top.left - bottom.left : (top.left + top.right) / 2 - (bottom.left + bottom.right) / 2);
+    });
+  });
+  expect(Math.max(...offsets)).toBeLessThanOrEqual(1.5);
+  await admin.close();
+});
+
+test('content that does not fit on a phone wraps instead of running sideways', async ({ page, browser }) => {
+  const title = unique('Juda uzun nomli modul sarlavhasi');
+  await register(page, { name: 'Wrap Teacher', login: unique('wrap'), role: 'teacher' });
+  await publishFullModule(page, browser, title, 600000 + Math.floor(Math.random() * 100000));
+  await openMenu(page, 'Modullar');
+  await page.locator('.module-card', { hasText: title }).click();
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(page.locator('.step-chip')).toHaveCount(6);
+
+  const overflow = await page.evaluate(() => {
+    const limit = document.documentElement.clientWidth + 1;
+    return [...document.querySelectorAll('.topbar *, .lesson-strip *, .lesson-content *')]
+      .filter((node) => node.getBoundingClientRect().right > limit && !node.closest('iframe'))
+      .map((node) => node.tagName + ':' + node.className);
+  });
+  expect(overflow).toEqual([]);
+  const strip = page.locator('.lesson-strip');
+  expect(await strip.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+  expect(await page.locator('#pageTitle').evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+});

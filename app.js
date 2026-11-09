@@ -960,15 +960,15 @@ async function renderAnalytics(container) {
     <div class="card">
       <h3 class="card-title flex items-center gap-2"><i data-lucide="layers"></i> Modullar kesimida</h3>
       ${moduleStats.length ? `
-        <div class="overflow-x-auto">
+        <div class="min-w-0">
           <table class="leaderboard-table module-stats-table">
             <thead>
-              <tr><th>Modul</th><th>Boshlaganlar</th><th>Tugatganlar</th><th>Jarayonda</th><th>O‘rtacha test natijasi</th></tr>
+              <tr><th class="col-left">Modul</th><th>Boshlaganlar</th><th>Tugatganlar</th><th>Jarayonda</th><th>O‘rtacha test natijasi</th></tr>
             </thead>
             <tbody>
               ${moduleStats.map(({ module, started, finished, inProgress, quizAverage }) => `
                 <tr>
-                  <td data-label="Modul"><strong>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</strong></td>
+                  <td data-label="Modul" class="col-left"><strong>Modul ${Number(module.order_num)}. ${escapeHTML(module.title)}</strong></td>
                   <td data-label="Boshlaganlar">${started} ta</td>
                   <td data-label="Tugatganlar"><span class="badge ${finished ? 'badge-success' : 'badge-muted'}">${finished} ta</span></td>
                   <td data-label="Jarayonda">${inProgress} ta</td>
@@ -991,12 +991,12 @@ async function renderAnalytics(container) {
         Modullardagi 6 qadamli didaktik vazifalarni eng faol bajargan va eng yuqori natija ko‘rsatgan iqtidorli talabalar:
       </p>
 
-      <div class="overflow-x-auto">
+      <div class="min-w-0">
         <table class="leaderboard-table">
           <thead>
             <tr>
               <th class="w-[70px]">O‘rin</th>
-              <th>Talaba F.I.Sh</th>
+              <th class="col-left">Talaba F.I.Sh</th>
               <th>Bajarilgan qadamlar</th>
               <th>Test natijasi</th>
               <th>Tugatilgan modullar</th>
@@ -1020,7 +1020,7 @@ async function renderAnalytics(container) {
       html += `
         <tr class="clickable-row" onclick="openStudentDetail(${Number(st.id)})" title="Bajargan ishlarini ko‘rish">
           <td data-label="O‘rin"><span class="rank-badge ${rankBadgeClass}">${rank}</span></td>
-          <td data-label="Talaba"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
+          <td data-label="Talaba" class="col-left"><button type="button" class="link-btn" onclick="event.stopPropagation(); openStudentDetail(${Number(st.id)})">${escapeHTML(st.name)}</button></td>
           <td data-label="Qadamlar"><i data-lucide="check" class="w-[14px] text-success"></i> ${st.completedSteps} ta qadam</td>
           <td data-label="Test">${st.testTotal ? `<strong>${st.testCorrect}/${st.testTotal}</strong> <span class="muted-text">(${st.testTotal - st.testCorrect} ta xato)</span>` : '—'}</td>
           <td data-label="Modullar"><span class="badge ${st.finishedModules > 0 ? 'badge-success' : 'badge-muted'}">${st.finishedModules} ta modul</span></td>
@@ -1909,7 +1909,6 @@ function openStep(stepIndex, isPublic = false) {
     item.classList.toggle('active', isActive);
     if (isActive) item.setAttribute('aria-current', 'step');
     else item.removeAttribute('aria-current');
-    if (isActive && item.classList.contains('step-chip')) item.scrollIntoView({ block: 'nearest', inline: 'center' });
   });
   document.querySelector('.lesson-main')?.scrollTo(0, 0);
 
@@ -2327,18 +2326,18 @@ async function loadUsersTable() {
   const isStudent = usersFilter.role === 'student';
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
   target.innerHTML = `
-    <div class="overflow-x-auto">
+    <div class="min-w-0">
       <table class="leaderboard-table">
         <thead><tr>
-          <th>F.I.Sh</th><th>Login</th>
+          <th class="col-left">F.I.Sh</th><th class="col-left">Login</th>
           ${isStudent ? '<th>Tugatilgan modullar</th><th>Ball</th>' : '<th>Yaratgan modullari</th>'}
           <th>Ro‘yxatdan o‘tgan</th><th>Holat</th>
         </tr></thead>
         <tbody>
           ${data.items.map(user => `
             <tr>
-              <td data-label="F.I.Sh"><button type="button" class="link-btn" onclick="openUserProfile(${Number(user.id)})">${escapeHTML(user.name || user.login)}</button></td>
-              <td data-label="Login">${escapeHTML(user.login)}</td>
+              <td data-label="F.I.Sh" class="col-left"><button type="button" class="link-btn" onclick="openUserProfile(${Number(user.id)})">${escapeHTML(user.name || user.login)}</button></td>
+              <td data-label="Login" class="col-left">${escapeHTML(user.login)}</td>
               ${isStudent
                 ? `<td data-label="Modullar">${Number(user.modules_finished)} / ${Number(user.modules_started)}</td><td data-label="Ball">${Number(user.total_score)}</td>`
                 : `<td data-label="Modullar">${Number(user.modules_created)}</td>`}
@@ -2403,7 +2402,7 @@ function renderSidebarUser() {
   const name = currentUser.name || currentUser.login;
   document.getElementById('sidebarUser').innerHTML = `
     <span class="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-semibold text-on-primary">${escapeHTML(name.charAt(0).toUpperCase())}</span>
-    <div class="min-w-0"><p class="truncate text-[15px] font-semibold">${escapeHTML(name)}</p><p class="text-sm text-muted">${ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin}</p></div>`;
+    <div class="min-w-0"><p class="text-[15px] leading-snug font-semibold wrap-anywhere">${escapeHTML(name)}</p><p class="text-sm text-muted">${ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin}</p></div>`;
 }
 
 function syncDisplayedName() {
