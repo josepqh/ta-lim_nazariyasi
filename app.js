@@ -316,6 +316,8 @@ function renderPublicModules() {
 
 function openModule(id) {
   currentModuleId = Number(id);
+  lessonPreview = false;
+  lessonFocus = null;
   const target = modulesCache.find(x => Number(x.id) === currentModuleId);
   navigate('module-view', target ? target.title : `Modul ${id}`);
 }
@@ -618,8 +620,7 @@ const PAGE_ROLES = {
 };
 const STAFF_MENU = [
   { id: 'home', title: 'Bosh sahifa', icon: 'home' },
-  { id: 'manage-modules', title: 'Modullarni boshqarish', short: 'Modullar', icon: 'edit-3' },
-  { id: 'modules', title: 'Modullar ko‘rinishi', icon: 'book-open' },
+  { id: 'modules', title: 'Modullar', icon: 'book-open' },
   { id: 'analytics', title: 'Tahlil va grafika', icon: 'bar-chart-3' },
   { id: 'submissions', title: 'Talaba javoblari', icon: 'clipboard-check' }
 ];
@@ -636,6 +637,7 @@ function pageTitle(pageId) {
   if (pageId === 'module-view') {
     return modulesCache.find(x => Number(x.id) === Number(currentModuleId))?.title || 'Modul';
   }
+  if (pageId === 'manage-modules') return 'Modullar';
   if (pageId === 'student-detail') return 'Talaba ishlari';
   if (pageId === 'user-profile') return 'Profil';
   if (pageId === 'profile') return 'Profilim';
@@ -689,9 +691,7 @@ function buildSidebar() {
     nav.appendChild(div);
 
     // 2. Mobile Bottom Nav item (bir qo'lda qulay boshqarish)
-    // Keeps the bar at five items; staff still reach this page from the sidebar.
-    const inBottomNav = !(item.id === 'modules' && currentUser.role !== 'student');
-    if (bottomNav && inBottomNav) {
+    if (bottomNav) {
       const bBtn = document.createElement('button');
       bBtn.className = 'bottom-nav-item';
       bBtn.id = 'bnav-' + item.id;
@@ -710,7 +710,7 @@ function buildSidebar() {
 }
 
 function syncActiveNav(pageId) {
-  const targetId = pageId === 'module-view' ? 'modules' : pageId;
+  const targetId = ['module-view', 'manage-modules'].includes(pageId) ? 'modules' : pageId;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('nav-' + targetId)?.classList.add('active');
@@ -738,6 +738,8 @@ function navigate(pageId, title) {
   document.getElementById('pageTitle').textContent = title;
   const container = document.getElementById('pageContainer');
   container.scrollTop = 0;
+  container.classList.remove('lesson-mode');
+  document.querySelector('.topbar').classList.toggle('in-lesson', pageId === 'module-view');
 
   syncActiveNav(pageId);
   writeRoute(pageId);
@@ -813,13 +815,22 @@ function renderHome(container) {
   refreshIcons();
 }
 
+function staffModuleTabs(active) {
+  if (currentUser?.role === 'student') return '';
+  return `
+    <div class="segmented mb-5" role="group" aria-label="Modullar bo‘limi">
+      <button type="button" aria-pressed="${active === 'modules'}" onclick="navigate('modules')">Barcha modullar</button>
+      <button type="button" id="tabManage" aria-pressed="${active === 'manage-modules'}" onclick="navigate('manage-modules')">Yaratish va tahrirlash</button>
+    </div>`;
+}
+
 async function renderModules(container) {
   if (!modulesCache.length) {
-    container.innerHTML = '<div class="card"><p>Hozircha modullar mavjud emas.</p></div>';
+    container.innerHTML = `${staffModuleTabs('modules')}<div class="card"><p>Hozircha modullar mavjud emas.</p></div>`;
     refreshIcons();
     return;
   }
-  let html = `<div class="modules-grid">`;
+  let html = `${staffModuleTabs('modules')}<div class="modules-grid">`;
 
   modulesCache.forEach(m => {
     const prog = progressCache[m.id] || { completed_steps: [] };
@@ -1092,6 +1103,27 @@ async function renderAnalytics(container) {
 // ===== MODULE VIEW & STEP LOGIC =====
 let currentStepContents = {};
 
+let lessonPreview = false;
+let lessonFocus = null;
+
+function stepHasMaterial(content) {
+  return Boolean(content?.value || content?.file?.id || content?.questions_count || content?.questions?.length);
+}
+
+function stepName(step) {
+  return step.title.replace(/^\d+\.\s*/, '');
+}
+
+function isStaffEditing() {
+  return Boolean(currentUser) && currentUser.role !== 'student' && !lessonPreview;
+}
+
+function setLessonPreview(preview) {
+  lessonPreview = preview;
+  lessonFocus = STEP_TYPES.findIndex(step => step.id === currentStepId);
+  renderModuleView(document.getElementById('pageContainer'));
+}
+
 async function renderModuleView(container, isPublic = false) {
   if (!modulesCache.length) {
     const mods = await fetchAPI('/modules');
@@ -1122,71 +1154,97 @@ async function renderModuleView(container, isPublic = false) {
     });
   }
 
-  let html = `
-    <div class="back-btn" onclick="${isPublic ? `showPublicSection('public-modules')` : `navigate('modules', 'Modullar')`}">
-      <i data-lucide="arrow-left"></i> Modullar ro‘yxatiga qaytish
-    </div>
-  `;
+  const isStudent = currentUser?.role === 'student';
+  const editing = isStaffEditing();
+  const readyCount = STEP_TYPES.filter(step => stepHasMaterial(currentStepContents[step.id])).length;
+  const firstOpen = STEP_TYPES.findIndex(step => !completed.includes(step.id));
 
-  if (isAllDone && currentUser && currentUser.role === 'student') {
-    html += `
-      <div class="celebration-box">
-        <div class="mb-2 text-primary"><i data-lucide="award" class="w-[48px] h-[48px]"></i></div>
-        <h3>Tabriklaymiz! Siz ushbu modulni muvaffaqiyatli tamomladingiz!</h3>
-        <p class="text-muted text-sm">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
-      </div>
-    `;
-  }
-
-  html += `
-    <div class="card">
-      <div class="flex justify-between items-start flex-wrap gap-4 mb-4 border-b border-line pb-4">
-        <div>
-          <span class="badge badge-primary">Modul ${m.order_num}</span>
-          <h2 class="text-3xl font-normal mt-2">${escapeHTML(m.title)}</h2>
-        </div>
-        ${currentUser && currentUser.role === 'student' ? `
-          <div class="text-right">
-            <span class="badge ${isAllDone ? 'badge-success' : 'badge-primary'}">${completed.length}/6 qadam bajarildi</span>
-          </div>
-        ` : ''}
-      </div>
-      <p class="text-muted mb-6 leading-[1.8]">${escapeHTML(m.description || '')}</p>
-      
-      <div class="steps-list">
-  `;
-
-  STEP_TYPES.forEach((step, idx) => {
-    const isStudent = currentUser?.role === 'student';
+  const stepView = (step, idx) => {
     const isCompleted = isStudent && completed.includes(step.id);
-    const isLocked = currentUser && currentUser.role === 'student' && idx > 0 && !completed.includes(STEP_TYPES[idx - 1].id);
-    const hasContent = !!(currentStepContents[step.id]?.value || currentStepContents[step.id]?.file?.id);
+    const isLocked = isStudent && idx > 0 && !completed.includes(STEP_TYPES[idx - 1].id);
+    const isReady = stepHasMaterial(currentStepContents[step.id]);
+    let state = '';
+    let mark = String(idx + 1);
+    let status = 'Ko‘rish';
+    if (isStudent) {
+      status = isCompleted ? 'Bajarildi' : (idx === firstOpen ? 'Hozirgi qadam' : 'Navbatda');
+      if (isCompleted) { state = 'completed'; mark = '<i data-lucide="check"></i>'; }
+    } else if (editing) {
+      state = isReady ? 'ready' : 'missing';
+      status = isReady ? 'Tayyor' : 'Material yo‘q';
+      mark = `<i data-lucide="${isReady ? 'check' : 'alert-triangle'}"></i>`;
+    }
+    return { state, mark, status, isLocked, name: stepName(step) };
+  };
 
-    html += `
-      <div class="step-item ${isCompleted ? 'completed' : ''} ${isLocked ? 'disabled' : ''}" 
-           onclick="${isLocked ? '' : `openStep(${idx}, ${isPublic})`}"
-           title="${isLocked ? 'Oldingi qadamni yakunlang' : ''}">
-        <div class="step-info">
-          <span class="step-icon">
-            <i data-lucide="${isLocked ? 'lock' : step.icon}"></i>
-          </span>
-          <div>
-            <div class="font-medium text-ink">${step.title}</div>
-            <div class="mt-0.5 text-sm text-muted">
-              ${isLocked ? 'Avvalgi qadamni yakunlash talab etiladi' : (hasContent ? 'O‘rganish uchun tayyor' : 'Material hali qo‘shilmagan')}
+  const railItems = STEP_TYPES.map((step, idx) => {
+    const view = stepView(step, idx);
+    return `
+      <li class="relative">
+        <button type="button" class="step-item ${view.state}" data-step-index="${idx}" ${view.isLocked ? 'disabled title="Oldingi qadamni yakunlang"' : ''} onclick="selectStep(${idx}, ${isPublic})">
+          <span class="step-mark">${view.mark}</span>
+          <span class="min-w-0"><span class="step-name">${view.name}</span><span class="step-status">${view.status}</span></span>
+        </button>
+      </li>`;
+  }).join('');
+
+  const stripItems = STEP_TYPES.map((step, idx) => {
+    const view = stepView(step, idx);
+    return `<button type="button" class="step-chip ${view.state}" data-step-index="${idx}" ${view.isLocked ? 'disabled' : ''} onclick="selectStep(${idx}, ${isPublic})"><span class="step-mark">${view.mark}</span>${view.name.split(' ')[0]}</button>`;
+  }).join('');
+
+  const meter = editing ? { label: 'Tayyorlik', count: readyCount, fill: 'bg-success' } : { label: 'Jarayon', count: completed.length, fill: 'bg-primary' };
+  const showMeter = editing || isStudent;
+  const modeSwitch = currentUser && !isStudent ? `
+    <div class="segmented" role="group" aria-label="Ko‘rinish rejimi">
+      <button type="button" aria-pressed="${!lessonPreview}" onclick="setLessonPreview(false)">Tahrirlash</button>
+      <button type="button" id="lessonPreviewBtn" aria-pressed="${lessonPreview}" onclick="setLessonPreview(true)">Talaba ko‘rinishi</button>
+    </div>` : '';
+
+  container.innerHTML = `
+    ${isPublic ? `<div class="back-btn" onclick="showPublicSection('public-modules')"><i data-lucide="arrow-left"></i> Modullar ro‘yxatiga qaytish</div>` : ''}
+    <div class="lesson ${isPublic ? 'lesson-public' : ''}">
+      <aside class="lesson-rail">
+        <div class="border-b border-line p-5">
+          <p class="text-sm font-medium text-primary">Modul ${Number(m.order_num)}</p>
+          <p class="mt-0.5 text-lg leading-snug font-bold wrap-anywhere">${escapeHTML(m.title)}</p>
+          ${m.description ? `<p class="mt-1.5 line-clamp-3 text-sm text-muted">${escapeHTML(m.description)}</p>` : ''}
+          ${showMeter ? `
+            <div class="mt-4 flex justify-between text-sm"><span class="text-muted">${meter.label}</span><span class="font-semibold tabular-nums">${meter.count} / 6 qadam</span></div>
+            <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-line"><div class="h-full rounded-full ${meter.fill}" style="width:${Math.round(meter.count / 6 * 100)}%"></div></div>
+          ` : ''}
+        </div>
+        <ol class="steps-list ${isStudent ? 'steps-progress' : ''}">${railItems}</ol>
+      </aside>
+      <nav class="lesson-strip" aria-label="Qadamlar">${stripItems}</nav>
+      <section class="lesson-main">
+        <div class="lesson-content">
+          ${isAllDone && isStudent ? `
+            <div class="celebration-box">
+              <div class="mb-2 text-primary"><i data-lucide="award" class="w-[48px] h-[48px]"></i></div>
+              <h3>Tabriklaymiz! Siz ushbu modulni muvaffaqiyatli tamomladingiz!</h3>
+              <p class="text-muted text-sm">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
+            </div>` : ''}
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p id="stepEyebrow" class="text-sm font-semibold text-primary"></p>
+              <h2 id="stepHeading" class="mt-1 text-3xl font-bold tracking-tight sm:text-4xl"></h2>
             </div>
+            ${modeSwitch}
           </div>
+          <div id="stepBody" class="mt-5"></div>
+          <div id="stepFooter" class="lesson-actions"></div>
         </div>
-        <div class="flex items-center gap-2.5">
-          ${isCompleted ? '<span class="badge badge-success"><i data-lucide="check"></i> Bajarildi</span>' : (isLocked ? '<span class="badge badge-muted"><i data-lucide="lock"></i> Qulflangan</span>' : `<span class="badge badge-primary">${currentUser && !isStudent ? 'Ko‘rish' : 'Boshlash'} &rarr;</span>`)}
-        </div>
-      </div>
-    `;
-  });
+      </section>
+    </div>`;
+  if (!isPublic) container.classList.add('lesson-mode');
 
-  html += `</div></div>`;
-  container.innerHTML = html;
-  refreshIcons();
+  let target = 0;
+  if (lessonFocus !== null) target = lessonFocus;
+  else if (isStudent) target = firstOpen >= 0 ? firstOpen : STEP_TYPES.length - 1;
+  else if (editing) target = Math.max(STEP_TYPES.findIndex(step => !stepHasMaterial(currentStepContents[step.id])), 0);
+  lessonFocus = null;
+  openStep(target, isPublic);
 }
 
 // ===== TEACHER MANAGEMENT =====
@@ -1275,7 +1333,7 @@ async function renderManageModules(container) {
     });
   }
   html += `</div><div id="deletedModules"></div>`;
-  container.innerHTML = html;
+  container.innerHTML = staffModuleTabs('manage-modules') + html;
   if (!editModuleId) {
     quizState.new = [];
     quizMeta.new = {};
@@ -1433,7 +1491,7 @@ async function addModule() {
     editModuleId = null;
     const mods = await fetchAPI('/modules');
     if (mods && Array.isArray(mods)) modulesCache = mods;
-    navigate('manage-modules', 'Modullarni boshqarish');
+    navigate('manage-modules', 'Modullar');
   });
 }
 
@@ -1555,7 +1613,7 @@ async function deleteModule(id) {
     showToast("Modul o‘chirildi.");
     const mods = await fetchAPI('/modules');
     if (mods && Array.isArray(mods)) modulesCache = mods;
-    navigate('manage-modules', 'Modullarni boshqarish');
+    navigate('manage-modules', 'Modullar');
   }
 }
 
@@ -1679,6 +1737,10 @@ async function saveTeacherContent() {
       await requestAPI('/content', 'POST', { module_id: moduleId, step_type: stepType, content });
       showToast("Material muvaffaqiyatli saqlandi! ✅");
       document.getElementById('stepModal').classList.remove('active');
+      if (document.querySelector('#pageContainer .lesson')) {
+        lessonFocus = STEP_TYPES.findIndex(step => step.id === stepType);
+        renderModuleView(document.getElementById('pageContainer'));
+      }
     } catch (error) {
       showToast(error.message, 'error');
     }
@@ -1813,17 +1875,47 @@ async function saveSubmissionReview(progressId, step) {
 // ===== STEP MODAL LOGIC (STUDENT VIEW) =====
 let currentStepId = null;
 const NO_MATERIAL_HTML = '<p class="muted-text">O‘qituvchi bu qadam uchun hali material qo‘shmagan.</p>';
-const CLOSE_STEP_BUTTON = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="x"></i> Yopish</button>`;
+
+function selectStep(stepIndex, isPublic = false) {
+  if (STEP_TYPES[stepIndex]?.id !== currentStepId) openStep(stepIndex, isPublic);
+}
+
+function stepNavButton(stepIndex, isPublic, label, icon, solid) {
+  const arrow = `<i data-lucide="${icon}"></i>`;
+  const text = `<span class="${solid ? '' : 'max-lg:hidden'}">${label}</span>`;
+  return `<button type="button" class="${solid ? 'btn-primary' : 'btn-outline'}" aria-label="${label}" onclick="selectStep(${stepIndex}, ${isPublic})">${solid ? text + arrow : arrow + text}</button>`;
+}
+
+function missingMaterialHtml(step) {
+  const noun = step.type === 'quiz' ? 'test' : 'material';
+  return `
+    <section class="rounded-2xl border border-dashed border-danger/50 bg-surface p-6 text-center sm:p-10">
+      <span class="mx-auto grid size-14 place-items-center rounded-2xl bg-danger/10 text-danger"><i data-lucide="file-question" class="size-7"></i></span>
+      <h3 class="mt-4 text-xl font-bold">Bu qadamga ${noun} qo‘shilmagan</h3>
+      <p class="mx-auto mt-2 max-w-md text-[15px] text-muted">Talabalar bu qadamni bajara olishi uchun avval ${noun} biriktiring.</p>
+      <button type="button" class="btn-primary mt-6" onclick="openContentModal(${Number(currentModuleId)}, '${step.id}')"><i data-lucide="plus"></i> ${noun === 'test' ? 'Test qo‘shish' : 'Material qo‘shish'}</button>
+    </section>`;
+}
 
 function openStep(stepIndex, isPublic = false) {
   const step = STEP_TYPES[stepIndex];
   if (!step) return;
   const { id, type, title } = step;
   currentStepId = id;
-  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('stepEyebrow').textContent = `${stepIndex + 1}-qadam, jami ${STEP_TYPES.length} ta`;
+  document.getElementById('stepHeading').textContent = stepName(step);
+  document.querySelectorAll('[data-step-index]').forEach(item => {
+    const isActive = Number(item.dataset.stepIndex) === stepIndex;
+    item.classList.toggle('active', isActive);
+    if (isActive) item.setAttribute('aria-current', 'step');
+    else item.removeAttribute('aria-current');
+    if (isActive && item.classList.contains('step-chip')) item.scrollIntoView({ block: 'nearest', inline: 'center' });
+  });
+  document.querySelector('.lesson-main')?.scrollTo(0, 0);
 
-  const body = document.getElementById('modalBody');
-  const footer = document.getElementById('modalFooter');
+  const body = document.getElementById('stepBody');
+  const footer = document.getElementById('stepFooter');
+  let action = '';
 
   const prog = progressCache[currentModuleId] || { completed_steps: [] };
   const isDone = (prog.completed_steps || []).includes(id);
@@ -1832,14 +1924,14 @@ function openStep(stepIndex, isPublic = false) {
   const myFile = id === 'task' ? responses.task_file : null;
   const myReview = responses.reviews ? responses.reviews[id] : null;
   const customContent = currentStepContents[id] || {};
-  const hasMaterial = Boolean(customContent.value || customContent.file?.id);
+  const hasMaterial = stepHasMaterial(customContent);
   const noteHtml = customContent.value ? `<div class="step-text">${escapeHTML(customContent.value)}</div>` : '';
 
   if (type === 'quiz') {
     const count = customContent.questions_count || customContent.questions?.length || 0;
     if (count) {
       body.innerHTML = `<p class="muted-text">${count} ta test savoli. Har bir talabada savollar va javoblar tartibi boshqacha.</p>`;
-      footer.innerHTML = CLOSE_STEP_BUTTON;
+      action = '';
       if (currentUser?.role === 'student' && !isDone) loadStudentQuiz(isPublic);
     } else {
       body.innerHTML = hasMaterial ? `
@@ -1847,7 +1939,7 @@ function openStep(stepIndex, isPublic = false) {
         <label for="stepAnswer" class="step-label">Javobingiz</label>
         <input id="stepAnswer" class="step-input" type="text" maxlength="500" placeholder="Javobni shu yerga yozing..." autocomplete="off"/>
       ` : NO_MATERIAL_HTML;
-      footer.innerHTML = hasMaterial ? `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuborish</button>` : CLOSE_STEP_BUTTON;
+      action = hasMaterial ? `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Javobni yuborish</button>` : '';
     }
   } else if (type === 'video') {
     const embed = customContent.value ? getYouTubeEmbedUrl(customContent.value) : null;
@@ -1859,10 +1951,10 @@ function openStep(stepIndex, isPublic = false) {
         <p class="muted-text mt-5">Videodarsni to‘liq ko‘rib bo‘lgach, quyidagi tugmani bosib qadamni yakunlang.</p>
       `
       : NO_MATERIAL_HTML;
-    footer.innerHTML = embed ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Ko‘rib bo‘ldim ✅</button>` : CLOSE_STEP_BUTTON;
+    action = embed ? `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> Ko‘rib bo‘ldim</button>` : '';
   } else if (type === 'doc') {
     body.innerHTML = hasMaterial ? `${fileCardHtml(customContent.file)}${noteHtml}` : NO_MATERIAL_HTML;
-    footer.innerHTML = hasMaterial ? `<button class="btn-success" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> O‘qib chiqdim ✅</button>` : CLOSE_STEP_BUTTON;
+    action = hasMaterial ? `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check-circle-2"></i> O‘qib chiqdim</button>` : '';
   } else if (type === 'upload') {
     body.innerHTML = `
       <div class="step-text">${escapeHTML(customContent.value || 'Amaliy topshiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.')}</div>
@@ -1876,18 +1968,18 @@ function openStep(stepIndex, isPublic = false) {
         ${UPLOAD_PROGRESS_HTML}
       `}
     `;
-    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Topshirish</button>`;
+    action = `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Topshirish</button>`;
   } else if (type === 'text') {
     body.innerHTML = `
       <div class="step-text">${escapeHTML(customContent.value || 'Ushbu modul davomida nimalarni o‘rgandingiz va ularni qanday qo‘llashni rejalashtirdingiz?')}</div>
       <label for="stepResponse" class="step-label">Refleksiya hisoboti</label>
       <textarea id="stepResponse" class="step-input" rows="6" maxlength="10000" placeholder="Refleksiyangizni bu yerga yozing...">${escapeHTML(myResponse)}</textarea>
     `;
-    footer.innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Hisobotni yuborish</button>`;
+    action = `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="send"></i> Hisobotni yuborish</button>`;
   }
 
   if (!currentUser) {
-    footer.innerHTML = `<button class="btn-primary" onclick="document.getElementById('stepModal').classList.remove('active'); openAuthModal('login')"><i data-lucide="log-in"></i> Davom etish uchun kiring</button>`;
+    action = `<button class="btn-primary" onclick="openAuthModal('login')"><i data-lucide="log-in"></i> Davom etish uchun kiring</button>`;
   } else if (isDone && currentUser.role === 'student') {
     if (myResponse || myFile) {
       const isDiag = id === 'diag';
@@ -1904,12 +1996,23 @@ function openStep(stepIndex, isPublic = false) {
         ${reviewBoxHtml(myReview)}
       `;
     }
-    footer.innerHTML = `<button class="btn-outline" onclick="document.getElementById('stepModal').classList.remove('active')"><i data-lucide="check"></i> Siz bu qadamni bajargansiz &middot; Yopish</button>`;
+    action = '';
   } else if (currentUser.role !== 'student') {
-    footer.innerHTML = CLOSE_STEP_BUTTON;
+    action = '';
+    if (isStaffEditing()) {
+      if (!hasMaterial) body.innerHTML = missingMaterialHtml(step);
+      else action = `<button type="button" class="btn-outline" onclick="openContentModal(${Number(currentModuleId)}, '${id}')"><i data-lucide="pencil"></i> Tahrirlash</button>`;
+    }
   }
 
-  document.getElementById('stepModal').classList.add('active');
+  const isStudentUser = currentUser?.role === 'student';
+  const canGoNext = stepIndex < STEP_TYPES.length - 1 && (!isStudentUser || isDone);
+  footer.innerHTML = `
+    ${stepIndex > 0 ? stepNavButton(stepIndex - 1, isPublic, 'Oldingi qadam', 'arrow-left', false) : ''}
+    <div class="ml-auto flex min-w-0 items-center gap-2">
+      <span id="stepAction" class="contents">${action}</span>
+      ${canGoNext ? stepNavButton(stepIndex + 1, isPublic, 'Keyingi qadam', 'arrow-right', true) : ''}
+    </div>`;
   refreshIcons();
 }
 
@@ -1921,7 +2024,7 @@ async function loadStudentQuiz(isPublic) {
   if (!paper || currentStepId !== 'diag') return;
   studentQuiz = paper;
   const letters = 'ABCDEFGH';
-  document.getElementById('modalBody').innerHTML = paper.questions.map((question, index) => `
+  document.getElementById('stepBody').innerHTML = paper.questions.map((question, index) => `
     <fieldset class="student-question">
       <legend>${index + 1}. ${escapeHTML(question.text)}</legend>
       ${question.options.map((option, optionIndex) => `
@@ -1930,7 +2033,7 @@ async function loadStudentQuiz(isPublic) {
           <span>${letters[optionIndex]}) ${escapeHTML(option)}</span>
         </label>`).join('')}
     </fieldset>`).join('');
-  document.getElementById('modalFooter').innerHTML = `<button class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Testni yakunlash</button>`;
+  document.getElementById('stepAction').innerHTML = `<button data-step-action class="btn-primary" onclick="completeStep(${isPublic}, this)"><i data-lucide="check"></i> Testni yakunlash</button>`;
   refreshIcons();
 }
 
@@ -1984,7 +2087,6 @@ async function completeStep(isPublic = false, button = null) {
       } else {
         showToast('Qadam muvaffaqiyatli bajarildi! ✅');
       }
-      document.getElementById('stepModal').classList.remove('active');
       renderModuleView(document.getElementById(isPublic ? 'publicModuleViewContainer' : 'pageContainer'), isPublic);
     } catch (error) {
       showToast(error.message, 'error');

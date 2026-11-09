@@ -14,7 +14,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="assets/tailwind.css?v=5"/>
+  <link rel="stylesheet" href="assets/tailwind.css?v=6"/>
 </head>
 <body class="min-h-dvh overflow-x-hidden bg-page font-sans text-[15px] leading-[1.7] text-ink">
 <a class="fixed -top-16 left-3 z-[3000] rounded-xl bg-ink px-4 py-2.5 text-surface focus:top-3" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -26,7 +26,7 @@
     <div class="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 xl:gap-6 xl:px-8">
       <a href="#" id="navBrand" class="mr-auto inline-flex min-w-0 items-center gap-2.5 xl:mr-0 xl:flex-1" onclick="showPublicSection('home')">
         <img src="assets/logo.png?v=4" alt="" width="40" height="40" class="size-9 shrink-0 sm:size-10"/>
-        <span class="text-lg font-bold tracking-tight whitespace-nowrap text-ink sm:text-xl">Ta'lim<span class="text-primary">Nazariyasi</span></span>
+        <span class="flex flex-col whitespace-nowrap"><span class="text-[17px] leading-none font-bold tracking-tight text-ink">Ta'lim</span><span class="mt-1 text-[13px] leading-none font-medium text-muted">Nazariyasi</span></span>
       </a>
       <button id="mobileMenuBtn" class="icon-btn order-3 border-transparent xl:hidden" type="button" aria-label="Menyuni ochish" aria-expanded="false" aria-controls="mainNav" onclick="toggleMobileNav(this)">
         <i data-lucide="menu" class="size-[22px]"></i>
@@ -330,9 +330,9 @@
 <div id="screen-app" class="screen hidden h-dvh w-full overflow-hidden bg-page text-base leading-normal [&.active]:flex">
   <div id="sidebarBackdrop" class="fixed inset-0 z-[99] hidden bg-black/40 [&.active]:block lg:[&.active]:hidden" onclick="toggleSidebar()"></div>
   <aside id="sidebar" class="fixed inset-y-0 left-0 z-[100] flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-line bg-surface transition-transform duration-300 lg:static lg:translate-x-0 [&.open]:translate-x-0">
-    <div class="sidebar-logo flex h-16 shrink-0 cursor-pointer items-center gap-2.5 border-b border-line px-5" onclick="returnToWebsite()">
+    <div class="sidebar-logo flex h-16 shrink-0 cursor-pointer items-center gap-3 px-5" onclick="returnToWebsite()">
       <img src="assets/logo.png?v=4" alt="" width="36" height="36" class="size-9 object-contain"/>
-      <span class="text-lg font-bold tracking-tight text-ink">Ta'lim<span class="text-primary">Nazariyasi</span></span>
+      <span class="flex flex-col whitespace-nowrap"><span class="text-[17px] leading-none font-bold tracking-tight text-ink">Ta'lim</span><span class="mt-1 text-[13px] leading-none font-medium text-muted">Nazariyasi</span></span>
     </div>
     <nav id="sidebarNav" class="flex-1 space-y-1 overflow-y-auto p-3"></nav>
     <div class="border-t border-line p-3">
@@ -346,10 +346,14 @@
   <main id="mainContent" tabindex="-1" class="flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none">
     <div class="topbar flex h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 sm:px-6">
       <div class="flex min-w-0 items-center gap-2">
-        <button class="icon-btn border-0 lg:hidden" onclick="toggleSidebar()" aria-label="Menyu">
+        <button class="icon-btn border-0 lg:hidden in-[.in-lesson]:hidden" onclick="toggleSidebar()" aria-label="Menyu">
           <i data-lucide="menu" class="size-5"></i>
         </button>
-        <h1 id="pageTitle" class="truncate text-xl font-bold tracking-tight text-ink sm:text-2xl">Bosh sahifa</h1>
+        <button class="icon-btn hidden border-0 in-[.in-lesson]:inline-flex lg:in-[.in-lesson]:hidden" onclick="navigate('modules')" aria-label="Modullarga qaytish">
+          <i data-lucide="arrow-left" class="size-5"></i>
+        </button>
+        <button class="hidden items-center gap-2 text-[15px] font-medium text-muted transition-colors hover:text-primary lg:in-[.in-lesson]:inline-flex" onclick="navigate('modules')">Modullar <i data-lucide="chevron-right"></i></button>
+        <h1 id="pageTitle" class="truncate text-lg font-semibold tracking-tight text-ink sm:text-xl">Bosh sahifa</h1>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <button class="btn btn-line hidden sm:inline-flex" onclick="returnToWebsite()">
@@ -402,6 +406,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 </body>
 </html>

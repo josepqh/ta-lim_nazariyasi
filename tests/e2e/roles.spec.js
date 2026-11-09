@@ -10,6 +10,11 @@ const file = (name, buffer, mimeType = 'application/octet-stream') => ({ name, m
 let counter = 0;
 const unique = (prefix) => `${prefix}_${Date.now()}_${++counter}`;
 
+const openManage = async (page) => {
+  await openMenu(page, 'Modullar');
+  await page.locator('#tabManage').click();
+};
+
 async function emailedCode(page, email) {
   const response = await page.request.get(`/__test/mail?to=${encodeURIComponent(email)}`);
   const { code } = await response.json();
@@ -56,7 +61,7 @@ async function quizPdf(browser) {
 }
 
 async function fillNewModuleForm(page, browser, title, order) {
-  await openMenu(page, 'Modullarni boshqarish');
+  await openManage(page);
   await page.locator('#newModOrder').fill(String(order));
   await page.locator('#newModTitle').fill(title);
   await page.locator('#newQuizFile').setInputFiles(file('test.pdf', await quizPdf(browser)));
@@ -98,10 +103,9 @@ async function answerQuizCorrectly(page) {
 
 async function doStep(page, index, fill) {
   await page.locator('.step-item').nth(index).click();
-  await expect(page.locator('#stepModal')).toHaveClass(ACTIVE);
   if (fill) await fill(page);
-  await page.locator('#modalFooter button').first().click();
-  await expect(page.locator('#stepModal')).not.toHaveClass(ACTIVE);
+  await page.locator('#stepFooter [data-step-action]').click();
+  await expect(page.locator('.step-item').nth(index)).toHaveClass(/(^|\s)completed(\s|$)/);
 }
 
 test('a wrong password shows an error and never enters the app', async ({ page }) => {
@@ -152,7 +156,7 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
   });
 
   await test.step('the teacher opens the student from the leaderboard', async () => {
-    await openMenu(teacherPage, 'Modullar ko‘rinishi');
+    await openMenu(teacherPage, 'Modullar');
     await expect(teacherPage.locator('.module-card', { hasText: moduleTitle }).locator('.mod-status.done')).toHaveCount(0);
     await teacherPage.locator('.module-card', { hasText: moduleTitle }).click();
     await expect(teacherPage.locator('.step-item')).toHaveCount(6);
@@ -266,7 +270,7 @@ test('AI chat is offered to teachers only, and shows replies as plain text', asy
 
 test('a module needs all its materials before it is created', async ({ page }) => {
   await register(page, { name: 'Form Teacher', login: unique('former'), role: 'teacher' });
-  await openMenu(page, 'Modullarni boshqarish');
+  await openManage(page);
   await page.locator('#newModOrder').fill(String(400000 + Math.floor(Math.random() * 100000)));
   const title = unique('Tolamagan');
   await page.locator('#newModTitle').fill(title);
@@ -399,4 +403,34 @@ test('the phone menu offers the theme toggle', async ({ page }) => {
   await page.locator('#mobileMenuBtn').click();
   await page.locator('.theme-menu-item').click();
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+});
+
+test('staff see step readiness and can preview a module as a student', async ({ page, browser }) => {
+  const title = unique('Dars');
+  await register(page, { name: 'Lesson Teacher', login: unique('lesson'), role: 'teacher' });
+  await publishFullModule(page, browser, title, 400000 + Math.floor(Math.random() * 100000));
+  await openMenu(page, 'Modullar');
+  await page.locator('.module-card', { hasText: title }).click();
+
+  await expect(page.locator('.step-item.ready')).toHaveCount(6);
+  await page.locator('.step-item').nth(1).click();
+  await expect(page.locator('#stepHeading')).toHaveText('Video dars');
+  await expect(page.locator('#stepModal')).not.toHaveClass(ACTIVE);
+
+  await page.locator('#lessonPreviewBtn').click();
+  await expect(page.locator('.step-item.ready')).toHaveCount(0);
+  await expect(page.locator('#stepHeading')).toHaveText('Video dars');
+});
+
+test('a step without material offers to add it in place', async ({ page, browser }) => {
+  const title = unique('Bosh');
+  await register(page, { name: 'Empty Teacher', login: unique('empty'), role: 'teacher' });
+  await publishFullModule(page, browser, title, 500000 + Math.floor(Math.random() * 100000));
+  await page.route('**/api/content?module_id=*', (route) => route.fulfill({ json: [] }));
+  await openMenu(page, 'Modullar');
+  await page.locator('.module-card', { hasText: title }).click();
+
+  await expect(page.locator('.step-item.missing')).toHaveCount(6);
+  await page.locator('#stepBody').getByRole('button', { name: 'Test qo‘shish' }).click();
+  await expect(page.locator('#stepModal')).toHaveClass(ACTIVE);
 });

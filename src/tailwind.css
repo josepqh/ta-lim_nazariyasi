@@ -115,6 +115,7 @@
 @layer base {
   button:not(:disabled), [role="button"] { cursor: pointer; }
   button:disabled { cursor: not-allowed; opacity: 0.55; }
+  .step-item:disabled, .step-chip:disabled { opacity: 1; }
 
   input[type="file"]::file-selector-button {
     margin-right: 0.75rem;
@@ -228,14 +229,35 @@
   .mod-status.done { @apply text-success opacity-100; }
   .back-btn { @apply mb-5 inline-flex min-h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold text-primary hover:underline; }
 
-  .steps-list { @apply flex flex-col gap-3; }
-  .step-item { @apply flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-line bg-page p-4 transition-colors duration-200 hover:border-primary hover:bg-surface; }
-  .step-item.disabled { @apply pointer-events-none opacity-50; }
-  .step-info { @apply flex min-w-0 items-center gap-3.5 text-[15px]; }
-  .step-icon { @apply inline-flex w-8 shrink-0 items-center justify-center; }
-  .step-icon svg.lucide { @apply size-5 text-primary; }
-  .step-check { @apply text-lg text-success opacity-0; }
-  .step-item.completed .step-check { @apply opacity-100; }
+
+  .lesson { @apply flex flex-col lg:h-full lg:flex-row; }
+  .lesson-public { @apply overflow-hidden rounded-2xl border border-line bg-page lg:h-auto lg:min-h-[32rem]; }
+  .lesson-rail { @apply hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-line bg-surface/60 lg:flex; }
+  .lesson-strip { @apply sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-line bg-surface px-3 py-2 lg:hidden; }
+  .lesson-main { @apply min-w-0 flex-1 lg:overflow-y-auto; }
+  .lesson-content { @apply mx-auto w-full max-w-3xl p-4 pb-28 sm:p-8 lg:pb-24; }
+  .lesson-actions { @apply mt-8 flex items-center justify-between gap-3 border-t border-line pt-6; }
+  #pageContainer.lesson-mode { @apply p-0! lg:overflow-hidden!; }
+  .lesson-mode .lesson-actions { @apply max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[800] max-lg:mt-0 max-lg:bg-surface max-lg:p-3; }
+  body:has(.lesson-mode) #mobileBottomNav { @apply hidden!; }
+
+  .steps-list { @apply flex flex-col gap-0.5 p-3; }
+  .steps-progress li:not(:last-child)::after { @apply pointer-events-none absolute top-12 -bottom-0.5 left-[27px] w-px bg-line content-['']; }
+  .steps-progress li:has(.completed):not(:last-child)::after { @apply bg-success; }
+  .step-item { @apply flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-primary/5 [&.active]:bg-primary/10 [&.missing.active]:bg-danger/10; }
+  .step-chip { @apply flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium whitespace-nowrap text-muted [&.active]:bg-primary/10 [&.active]:font-semibold [&.active]:text-primary [&.missing.active]:bg-danger/10 [&.missing.active]:text-danger; }
+  .step-mark { @apply grid size-8 shrink-0 place-items-center rounded-full border border-line bg-surface text-sm font-semibold text-muted; }
+  .step-chip .step-mark { @apply size-6 text-xs; }
+  .active > .step-mark, .step-chip.active .step-mark { @apply border-transparent bg-primary text-on-primary; }
+  .completed .step-mark { @apply border-transparent bg-success text-on-primary; }
+  .ready .step-mark { @apply border-transparent bg-success/15 text-success; }
+  .missing .step-mark { @apply border-transparent bg-danger text-on-primary; }
+  .step-name { @apply block truncate text-[15px] font-medium; }
+  .step-item.active .step-name { @apply font-semibold text-primary; }
+  .missing.active .step-name { @apply text-ink; }
+  .step-status { @apply block text-sm text-muted; }
+  .missing .step-status { @apply font-medium text-danger; }
+  .step-item:disabled .step-name { @apply text-muted; }
 
   .submission-heading { @apply flex flex-col items-start justify-between gap-2 lg:flex-row lg:gap-5; }
   .submission-heading h3 { @apply text-lg font-semibold; }
