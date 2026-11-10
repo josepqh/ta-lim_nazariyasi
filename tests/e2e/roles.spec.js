@@ -432,7 +432,7 @@ test('the role chip opens an account menu that works by mouse and keyboard', asy
   await expect(menu).toBeVisible();
   await expect(trigger).toHaveAttribute('aria-expanded', 'true');
   await expect(menu).toContainText('Menyu Egasi');
-  await expect(menu).toContainText(`${login}@gmail.com`);
+  await expect(menu).not.toContainText('@gmail.com');
   await expect(menu.getByRole('menuitem').first()).toBeFocused();
 
   await page.keyboard.press('End');
@@ -474,6 +474,19 @@ test('the role chip opens an account menu that works by mouse and keyboard', asy
   await page.locator('#navUserName').click();
   await page.locator('#navMenu').getByRole('menuitem', { name: 'Chiqish' }).click();
   await expect(page.locator('#navLogin')).toBeVisible();
+});
+
+test('the admin dashboard shows how many students and teachers signed up', async ({ page }) => {
+  await signIn(page, { ...TEST_ADMIN, role: 'admin' });
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+  await expect(page.locator('#adminTeacherCount')).not.toHaveText('…');
+  const { counts } = await (await page.request.get('/api/users?page_size=1')).json();
+  await expect(page.locator('#adminStudentCount')).toHaveText(String(counts.student || 0));
+  await expect(page.locator('#adminTeacherCount')).toHaveText(String(counts.teacher || 0));
+
+  await page.getByRole('button', { name: /Ro‘yxatdan o‘tgan o‘qituvchilar/ }).click();
+  await expect(page.locator('#pageTitle')).toHaveText('Foydalanuvchilar');
+  await expect(page.locator('#usersTabTeacher')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('the theme toggle overrides the system and is remembered', async ({ browser }) => {

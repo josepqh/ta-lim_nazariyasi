@@ -882,6 +882,21 @@ function renderHome(container) {
         <div class="stat-info"><h3>${totalScore} ball</h3><p>To‘plangan ballar</p></div>
       </div>
     `;
+  } else if (currentUser.role === 'admin') {
+    html += `
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="book-open"></i></div>
+        <div class="stat-info"><h3>${modulesCache.length}</h3><p>Mavjud modullar</p></div>
+      </div>
+      <button type="button" class="stat-card text-left transition-colors duration-200 hover:border-primary" onclick="openUsers('student')">
+        <div class="stat-icon"><i data-lucide="users"></i></div>
+        <div class="stat-info"><h3 id="adminStudentCount" class="tabular-nums">…</h3><p>Ro‘yxatdan o‘tgan talabalar</p></div>
+      </button>
+      <button type="button" class="stat-card text-left transition-colors duration-200 hover:border-primary" onclick="openUsers('teacher')">
+        <div class="stat-icon"><i data-lucide="graduation-cap"></i></div>
+        <div class="stat-info"><h3 id="adminTeacherCount" class="tabular-nums">…</h3><p>Ro‘yxatdan o‘tgan o‘qituvchilar</p></div>
+      </button>
+    `;
   } else {
     html += `
       <div class="stat-card">
@@ -890,7 +905,7 @@ function renderHome(container) {
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i data-lucide="graduation-cap"></i></div>
-        <div class="stat-info"><h3>${currentUser.role === 'admin' ? 'Administrator' : 'O‘qituvchi'}</h3><p>Sizning maqomingiz</p></div>
+        <div class="stat-info"><h3>O‘qituvchi</h3><p>Sizning maqomingiz</p></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon"><i data-lucide="bar-chart-2"></i></div>
@@ -908,6 +923,23 @@ function renderHome(container) {
   </div>`;
   container.innerHTML = html;
   refreshIcons();
+  if (currentUser.role === 'admin') loadUserCounts();
+}
+
+async function loadUserCounts() {
+  const data = await fetchAPI('/users?page_size=1');
+  const counts = data?.counts || {};
+  const student = document.getElementById('adminStudentCount');
+  const teacher = document.getElementById('adminTeacherCount');
+  if (student) student.textContent = data ? String(counts.student || 0) : '—';
+  if (teacher) teacher.textContent = data ? String(counts.teacher || 0) : '—';
+}
+
+function openUsers(role) {
+  usersFilter.role = role;
+  usersFilter.page = 1;
+  usersFilter.q = '';
+  navigate('users');
 }
 
 function staffModuleTabs(active) {
@@ -2604,7 +2636,6 @@ function accountMenuHtml(place) {
       <span class="account-avatar size-10 text-base" aria-hidden="true">${escapeHTML(name.charAt(0).toUpperCase())}</span>
       <div class="min-w-0">
         <p class="leading-snug font-semibold wrap-anywhere text-ink">${escapeHTML(name)}</p>
-        <p class="truncate text-sm text-muted" title="${escapeHTML(currentUser.login)}">${escapeHTML(currentUser.login)}</p>
         <span class="account-role"><i data-lucide="${roleIconFor(currentUser.role)}"></i> ${role}</span>
       </div>
     </div>`;
