@@ -42,7 +42,7 @@ function loadHandlers(sql) {
   });
   const dbPath = path.join(API_DIR, '_db.js');
   require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: sql };
-  return Object.fromEntries(['auth', 'chat', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'setup', 'users']
+  return Object.fromEntries(['auth', 'chat', 'contact', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'setup', 'users']
     .map((name) => [name, require(path.join(API_DIR, `${name}.js`))]));
 }
 
@@ -77,6 +77,7 @@ async function createHarness({ dataDir } = {}) {
     mail.sendExistingAccountNotice = async (to) => { outbox.push({ to, notice: true }); };
     mail.sendTeacherRequest = async (to, name, email) => { outbox.push({ to, teacherRequest: email }); };
     mail.sendTeacherDecision = async (to, approved) => { outbox.push({ to, approved }); };
+    mail.sendContactMessage = async (to, contact) => { outbox.push({ to, contact }); };
   }
   const registered = new Set();
   await runSetup(handlers);

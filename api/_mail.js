@@ -5,11 +5,13 @@ const usesResend = () => Boolean(process.env.RESEND_API_KEY && process.env.MAIL_
 const usesGmail = () => Boolean(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD);
 
 // A transactional service on your own domain (SPF/DKIM) reaches the inbox; Gmail SMTP is the fallback.
-async function sendWithResend(to, subject, text) {
+async function sendWithResend(to, subject, text, replyTo) {
+  const message = { from: `${APP_NAME} <${process.env.MAIL_FROM}>`, to: [to], subject, text };
+  if (replyTo) message.reply_to = replyTo;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ from: `${APP_NAME} <${process.env.MAIL_FROM}>`, to: [to], subject, text })
+    body: JSON.stringify(message)
   });
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
@@ -18,20 +20,20 @@ async function sendWithResend(to, subject, text) {
   console.log('Mail accepted by the mail service');
 }
 
-async function sendWithGmail(to, subject, text) {
+async function sendWithGmail(to, subject, text, replyTo) {
   const nodemailer = require('nodemailer');
   const transport = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD }
   });
-  const info = await transport.sendMail({ from: `"${APP_NAME}" <${process.env.GMAIL_USER}>`, to, subject, text });
+  const info = await transport.sendMail({ from: `"${APP_NAME}" <${process.env.GMAIL_USER}>`, to, subject, text, ...(replyTo ? { replyTo } : {}) });
   if (info.rejected?.length) throw new Error('Mail server rejected the recipient');
   console.log(`Mail accepted by server: ${String(info.response).slice(0, 40)}`);
 }
 
-async function deliver(to, subject, text) {
-  if (usesResend()) return sendWithResend(to, subject, text);
-  if (usesGmail()) return sendWithGmail(to, subject, text);
+async function deliver(to, subject, text, replyTo) {
+  if (usesResend()) return sendWithResend(to, subject, text, replyTo);
+  if (usesGmail()) return sendWithGmail(to, subject, text, replyTo);
   // Set only by the local development server, so production can never skip sending.
   if (process.env.LOCAL_DEV_MAIL === '1') {
     console.log(`\n[Lokal xat] ${to}\n${subject}\n${text}\n`);
@@ -84,4 +86,14 @@ function sendTeacherDecision(to, approved) {
   );
 }
 
-module.exports = { MailNotConfiguredError, sendCode, sendExistingAccountNotice, sendTeacherDecision, sendTeacherRequest };
+// A visitor's question from the contact form; "Reply" in the inbox answers the visitor directly.
+function sendContactMessage(to, { name, email, message }) {
+  return deliver(
+    to,
+    `${APP_NAME}: saytdan savol — ${name}`,
+    `${message}\n\n—\nYuboruvchi: ${name}\nEmail: ${email}\nJavob berish uchun shu xatga "Javob berish" tugmasini bosing.`,
+    `${name.replace(/[<>"\r\n]/g, '')} <${email}>`
+  );
+}
+
+module.exports = { MailNotConfiguredError, sendCode, sendContactMessage, sendExistingAccountNotice, sendTeacherDecision, sendTeacherRequest };

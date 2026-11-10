@@ -1,6 +1,7 @@
-import { ArrowRight, BarChart2, Camera, Check, CircleArrowRight, GraduationCap, LayoutDashboard, Library, Mail, MapPin, MonitorPlay, Phone, PlayCircle, Send, Sparkles, Users } from 'lucide-react';
-import type { FormEvent, ReactNode } from 'react';
+import { ArrowRight, BarChart2, Camera, Check, CircleArrowRight, CircleCheck, GraduationCap, LayoutDashboard, Library, Mail, MapPin, MonitorPlay, Phone, PlayCircle, Send, Sparkles, Users } from 'lucide-react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Logo } from '../components/Logo';
+import { api } from '../lib/api';
 import { Lesson } from '../cabinet/pages/Lesson';
 import { cx } from '../lib/format';
 import { useModules, useMyProgress } from '../lib/queries';
@@ -166,33 +167,60 @@ function PublicModules() {
   );
 }
 
+const CONTACT_EMAIL = 'uzforedu@gmail.com';
+
 function Contact() {
-  function send(event: FormEvent<HTMLFormElement>) {
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  async function send(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const name = String(data.get('name') || '').trim();
-    const subject = encodeURIComponent(`Ta'lim Nazariyasi murojaat: ${name}`);
-    const body = encodeURIComponent(`${String(data.get('message') || '').trim()}\n\nYuboruvchi: ${name}\nEmail: ${String(data.get('email') || '').trim()}`);
-    window.location.href = `mailto:info@talimnazariyasi.uz?subject=${subject}&body=${body}`;
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form)) as Record<string, string>;
+    setBusy(true);
+    setError('');
+    try {
+      await api('/contact', 'POST', data);
+      form.reset();
+      setSent(true);
+    } catch (sendError) {
+      setError((sendError as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
+
   return (
     <div className="page-container page-section">
-      <Heading eyebrow="Aloqa" title="Biz bilan bog‘laning"/>
+      <Heading eyebrow="Aloqa" title="Biz bilan bog‘laning" text="Savolingizni yozing, javobni ko‘rsatgan emailingizga yuboramiz."/>
       <div className="grid overflow-hidden rounded-2xl border border-line bg-surface lg:grid-cols-5">
         <div className="flex flex-col justify-center gap-5 bg-primary p-7 text-base text-on-primary sm:p-10 lg:col-span-2">
           <p className="flex items-center gap-3"><MapPin className="size-5"/> Toshkent sh., Mirzo Ulug‘bek ko‘chasi, 45-uy</p>
           <p className="flex items-center gap-3"><Phone className="size-5"/> +998 90 123 45 67</p>
-          <p className="flex items-center gap-3"><Mail className="size-5"/> info@talimnazariyasi.uz</p>
+          <a className="flex items-center gap-3 underline-offset-4 hover:underline" href={`mailto:${CONTACT_EMAIL}`}><Mail className="size-5"/> {CONTACT_EMAIL}</a>
         </div>
-        <form className="flex flex-col gap-4 p-6 sm:p-10 lg:col-span-3" onSubmit={send}>
-          <label htmlFor="contactName" className="sr-only">Ismingiz</label>
-          <input type="text" id="contactName" name="name" className="field" placeholder="Ismingiz" autoComplete="name" required/>
-          <label htmlFor="contactEmail" className="sr-only">Emailingiz</label>
-          <input type="email" id="contactEmail" name="email" className="field" placeholder="Emailingiz" autoComplete="email" required/>
-          <label htmlFor="contactMessage" className="sr-only">Xabaringiz</label>
-          <textarea id="contactMessage" name="message" className="field" rows={4} placeholder="Xabaringiz..." required/>
-          <button type="submit" className="btn btn-solid self-start"><Send/> Email orqali yuborish</button>
-        </form>
+        {sent ? (
+          <div id="contactSent" className="flex flex-col items-start justify-center gap-3 p-6 sm:p-10 lg:col-span-3" role="status">
+            <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary"><CircleCheck className="size-6"/></span>
+            <h3 className="text-xl font-semibold text-ink">Savolingiz yuborildi</h3>
+            <p className="text-base text-muted">Rahmat! Javobni ko‘rsatgan emailingizga yozamiz.</p>
+            <button type="button" className="btn btn-line mt-2" onClick={() => setSent(false)}>Yana savol yozish</button>
+          </div>
+        ) : (
+          <form id="contactForm" className="flex flex-col gap-4 p-6 sm:p-10 lg:col-span-3" onSubmit={send}>
+            <label htmlFor="contactName" className="sr-only">Ismingiz</label>
+            <input type="text" id="contactName" name="name" className="field" placeholder="Ismingiz" autoComplete="name" minLength={2} maxLength={100} required/>
+            <label htmlFor="contactEmail" className="sr-only">Emailingiz</label>
+            <input type="email" id="contactEmail" name="email" className="field" placeholder="Emailingiz" autoComplete="email" maxLength={254} required/>
+            <label htmlFor="contactMessage" className="sr-only">Savolingiz</label>
+            <textarea id="contactMessage" name="message" className="field" rows={4} placeholder="Savolingizni yozing..." minLength={10} maxLength={5000} required/>
+            {/* Left empty by people; bots that fill every field give themselves away. */}
+            <div className="hidden" aria-hidden="true"><label htmlFor="contactWebsite">Veb-sayt</label><input type="text" id="contactWebsite" name="website" tabIndex={-1} autoComplete="off"/></div>
+            <div id="contactError" className="min-h-5 text-sm text-danger" role="alert">{error}</div>
+            <button type="submit" className="btn btn-solid self-start" disabled={busy}><Send/> {busy ? 'Yuborilmoqda…' : 'Savolni yuborish'}</button>
+          </form>
+        )}
       </div>
     </div>
   );

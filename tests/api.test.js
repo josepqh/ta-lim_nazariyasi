@@ -949,3 +949,53 @@ describe('mail service', () => {
     assert.match(sent[0].body.text, /123456/);
   });
 });
+
+describe('contact form', () => {
+  const send = (body, ip = '192.0.2.10') => harness.client().call('contact', { method: 'POST', body, headers: { 'x-forwarded-for': ip } });
+
+  test('a question goes to the platform inbox with the visitor as the reply address', async () => {
+    const res = await send({ name: 'Dilnoza Karimova', email: 'dilnoza@example.com', message: 'Modullar qachon yangilanadi?' });
+    assert.equal(res.statusCode, 202);
+    const mail = harness.outbox.at(-1);
+    assert.equal(mail.to, 'uzforedu@gmail.com');
+    assert.deepEqual(mail.contact, { name: 'Dilnoza Karimova', email: 'dilnoza@example.com', message: 'Modullar qachon yangilanadi?' });
+  });
+
+  test('incomplete messages are refused and a filled hidden field sends nothing', async () => {
+    const before = harness.outbox.length;
+    assert.equal((await send({ name: 'A', email: 'a@example.com', message: 'Yetarlicha uzun savol' })).statusCode, 400);
+    assert.equal((await send({ name: 'Ali', email: 'not-an-email', message: 'Yetarlicha uzun savol' })).statusCode, 400);
+    assert.equal((await send({ name: 'Ali', email: 'ali@example.com', message: 'Qisqa' })).statusCode, 400);
+    assert.equal((await send({ name: 'Bot', email: 'bot@example.com', message: 'Arzon reklama xizmati', website: 'spam.example' })).statusCode, 202);
+    assert.equal(harness.outbox.length, before);
+  });
+
+  test('one address can send only a few messages an hour', async () => {
+    const message = { name: 'Takror', email: 'takror@example.com', message: 'Bir xil savol yana bir bor' };
+    for (let i = 0; i < 5; i++) assert.equal((await send(message, '198.51.100.20')).statusCode, 202);
+    assert.equal((await send(message, '198.51.100.20')).statusCode, 429);
+  });
+
+  test('the reply-to line carries only the name and the email', async () => {
+    delete require.cache[require.resolve('../api/_mail')];
+    const real = require('../api/_mail');
+    const saved = { fetch: global.fetch, key: process.env.RESEND_API_KEY, from: process.env.MAIL_FROM };
+    let sentBody;
+    global.fetch = async (_url, init) => { sentBody = JSON.parse(init.body); return new Response('{}', { status: 200 }); };
+    process.env.RESEND_API_KEY = 're_test';
+    process.env.MAIL_FROM = 'noreply@talim.example';
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await real.sendContactMessage('uzforedu@gmail.com', { name: 'Ali <script>\r\nBcc: x@y.z', email: 'ali@example.com', message: 'Savol matni' });
+    } finally {
+      console.log = log;
+      global.fetch = saved.fetch;
+      if (saved.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = saved.key;
+      if (saved.from === undefined) delete process.env.MAIL_FROM; else process.env.MAIL_FROM = saved.from;
+    }
+    assert.deepEqual(sentBody.to, ['uzforedu@gmail.com']);
+    assert.equal(sentBody.reply_to, 'Ali scriptBcc: x@y.z <ali@example.com>');
+    assert.match(sentBody.text, /Savol matni[\s\S]*ali@example\.com/);
+  });
+});

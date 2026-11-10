@@ -10,7 +10,7 @@ const { TEST_ADMIN, createHarness, createResponse } = require('./helpers/harness
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const HANDLER_NAMES = ['auth', 'chat', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
+const HANDLER_NAMES = ['auth', 'chat', 'contact', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
 const MAX_PORT_ATTEMPTS = 10;
 const LOCK_FILE = path.join(ROOT, '.local-db.lock');
 let localDatabaseClaimed = false;
@@ -102,6 +102,7 @@ function captureTestMail() {
   mail.sendExistingAccountNotice = async () => {};
   mail.sendTeacherRequest = async () => {};
   mail.sendTeacherDecision = async () => {};
+  mail.sendContactMessage = async (to, contact) => { testMailbox.set(`contact:${contact.email}`, { to, ...contact }); };
 }
 
 function isServable(relative) {
@@ -165,7 +166,9 @@ async function main() {
       const apiName = url.pathname.match(/^\/api\/([a-z]+)$/)?.[1];
       if (exposeMail && url.pathname === '/__test/mail') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ code: testMailbox.get(url.searchParams.get('to')) || null }));
+        const to = url.searchParams.get('to');
+        const saved = testMailbox.get(to) || null;
+        res.end(JSON.stringify(typeof saved === 'string' || saved === null ? { code: saved } : { message: saved }));
         return;
       }
       if (apiName && HANDLER_NAMES.includes(apiName)) await handleApi(req, res, handlers[apiName], url);

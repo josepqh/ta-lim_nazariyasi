@@ -749,3 +749,16 @@ test('legal pages, search metadata and a strict content policy', async ({ page }
   await expect(page.locator('#terms h1')).toHaveText('Foydalanish shartlari');
   expect(violations).toEqual([]);
 });
+
+test('a question from the contact form is sent to the platform inbox', async ({ page }) => {
+  const email = `${unique('savol')}@example.com`;
+  await page.goto('/#public-contact', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#public-contact')).toContainText('uzforedu@gmail.com');
+  await page.locator('#contactName').fill('Savol Beruvchi');
+  await page.locator('#contactEmail').fill(email);
+  await page.locator('#contactMessage').fill('Sertifikat beriladimi?');
+  await page.getByRole('button', { name: 'Savolni yuborish' }).click();
+  await expect(page.locator('#contactSent')).toContainText('Savolingiz yuborildi');
+  const { message } = await (await page.request.get(`/__test/mail?to=${encodeURIComponent(`contact:${email}`)}`)).json();
+  expect(message).toMatchObject({ to: 'uzforedu@gmail.com', email, message: 'Sertifikat beriladimi?' });
+});
