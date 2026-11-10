@@ -239,7 +239,8 @@
   .lesson { @apply flex flex-col lg:h-full lg:flex-row; }
   .lesson-public { @apply overflow-hidden rounded-2xl border border-line bg-page lg:h-auto lg:min-h-[32rem]; }
   .lesson-rail { @apply hidden w-72 shrink-0 flex-col overflow-y-auto border-r border-line bg-surface/60 lg:flex; }
-  .lesson-strip { @apply flex flex-wrap gap-1 border-b border-line bg-surface px-3 py-2 lg:hidden; }
+  /* Phone stepper: six marks joined by a line, names go to the heading below */
+  .lesson-strip { @apply grid grid-cols-6 border-b border-line bg-surface px-2 py-1.5 lg:hidden; }
   .lesson-main { @apply min-w-0 flex-1 lg:overflow-y-auto; }
   .lesson-content { @apply mx-auto w-full max-w-3xl p-4 pb-28 sm:p-8 lg:pb-24; }
   .lesson-actions { @apply mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6; }
@@ -251,9 +252,11 @@
   .steps-progress li:not(:last-child)::after { @apply pointer-events-none absolute top-12 -bottom-0.5 left-[27px] w-px bg-line content-['']; }
   .steps-progress li:has(.completed):not(:last-child)::after { @apply bg-success; }
   .step-item { @apply flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors duration-200 hover:bg-primary/5 [&.active]:bg-primary/10 [&.missing.active]:bg-danger/10; }
-  .step-chip { @apply flex h-11 shrink-0 items-center gap-2 rounded-full px-3 text-sm font-medium text-muted [&.active]:bg-primary/10 [&.active]:font-semibold [&.active]:text-primary [&.missing.active]:bg-danger/10 [&.missing.active]:text-danger; }
+  .step-chip { @apply relative flex h-12 items-center justify-center not-first:before:absolute not-first:before:top-1/2 not-first:before:right-1/2 not-first:before:h-0.5 not-first:before:w-full not-first:before:-translate-y-1/2 not-first:before:bg-line not-first:before:content-[''] [&.completed]:before:bg-success [&.ready]:before:bg-success/40; }
   .step-mark { @apply grid size-8 shrink-0 place-items-center rounded-full border border-line bg-surface text-sm font-semibold text-muted; }
-  .step-chip .step-mark { @apply size-6 text-xs; }
+  .step-chip .step-mark { @apply relative z-[1] size-8 transition-shadow duration-200; }
+  .step-chip.active .step-mark { @apply ring-4 ring-primary/20; }
+  .step-chip.missing.active .step-mark { @apply ring-danger/20; }
   .active > .step-mark, .step-chip.active .step-mark { @apply border-transparent bg-primary text-on-primary; }
   .completed .step-mark { @apply border-transparent bg-success text-on-primary; }
   .ready .step-mark { @apply border-transparent bg-success/15 text-success; }
@@ -374,6 +377,11 @@
   .profile-head h3 { @apply text-2xl font-semibold wrap-anywhere; }
   .profile-form { @apply max-w-md; }
   .profile-error { @apply mb-2 min-h-5 text-sm text-danger; }
+
+  .footer-heading { @apply text-sm font-semibold tracking-wide text-white; }
+  .footer-links { @apply mt-4 space-y-1; }
+  .footer-links a { @apply inline-flex min-h-10 items-center gap-2.5 text-[15px] text-[#C9BEAF] transition-colors hover:text-white [&_svg]:size-[18px]; }
+  .footer-sub { @apply inline-flex min-h-10 items-center transition-colors hover:text-white; }
 
   /* Account menu: opened from the role chip (cabinet) or the name chip (public site) */
   .account { @apply relative; }

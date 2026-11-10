@@ -305,16 +305,57 @@ for (const width of [1440, 1180, 1000, 768, 390, 340]) {
   });
 }
 
-test('the phone menu holds the links and registration', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 800 });
+for (const width of [360, 390]) {
+  test(`a ${width}px phone shows sign-in and registration side by side at the top`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#navLogin')).toBeVisible();
+    await expect(page.locator('#navRegister')).toBeVisible();
+    for (const id of ['#navLogin', '#navRegister']) {
+      expect((await page.locator(id).boundingBox()).height).toBeLessThanOrEqual(44);
+    }
+    expect(await page.locator('#navbar').evaluate((nav) => nav.scrollWidth - nav.clientWidth)).toBeLessThanOrEqual(0);
+    await expect(page.locator('#mainNav')).toBeHidden();
+    await page.locator('#mobileMenuBtn').click();
+    await expect(page.locator('#mainNav a').first()).toBeVisible();
+    await page.locator('#mobileMenuBtn').click();
+    await page.locator('#navRegister').click();
+    await expect(page.locator('#authModal')).toHaveClass(ACTIVE);
+    await expect(page.locator('#registerForm')).toBeVisible();
+  });
+}
+
+test('the public site has a footer', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.locator('#mainNav')).toBeHidden();
-  await page.locator('#mobileMenuBtn').click();
-  await expect(page.locator('#mainNav a').first()).toBeVisible();
-  await page.locator('#menuRegister').click();
-  await expect(page.locator('#authModal')).toHaveClass(ACTIVE);
-  await expect(page.locator('#mainNav')).toBeHidden();
-  await expect(page.locator('#registerForm')).toBeVisible();
+  const footer = page.locator('.site-footer');
+  await expect(footer).toContainText('Barcha huquqlar himoyalangan');
+  await footer.getByRole('link', { name: 'Telegram' }).click();
+  expect(new URL(page.url()).hash).toBe('');
+});
+
+test('a signed-in visitor stays on the public site after a refresh and is never asked to sign up', async ({ page }) => {
+  await register(page, { name: 'Sahifa Egasi', login: unique('stay'), role: 'student' });
+  await page.locator('#topbarUser').click();
+  await page.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#navUserName')).toBeVisible();
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
+  await expect(page.locator('#home')).toHaveClass(ACTIVE);
+
+  await page.locator('#mainNav').getByText('Modullar').click();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
+  await expect(page.locator('#navUserName')).toBeVisible();
+  await expect(page.getByText('Barcha modullarga kirish')).toHaveCount(0);
+
+  await page.locator('#mainNav').getByText('Bosh sahifa').click();
+  await expect(page.locator('#heroJoin')).toContainText('Boshqaruv paneliga o‘tish');
+  await page.locator('#heroJoin').click();
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+  await expect(page.locator('#authModal')).not.toHaveClass(ACTIVE);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+  await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
 });
 
 test('registration needs the emailed code, and a forgotten password can be reset', async ({ page }) => {
@@ -523,6 +564,41 @@ test('table headers line up with the values below them', async ({ page, browser 
   await admin.close();
 });
 
+test('a phone saves a lesson file through the share sheet and stays on the page', async ({ page, browser }) => {
+  const title = unique('Fayl moduli');
+  await register(page, { name: 'Share Teacher', login: unique('share'), role: 'teacher' });
+  await publishFullModule(page, browser, title, 700000 + Math.floor(Math.random() * 100000));
+  await openMenu(page, 'Modullar');
+  await page.locator('.module-card', { hasText: title }).click();
+  const url = page.url();
+
+  await page.evaluate(() => {
+    const realMatch = window.matchMedia.bind(window);
+    window.matchMedia = (query) => (query === '(pointer: coarse)' ? { matches: true } : realMatch(query));
+    window.sharedFiles = [];
+    navigator.canShare = () => true;
+    navigator.share = async ({ files }) => { window.sharedFiles.push(files.map((f) => [f.name, f.type, f.size])); };
+  });
+  await page.locator('.step-item').nth(2).click();
+  await page.locator('.file-card').click();
+  await expect.poll(() => page.evaluate(() => window.sharedFiles)).toEqual([[['dars.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 4004]]]);
+  expect(page.url()).toBe(url);
+
+  // When the browser wants a fresh tap, the card says so and the next tap shares.
+  await page.evaluate(() => {
+    let first = true;
+    navigator.share = async ({ files }) => {
+      if (first) { first = false; throw new DOMException('needs a tap', 'NotAllowedError'); }
+      window.sharedFiles.push(files.map((f) => f.name));
+    };
+  });
+  await page.locator('.file-card').click();
+  await expect(page.locator('.file-card-meta')).toHaveText('Tayyor · saqlash uchun bosing');
+  await page.locator('.file-card').click();
+  await expect.poll(() => page.evaluate(() => window.sharedFiles.length)).toBe(2);
+  await expect(page.locator('.file-card-meta')).toContainText('Yuklab olish');
+});
+
 test('content that does not fit on a phone wraps instead of running sideways', async ({ page, browser }) => {
   const title = unique('Juda uzun nomli modul sarlavhasi');
   await register(page, { name: 'Wrap Teacher', login: unique('wrap'), role: 'teacher' });
@@ -531,6 +607,7 @@ test('content that does not fit on a phone wraps instead of running sideways', a
   await page.locator('.module-card', { hasText: title }).click();
   await page.setViewportSize({ width: 320, height: 700 });
   await expect(page.locator('.step-chip')).toHaveCount(6);
+  await expect(page.locator('.step-chip').first()).toHaveAttribute('aria-label', /^1-qadam: Diagnostika testi/);
 
   const overflow = await page.evaluate(() => {
     const limit = document.documentElement.clientWidth + 1;

@@ -142,8 +142,16 @@ async function downloadFile(id, button) {
     return;
   }
   const label = button?.querySelector('.file-card-meta');
-  const originalLabel = label?.textContent;
+  if (label && !label.dataset.idle) label.dataset.idle = label.textContent;
+  // A file fetched earlier waits for a fresh tap, which the share sheet requires.
+  if (button?._readyFile) {
+    const file = button._readyFile;
+    button._readyFile = null;
+    if (label) label.textContent = label.dataset.idle;
+    return shareFile(file).catch(error => showToast(error.message, 'error'));
+  }
   if (button) button.disabled = true;
+  let waitingForTap = false;
   try {
     const meta = await requestAPI(`/files?id=${encodeURIComponent(id)}`);
     const parts = [];
@@ -152,21 +160,81 @@ async function downloadFile(id, button) {
       parts.push(base64ToBytes(data));
       if (label) label.textContent = `Yuklanmoqda ${Math.round(((chunk + 1) / meta.total_chunks) * 100)}%`;
     }
-    // octet-stream keeps uploaded content from ever rendering on this origin.
-    const url = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = meta.name;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    waitingForTap = await deliverFile(parts, meta.name, button);
   } catch (error) {
     showToast(error.message, 'error');
   } finally {
     if (button) button.disabled = false;
-    if (label) label.textContent = originalLabel;
+    if (label) label.textContent = waitingForTap ? 'Tayyor · saqlash uchun bosing' : label.dataset.idle;
   }
+}
+
+const FILE_TYPES = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  txt: 'text/plain',
+  zip: 'application/zip'
+};
+
+// Browsers embedded in apps (Telegram, Instagram, Facebook) cannot save blob downloads:
+// they navigate to the blob instead and the visitor loses the site.
+function isInAppBrowser() {
+  return typeof window.TelegramWebviewProxy !== 'undefined' || /Telegram|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent);
+}
+
+function canShareFile(file) {
+  return window.matchMedia('(pointer: coarse)').matches
+    && typeof navigator.canShare === 'function'
+    && navigator.canShare({ files: [file] });
+}
+
+async function shareFile(file) {
+  try {
+    await navigator.share({ files: [file] });
+  } catch (error) {
+    if (error.name !== 'AbortError') throw error;
+  }
+}
+
+// Phones get the system share sheet (save to Files, open in PowerPoint) and stay on the page.
+// Returns true when the file waits for one more tap.
+async function deliverFile(parts, name, button) {
+  const extension = name.split('.').pop().toLowerCase();
+  const file = new File(parts, name, { type: FILE_TYPES[extension] || 'application/octet-stream' });
+  if (canShareFile(file)) {
+    try {
+      await navigator.share({ files: [file] });
+    } catch (error) {
+      if (error.name === 'NotAllowedError' && button) {
+        button._readyFile = file;
+        return true;
+      }
+      if (error.name !== 'AbortError') throw error;
+    }
+    return false;
+  }
+  if (isInAppBrowser()) {
+    showToast('Ilova ichidagi brauzer faylni saqlay olmaydi. Saytni Safari yoki Chrome’da ochib, qayta yuklang.', 'warning');
+    return false;
+  }
+  // octet-stream keeps uploaded content from ever rendering on this origin.
+  const url = URL.createObjectURL(new Blob(parts, { type: 'application/octet-stream' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  return false;
 }
 
 function fileCardHtml(file) {
@@ -243,11 +311,30 @@ async function initPublicSite() {
     `).join('');
   }
 
+  restorePublicSection();
   refreshIcons();
 
   if (session?.user) {
-    await startSession(session.user, true);
+    // A refresh on the public site stays there; only cabinet addresses (#/...) reopen the cabinet.
+    await startSession(session.user, true, { stayOnSite: !location.hash.startsWith('#/') });
   }
+}
+
+const PUBLIC_ROUTES = ['public-modules', 'public-news', 'public-contact'];
+
+function restorePublicSection() {
+  const id = location.hash.slice(1);
+  if (PUBLIC_ROUTES.includes(id)) showPublicSection(id);
+}
+
+function syncJoinButtons() {
+  const join = document.getElementById('heroJoin');
+  if (!join) return;
+  if (!join.dataset.guest) join.dataset.guest = join.innerHTML;
+  join.innerHTML = currentUser
+    ? '<i data-lucide="layout-dashboard" class="size-5"></i> Boshqaruv paneliga o‘tish'
+    : join.dataset.guest;
+  refreshIcons();
 }
 
 function setupEventListeners() {
@@ -341,6 +428,10 @@ async function openStudentModule(id) {
 }
 
 function showPublicSection(sectionId) {
+  if (!document.getElementById('screen-app').classList.contains('active')) {
+    const hash = PUBLIC_ROUTES.includes(sectionId) ? `#${sectionId}` : '';
+    history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+  }
   document.querySelectorAll('.public-section').forEach(s => s.classList.remove('active'));
   document.getElementById(sectionId)?.classList.add('active');
   document.getElementById('mainNav')?.classList.remove('open');
@@ -354,6 +445,12 @@ function showPublicSection(sectionId) {
 // ===== AUTH MODAL LOGIC =====
 function openAuthModal(type) {
   document.getElementById('mainNav')?.classList.remove('open');
+  // Signed-in visitors have nothing to sign up for: take them to their cabinet.
+  if (currentUser) {
+    showCabinet();
+    navigate('home');
+    return;
+  }
   document.getElementById('authModal').classList.add('active');
   switchAuth(type);
   refreshIcons();
@@ -531,7 +628,7 @@ function handleForgotCode(event) {
   });
 }
 
-async function startSession(user, modulesLoaded = false) {
+async function startSession(user, modulesLoaded = false, { stayOnSite = false } = {}) {
   currentUser = user;
 
   if (!modulesLoaded) {
@@ -548,10 +645,7 @@ async function startSession(user, modulesLoaded = false) {
     });
   }
 
-  // Modallarni yopish va to'g'ridan-to'g'ri tizim shaxsiy kabinetiga o'tish (hech kim bosh sahifada qotib qolmaydi!)
   document.getElementById('authModal').classList.remove('active');
-  document.getElementById('public-website').style.display = 'none';
-  document.getElementById('screen-app').classList.add('active');
 
   // Navbar user holati
   document.getElementById('navAuth').style.display = 'none';
@@ -562,7 +656,12 @@ async function startSession(user, modulesLoaded = false) {
 
   buildSidebar();
   syncAiChatAccess();
-  if (!restoreRoute()) navigate('home');
+  renderPublicModules();
+  syncJoinButtons();
+  if (!stayOnSite) {
+    showCabinet();
+    if (!restoreRoute()) navigate('home');
+  }
   refreshIcons();
 }
 
@@ -586,6 +685,7 @@ async function logout() {
   document.getElementById('loginError').textContent = '';
 
   renderPublicModules();
+  syncJoinButtons();
   showPublicSection('home');
   showToast("Tizimdan muvaffaqiyatli chiqildi.");
   refreshIcons();
@@ -597,6 +697,7 @@ function returnToWebsite() {
   document.getElementById('navAuth').style.display = currentUser ? 'none' : 'flex';
   document.getElementById('navUser').style.display = currentUser ? 'flex' : 'none';
   if (currentUser) renderAccountMenus();
+  renderPublicModules();
   showPublicSection('home');
   refreshIcons();
 }
@@ -1184,7 +1285,7 @@ async function renderModuleView(container, isPublic = false) {
 
   const stripItems = STEP_TYPES.map((step, idx) => {
     const view = stepView(step, idx);
-    return `<button type="button" class="step-chip ${view.state}" data-step-index="${idx}" ${view.isLocked ? 'disabled' : ''} onclick="selectStep(${idx}, ${isPublic})"><span class="step-mark">${view.mark}</span>${view.name.split(' ')[0]}</button>`;
+    return `<button type="button" class="step-chip ${view.state}" data-step-index="${idx}" ${view.isLocked ? 'disabled' : ''} aria-label="${idx + 1}-qadam: ${view.name}, ${view.status}" onclick="selectStep(${idx}, ${isPublic})"><span class="step-mark">${view.mark}</span></button>`;
   }).join('');
 
   const meter = editing ? { label: 'Tayyorlik', count: readyCount, fill: 'bg-success' } : { label: 'Jarayon', count: completed.length, fill: 'bg-primary' };
