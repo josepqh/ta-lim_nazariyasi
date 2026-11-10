@@ -7,3 +7,4 @@ test-results/
 playwright-report/
 .local-db/
 .local-db.lock
+dist/

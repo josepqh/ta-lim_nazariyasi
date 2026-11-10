@@ -1,4 +1,5 @@
 const { createHash, randomInt, timingSafeEqual } = require('node:crypto');
+const { reportServerError } = require('./_errors');
 const sql = require('./_db');
 const { createSession, destroySession, getSessionUser } = require('./_auth');
 const { normalizeGmail } = require('./_email');
@@ -17,6 +18,7 @@ const BAD_EMAIL = 'To‘g‘ri Gmail manzilini kiriting (…@gmail.com).';
 const BAD_PASSWORD = 'Parol kamida 10 belgidan iborat bo‘lsin.';
 const BAD_CODE = 'Kod noto‘g‘ri.';
 const EXPIRED_CODE = 'Kod eskirgan yoki urinishlar tugagan. Yangi kod oling.';
+const PENDING_TEACHER = 'Hisobingiz administrator tasdig‘ini kutmoqda. Tasdiqlangach shu Gmail bilan kiring.';
 
 const publicUser = ({ id, name, login, role }) => ({ id, name, login, role });
 const validPassword = (value) => typeof value === 'string' && value.length >= 10 && value.length <= 200;
@@ -106,6 +108,9 @@ async function handleLogin(req, res, body) {
     return res.status(401).json({ error: BAD_CREDENTIALS });
   }
 
+  if (account.status === 'pending' && !account.deleted_at) {
+    return res.status(403).json({ error: PENDING_TEACHER, pending: true });
+  }
   if (account.deleted_at || (account.status && account.status !== 'active')) {
     return res.status(403).json({ error: 'Hisobingiz faol emas. Administratorga murojaat qiling.' });
   }
@@ -142,6 +147,18 @@ async function finishRegistration(req, res, body) {
   const { payload, error } = await consumeCode(email, 'register', body.code);
   if (error) return res.status(400).json({ error });
   if (!payload) return res.status(400).json({ error: BAD_CODE });
+
+  // Teachers can change course material and see every student's work, so an administrator approves them first.
+  if (payload.role === 'teacher') {
+    await sql`
+      INSERT INTO np_users(name, login, password, role, status)
+      VALUES(${payload.name}, ${email}, ${payload.password}, 'teacher', 'pending')`;
+    const admins = await sql`SELECT login FROM np_users WHERE role='admin' AND deleted_at IS NULL AND COALESCE(status, 'active')='active'`;
+    for (const admin of admins) {
+      if (admin.login.includes('@')) await mail.sendTeacherRequest(admin.login, payload.name, email);
+    }
+    return res.status(202).json({ pending: true, message: PENDING_TEACHER });
+  }
 
   const rows = await sql`
     INSERT INTO np_users(name, login, password, role, last_login_at)
@@ -200,7 +217,7 @@ module.exports = async (req, res) => {
     return await action(req, res, body);
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'Bu Gmail bilan hisob allaqachon bor.' });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

@@ -1,6 +1,6 @@
 @import "tailwindcss" source(none);
 @source "../index.html";
-@source "../app.js";
+@source "./**/*.{ts,tsx}";
 
 /* Colors point at CSS variables, so light and dark themes switch without dark: classes. */
 @theme inline {
@@ -274,7 +274,7 @@
   .submission-response { @apply mt-4 rounded-xl border border-line bg-page p-4 wrap-anywhere whitespace-pre-wrap; }
 
   .form-group { @apply mb-5 text-left; }
-  .form-group label { @apply field-label; }
+  .form-group > label, .form-label { @apply field-label; }
   .form-group input:not([type="radio"], [type="checkbox"], [type="file"]), .form-group textarea, .form-group select { @apply field; }
   .file-input { @apply w-full py-2.5 text-sm text-ink; }
   .field-hint { @apply mt-1.5 block text-sm text-muted; }
@@ -302,6 +302,7 @@
   .badge-success { @apply bg-success/15 text-success; }
   .badge-muted { @apply bg-line text-muted; }
   .badge-primary { @apply bg-primary/10 text-primary; }
+  .badge-danger { @apply bg-danger/10 text-danger; }
 
   .spinner { @apply mx-auto my-5 size-8 animate-spin rounded-full border-[3px] border-line border-t-primary; }
   .skeleton-card { @apply pointer-events-none; }
@@ -382,6 +383,20 @@
   .footer-links { @apply mt-4 space-y-1; }
   .footer-links a { @apply inline-flex min-h-10 items-center gap-2.5 text-[15px] text-[#C9BEAF] transition-colors hover:text-white [&_svg]:size-[18px]; }
   .footer-sub { @apply inline-flex min-h-10 items-center transition-colors hover:text-white; }
+
+  /* File field: the real input stays in the page, visually hidden, for keyboards and screen readers. */
+  .file-picker { @apply min-w-0; }
+  .file-picker-box { @apply flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-line bg-page px-4 py-3.5 transition-colors duration-200 hover:border-primary peer-focus-visible:border-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 [&.chosen]:border-solid [&.chosen]:border-primary/50 [&.dragging]:border-primary [&.dragging]:bg-primary/5; }
+  .file-picker-action { @apply shrink-0 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold text-ink; }
+
+  .hero-photo { background-image: url('/images/hero-960.jpg'); }
+  @media (min-width: 961px) { .hero-photo { background-image: url('/images/hero-1920.jpg'); } }
+
+  .legal-body { @apply mt-8 max-w-3xl space-y-4 text-base leading-relaxed text-muted [&_h2]:pt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-ink [&_strong]:text-ink [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6; }
+
+  .error-list { @apply divide-y divide-line; }
+  .error-entry { @apply py-4; }
+  .error-detail { @apply mt-2 max-h-72 overflow-auto rounded-lg bg-page p-3 text-xs leading-relaxed whitespace-pre-wrap text-ink; }
 
   /* Account menu: opened from the role chip (cabinet) or the name chip (public site) */
   .account { @apply relative; }

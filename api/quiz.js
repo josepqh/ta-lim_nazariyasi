@@ -1,7 +1,9 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
 const { isUuid } = require('./_files');
 const llm = require('./_llm');
+const storage = require('./_storage');
 const { consumeLimit } = require('./_rateLimit');
 const { extractDocumentText, normalizeQuestions, parseTests, studentPaper, toAiText } = require('./_quiz');
 
@@ -12,13 +14,18 @@ const MAX_AI_REQUESTS_PER_HOUR = 20;
 
 async function loadSourceText(fileId, userId) {
   const rows = await sql`
-    SELECT id, extension FROM np_files
+    SELECT id, extension, storage_path FROM np_files
     WHERE id=${fileId}::uuid AND owner_id=${userId} AND purpose='quiz_source' AND status='ready' LIMIT 1`;
   if (!rows.length) return null;
-  const chunks = await sql`
-    SELECT replace(encode(data, 'base64'), E'\n', '') AS data
-    FROM np_file_chunks WHERE file_id=${fileId}::uuid ORDER BY chunk_index`;
-  const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk.data, 'base64')));
+  let buffer;
+  if (rows[0].storage_path) {
+    buffer = await storage.download(rows[0].storage_path);
+  } else {
+    const chunks = await sql`
+      SELECT replace(encode(data, 'base64'), E'\n', '') AS data
+      FROM np_file_chunks WHERE file_id=${fileId}::uuid ORDER BY chunk_index`;
+    buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk.data, 'base64')));
+  }
   try {
     return await extractDocumentText(buffer, rows[0].extension);
   } catch (error) {
@@ -129,7 +136,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
   } catch (error) {
     if (error instanceof llm.AssistantError) return res.status(error.status).json({ error: error.message });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

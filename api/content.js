@@ -1,7 +1,9 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { getSessionUser, requireUser } = require('./_auth');
 const { deleteOtherContentFiles, findAttachable } = require('./_files');
 const { normalizeQuestions } = require('./_quiz');
+const { loadManagedModule } = require('./_modules');
 
 const STEP_TYPES = new Set(['diag', 'video', 'pres', 'doc', 'task', 'refl']);
 const FILE_REQUIRED_STEPS = new Set(['pres', 'doc']);
@@ -69,8 +71,7 @@ module.exports = async (req, res) => {
       if (stepType === 'diag' && !questions && (!answer || answer.length > 500)) return res.status(400).json({ error: 'Test javobini kiriting (500 belgigancha).' });
       if (stepType === 'video' && !isYouTubeUrl(value)) return res.status(400).json({ error: 'HTTPS YouTube havolasini kiriting.' });
 
-      const active = await sql`SELECT 1 FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
-      if (!active.length) return res.status(404).json({ error: 'Modul topilmadi.' });
+      if (!(await loadManagedModule(res, user, moduleId))) return;
 
       const fileId = body.content?.file_id ?? null;
       let file = null;
@@ -105,6 +106,7 @@ module.exports = async (req, res) => {
       const stepType = req.query.step_type || req.body?.step_type;
       if (!Number.isSafeInteger(moduleId) || moduleId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
       if (!STEP_TYPES.has(stepType)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
+      if (!(await loadManagedModule(res, user, moduleId))) return;
 
       await sql`DELETE FROM np_module_content WHERE module_id=${moduleId} AND step_type=${stepType}`;
       if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, null);
@@ -114,7 +116,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
   } catch (error) {
     if (error.code === '23503') return res.status(404).json({ error: 'Modul topilmadi.' });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

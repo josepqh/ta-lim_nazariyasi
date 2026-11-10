@@ -1,5 +1,7 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
+const mail = require('./_mail');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -24,6 +26,8 @@ async function getProfile(res, id) {
 async function listUsers(req, res) {
   const role = req.query.role || null;
   if (role !== null && !['student', 'teacher'].includes(role)) return res.status(400).json({ error: 'Rol noto‘g‘ri.' });
+  // Teachers waiting for approval are listed on their own, never mixed into the regular lists.
+  const pending = req.query.status === 'pending';
 
   const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number.parseInt(req.query.page_size, 10) || DEFAULT_PAGE_SIZE));
@@ -53,13 +57,15 @@ async function listUsers(req, res) {
     WHERE u.deleted_at IS NULL
       AND u.role IN ('student', 'teacher')
       AND (${role}::text IS NULL OR u.role = ${role}::text)
+      AND (COALESCE(u.status, 'active') = 'pending') = ${pending}::boolean
       AND (${pattern}::text IS NULL OR u.name ILIKE ${pattern}::text OR u.login ILIKE ${pattern}::text)
     ORDER BY u.created_at DESC NULLS LAST, u.id DESC
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`;
 
   const counts = await sql`
-    SELECT role, COUNT(*)::int AS n FROM np_users
-    WHERE deleted_at IS NULL AND role IN ('student', 'teacher') GROUP BY role`;
+    SELECT CASE WHEN COALESCE(status, 'active') = 'pending' THEN 'pending' ELSE role END AS role, COUNT(*)::int AS n
+    FROM np_users
+    WHERE deleted_at IS NULL AND role IN ('student', 'teacher') GROUP BY 1`;
 
   return res.json({
     items: items.map(({ full_count: _unused, ...user }) => user),
@@ -70,16 +76,40 @@ async function listUsers(req, res) {
   });
 }
 
+async function decideTeacher(res, body) {
+  const id = Number(body.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Foydalanuvchi raqami noto‘g‘ri.' });
+  const approve = body.action === 'approve';
+  // A rejected request leaves nothing behind, so the same Gmail can apply again later.
+  const rows = approve
+    ? await sql`
+        UPDATE np_users SET status='active', updated_at=NOW()
+        WHERE id=${id} AND role='teacher' AND status='pending' AND deleted_at IS NULL
+        RETURNING id, name, login, role, status`
+    : await sql`
+        DELETE FROM np_users
+        WHERE id=${id} AND role='teacher' AND status='pending' AND deleted_at IS NULL
+        RETURNING id, name, login, role`;
+  if (!rows.length) return res.status(404).json({ error: 'Tasdiq kutayotgan o‘qituvchi topilmadi.' });
+  await mail.sendTeacherDecision(rows[0].login, approve);
+  return res.json({ ...rows[0], decision: approve ? 'approved' : 'rejected' });
+}
+
 module.exports = async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method !== 'GET') return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
+    if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
     const admin = await requireUser(req, res, ['admin']);
     if (!admin) return;
+    if (req.method === 'POST') {
+      const body = req.body && typeof req.body === 'object' ? req.body : {};
+      if (['approve', 'reject'].includes(body.action)) return await decideTeacher(res, body);
+      return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
+    }
     if (req.query.id !== undefined) return await getProfile(res, Number(req.query.id));
     return await listUsers(req, res);
   } catch (error) {
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

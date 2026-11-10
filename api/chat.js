@@ -1,4 +1,5 @@
 const { requireUser } = require('./_auth');
+const { reportServerError } = require('./_errors');
 const llm = require('./_llm');
 const { consumeLimit } = require('./_rateLimit');
 
@@ -36,7 +37,7 @@ module.exports = async (req, res) => {
     return res.json({ reply: await llm.askAssistant(messages) });
   } catch (error) {
     if (error instanceof llm.AssistantError) return res.status(error.status).json({ error: error.message });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

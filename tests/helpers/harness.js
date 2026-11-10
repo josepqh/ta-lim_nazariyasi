@@ -42,7 +42,7 @@ function loadHandlers(sql) {
   });
   const dbPath = path.join(API_DIR, '_db.js');
   require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: sql };
-  return Object.fromEntries(['auth', 'chat', 'content', 'files', 'modules', 'profile', 'progress', 'quiz', 'setup', 'users']
+  return Object.fromEntries(['auth', 'chat', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'setup', 'users']
     .map((name) => [name, require(path.join(API_DIR, `${name}.js`))]));
 }
 
@@ -75,6 +75,8 @@ async function createHarness({ dataDir } = {}) {
     const mail = require(path.join(API_DIR, '_mail.js'));
     mail.sendCode = async (to, code, purpose) => { outbox.push({ to, code, purpose }); };
     mail.sendExistingAccountNotice = async (to) => { outbox.push({ to, notice: true }); };
+    mail.sendTeacherRequest = async (to, name, email) => { outbox.push({ to, teacherRequest: email }); };
+    mail.sendTeacherDecision = async (to, approved) => { outbox.push({ to, approved }); };
   }
   const registered = new Set();
   await runSetup(handlers);
@@ -94,14 +96,18 @@ async function createHarness({ dataDir } = {}) {
       call,
       post: (name, body) => call(name, { method: 'POST', body }),
       get: (name, query = {}) => call(name, { query }),
-      async register(name, role) {
+      // Teachers are approved straight away unless `approve: false`, so most tests can use them at once.
+      async register(name, role, { approve = true } = {}) {
         const email = `${name}@gmail.com`;
         const started = await call('auth', { method: 'POST', body: { action: 'register_start', name: `Name ${name}`, email, password: 'a-valid-password', role } });
         if (started.statusCode !== 200) return started;
         const { code } = outbox.findLast((item) => item.to === email);
         await sql`UPDATE np_email_codes SET last_sent_at = NOW() - INTERVAL '2 minutes' WHERE email=${email}`;
         registered.add(name);
-        return call('auth', { method: 'POST', body: { action: 'register_verify', email, code } });
+        const verified = await call('auth', { method: 'POST', body: { action: 'register_verify', email, code } });
+        if (!verified.body?.pending || !approve) return verified;
+        await sql`UPDATE np_users SET status='active' WHERE login=${email}`;
+        return call('auth', { method: 'POST', body: { action: 'login', login: email, password: 'a-valid-password' } });
       },
       login: (login, password) => call('auth', { method: 'POST', body: { action: 'login', login: registered.has(login) ? `${login}@gmail.com` : login, password } }),
       async upload({ moduleId, stepType, purpose, filename, bytes }) {

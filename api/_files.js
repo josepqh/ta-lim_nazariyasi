@@ -1,4 +1,5 @@
 const sql = require('./_db');
+const storage = require('./_storage');
 
 // Vercel rejects bodies over 4.5 MB; 3 MiB of data is about 4.2 MB once base64-encoded.
 const CHUNK_SIZE = 3 * 1024 * 1024;
@@ -52,14 +53,20 @@ async function findAttachable(fileId, { purpose, moduleId, stepType, ownerId = n
   return rows[0] ? publicFile(rows[0]) : null;
 }
 
+// Deleted rows hand back their Storage objects so those are removed too.
+async function purgeStored(rows) {
+  await storage.remove(rows.map((row) => row.storage_path));
+}
+
 async function deleteOtherContentFiles(moduleId, stepType, keepId) {
-  await sql`
+  await purgeStored(await sql`
     DELETE FROM np_files
     WHERE purpose='content' AND module_id=${moduleId} AND step_type=${stepType}
-      AND (${keepId}::uuid IS NULL OR id <> ${keepId}::uuid)`;
+      AND (${keepId}::uuid IS NULL OR id <> ${keepId}::uuid)
+    RETURNING storage_path`);
 }
 
 module.exports = {
   ALLOWED_EXTENSIONS, CHUNK_SIZE, MAX_FILE_SIZE,
-  cleanFilename, deleteOtherContentFiles, extensionOf, findAttachable, isUuid, matchesSignature, publicFile
+  cleanFilename, deleteOtherContentFiles, extensionOf, findAttachable, isUuid, matchesSignature, publicFile, purgeStored
 };

@@ -1,4 +1,5 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { createSession, requireUser } = require('./_auth');
 const { hashPassword, verifyPassword } = require('./_password');
 const { consumeLimit } = require('./_rateLimit');
@@ -55,7 +56,7 @@ module.exports = async (req, res) => {
     if (req.method === 'PATCH') return await updateName(res, user, body);
     return await changePassword(req, res, user, body);
   } catch (error) {
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

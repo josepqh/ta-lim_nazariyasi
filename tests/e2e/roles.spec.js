@@ -1,4 +1,4 @@
-const { expect, test } = require('@playwright/test');
+const { expect, request, test } = require('@playwright/test');
 const { TEST_ADMIN } = require('../helpers/harness');
 
 const PASSWORD = 'a-valid-password';
@@ -22,6 +22,18 @@ async function emailedCode(page, email) {
   return code;
 }
 
+// The administrator approves a waiting teacher through the API, in a session of its own.
+async function approveTeacher(page, email) {
+  const admin = await request.newContext({ baseURL: new URL(page.url()).origin });
+  expect((await admin.post('/api/auth', { data: { action: 'login', ...TEST_ADMIN } })).ok()).toBe(true);
+  const queue = await (await admin.get(`/api/users?status=pending&q=${encodeURIComponent(email)}`)).json();
+  const row = queue.items.find((item) => item.login === email);
+  expect(row).toBeTruthy();
+  expect((await admin.post('/api/users', { data: { action: 'approve', id: row.id } })).ok()).toBe(true);
+  await admin.dispose();
+}
+
+// Teachers wait for approval after the emailed code, so the helper approves them and signs them in.
 async function register(page, { name, login, role }) {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await page.locator('#navRegister').click();
@@ -34,6 +46,13 @@ async function register(page, { name, login, role }) {
   await expect(page.locator('#registerCodeForm')).toHaveClass(ACTIVE);
   await page.locator('#regCode').fill(await emailedCode(page, email));
   await page.locator('#registerCodeForm button[type="submit"]').click();
+  if (role === 'teacher') {
+    await expect(page.locator('#registerPending')).toBeVisible();
+    await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
+    await approveTeacher(page, email);
+    await page.getByRole('button', { name: 'Tushunarli' }).click();
+    await signIn(page, { login: email, password: PASSWORD, role: 'teacher' });
+  }
   await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
   await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
 }
@@ -628,4 +647,105 @@ test('content that does not fit on a phone wraps instead of running sideways', a
   const strip = page.locator('.lesson-strip');
   expect(await strip.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
   expect(await page.locator('#pageTitle').evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+test('the administrator approves a new teacher from the waiting list', async ({ browser }) => {
+  const login = unique('applicant');
+  const email = `${login}@gmail.com`;
+  const page = await (await browser.newContext()).newPage();
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.locator('#navRegister').click();
+  await page.locator('#registerForm .role-tab[data-role="teacher"]').click();
+  await expect(page.locator('#registerForm')).toContainText('administrator tasdiqlaydi');
+  await page.locator('#regName').fill('Kutayotgan Ustoz');
+  await page.locator('#regLogin').fill(email);
+  await page.locator('#regPass').fill(PASSWORD);
+  await page.locator('#registerForm button[type="submit"]').click();
+  await expect(page.locator('#registerCodeForm')).toHaveClass(ACTIVE);
+  await page.locator('#regCode').fill(await emailedCode(page, email));
+  await page.locator('#registerCodeForm button[type="submit"]').click();
+  await expect(page.locator('#registerPending')).toBeVisible();
+  await page.getByRole('button', { name: 'Tushunarli' }).click();
+
+  await signIn(page, { login: email, password: PASSWORD, role: 'teacher' });
+  await expect(page.locator('#loginError')).toContainText('tasdig‘ini kutmoqda');
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
+
+  const admin = await (await browser.newContext()).newPage();
+  await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
+  await admin.locator('#adminPendingCount').click();
+  await expect(admin.locator('#usersTabPending')).toHaveAttribute('aria-pressed', 'true');
+  const row = admin.locator('#usersTable tr', { hasText: email });
+  await row.getByRole('button', { name: 'Tasdiqlash' }).click();
+  await expect(admin.locator('#toast')).toContainText('tasdiqlandi');
+  await expect(admin.locator('#usersTable tr', { hasText: email })).toHaveCount(0);
+
+  await page.locator('#loginForm button[type="submit"]').click();
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+});
+
+test('a teacher sees another teacher’s module but cannot change it', async ({ browser }) => {
+  const title = unique('Begona');
+  const owner = await (await browser.newContext()).newPage();
+  await register(owner, { name: 'Owner Teacher', login: unique('owner'), role: 'teacher' });
+  await publishFullModule(owner, browser, title, 800000 + Math.floor(Math.random() * 100000));
+
+  const other = await (await browser.newContext()).newPage();
+  await register(other, { name: 'Other Teacher', login: unique('other'), role: 'teacher' });
+  await openManage(other);
+  const row = other.locator('#pageContainer > .card > div', { hasText: title });
+  await expect(row).toContainText('Boshqa o‘qituvchining moduli');
+  await expect(row.getByRole('button', { name: 'O‘chirish' })).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Tahrirlash' })).toHaveCount(0);
+
+  await openMenu(other, 'Modullar');
+  await other.locator('.module-card', { hasText: title }).click();
+  await expect(other.locator('#stepBody')).toBeVisible();
+  await expect(other.locator('#lessonPreviewBtn')).toHaveCount(0);
+  await expect(other.locator('.lesson-content')).toContainText('boshqa o‘qituvchi yaratgan');
+  await expect(other.locator('.step-item.ready')).toHaveCount(0);
+});
+
+test('browser errors reach the administrator’s error log', async ({ browser }) => {
+  const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto('/', { waitUntil: 'load' });
+  const message = `E2E sinov xatosi ${Date.now()}`;
+  const sent = visitor.waitForResponse((response) => response.url().endsWith('/api/errors') && response.status() === 202);
+  await visitor.evaluate((text) => window.dispatchEvent(new ErrorEvent('error', { message: text, error: new Error(text) })), message);
+  await sent;
+
+  const admin = await (await browser.newContext()).newPage();
+  await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
+  await openMenu(admin, 'Xatolar jurnali');
+  await expect(admin.locator('.error-entry', { hasText: message })).toContainText('Brauzer');
+});
+
+test('the file field is in Uzbek and names the chosen file', async ({ page }) => {
+  await register(page, { name: 'Picker Teacher', login: unique('picker'), role: 'teacher' });
+  await openManage(page);
+  const box = page.locator('label[for="newPresFile"]');
+  await expect(box).toContainText('Fayl tanlang');
+  await page.locator('#newPresFile').setInputFiles(file('dars.pptx', PPTX));
+  await expect(box).toContainText('dars.pptx');
+  await expect(box).toContainText('Almashtirish');
+  await expect(page.getByText('Choose File')).toHaveCount(0);
+});
+
+test('legal pages, search metadata and a strict content policy', async ({ page }) => {
+  const violations = [];
+  page.on('console', (message) => { if (/Content Security Policy/i.test(message.text())) violations.push(message.text()); });
+  await page.goto('/', { waitUntil: 'load' });
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /olti qadamli modullar/);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /og-image\.jpg$/);
+  expect((await page.request.get('/robots.txt')).ok()).toBe(true);
+  expect((await page.request.get('/og-image.jpg')).ok()).toBe(true);
+
+  await page.locator('.site-footer').getByRole('link', { name: 'Maxfiylik siyosati' }).first().click();
+  await expect(page.locator('#privacy')).toHaveClass(ACTIVE);
+  await expect(page.locator('#privacy h1')).toHaveText('Maxfiylik siyosati');
+  await page.reload({ waitUntil: 'load' });
+  await expect(page.locator('#privacy')).toHaveClass(ACTIVE);
+  await page.locator('.site-footer').getByRole('link', { name: 'Foydalanish shartlari' }).click();
+  await expect(page.locator('#terms h1')).toHaveText('Foydalanish shartlari');
+  expect(violations).toEqual([]);
 });

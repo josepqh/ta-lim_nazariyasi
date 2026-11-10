@@ -1,5 +1,7 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
+const { loadManagedModule } = require('./_modules');
 
 module.exports = async (req, res) => {
   try {
@@ -7,7 +9,11 @@ module.exports = async (req, res) => {
       if (req.query.deleted === '1') {
         const staff = await requireUser(req, res, ['teacher', 'admin']);
         if (!staff) return;
-        return res.json(await sql`SELECT id, order_num, title, deleted_at FROM np_modules WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC`);
+        // Teachers see and restore only their own deleted modules.
+        return res.json(await sql`
+          SELECT id, order_num, title, created_by, deleted_at FROM np_modules
+          WHERE deleted_at IS NOT NULL AND (${staff.role === 'admin'}::boolean OR created_by=${staff.id})
+          ORDER BY deleted_at DESC`);
       }
       const modules = await sql`SELECT * FROM np_modules WHERE deleted_at IS NULL ORDER BY order_num`;
       return res.json(modules);
@@ -20,7 +26,7 @@ module.exports = async (req, res) => {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       if (body.action === 'restore') {
         const restoreId = Number(body.id);
-        if (!Number.isSafeInteger(restoreId) || restoreId < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+        if (!(await loadManagedModule(res, user, restoreId, { deleted: true }))) return;
         const restored = await sql`UPDATE np_modules SET deleted_at=NULL, updated_at=NOW() WHERE id=${restoreId} AND deleted_at IS NOT NULL RETURNING *`;
         if (!restored.length) return res.status(404).json({ error: 'Modul topilmadi.' });
         return res.json(restored[0]);
@@ -37,6 +43,7 @@ module.exports = async (req, res) => {
 
       let rows;
       if (id) {
+        if (!(await loadManagedModule(res, user, id))) return;
         rows = await sql`
           UPDATE np_modules 
           SET order_num=${orderNum}, title=${title}, description=${description}, updated_at=NOW()
@@ -56,7 +63,7 @@ module.exports = async (req, res) => {
       if (!user) return;
 
       const id = Number(req.query.id || (req.body && typeof req.body === 'object' ? req.body.id : null));
-      if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
+      if (!(await loadManagedModule(res, user, id))) return;
 
       // Soft delete: student work stays and the module can be restored.
       const deleted = await sql`UPDATE np_modules SET deleted_at=NOW(), updated_at=NOW() WHERE id=${id} AND deleted_at IS NULL RETURNING id`;
@@ -67,7 +74,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
   } catch (error) {
     if (error.code === '23505') return res.status(409).json({ error: 'Bu tartib raqamli modul allaqachon bor.' });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

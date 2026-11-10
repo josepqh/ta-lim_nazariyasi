@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { before, describe, test } = require('node:test');
+const { after, before, describe, test } = require('node:test');
 const { TEST_ADMIN, createHarness } = require('./helpers/harness');
 
 const PPTX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(100, 7)]);
@@ -688,5 +688,264 @@ describe('own profile', () => {
     const attempt = () => person.post('profile', { current_password: 'wrong-password', new_password: 'another-password' });
     for (let i = 0; i < 5; i++) assert.equal((await attempt()).statusCode, 400);
     assert.equal((await attempt()).statusCode, 429);
+  });
+});
+
+describe('teacher approval', () => {
+  test('a new teacher waits for the administrator and cannot sign in until approved', async () => {
+    const name = unique('newteacher');
+    // Notices go to administrators whose login is a mailbox.
+    const [notified] = await harness.sql`
+      INSERT INTO np_users(name, login, password, role) VALUES('Mail Admin', 'mailadmin@gmail.com', 'x', 'admin') RETURNING id`;
+    const applicant = harness.client();
+    const res = await applicant.register(name, 'teacher', { approve: false });
+    await harness.sql`DELETE FROM np_users WHERE id=${notified.id}`;
+    assert.equal(res.statusCode, 202);
+    assert.equal(res.body.pending, true);
+    assert.equal((await applicant.get('auth')).body.user, null);
+    assert.ok(harness.outbox.some((item) => item.to === 'mailadmin@gmail.com' && item.teacherRequest === `${name}@gmail.com`));
+
+    const early = await harness.client().login(name, 'a-valid-password');
+    assert.equal(early.statusCode, 403);
+    assert.equal(early.body.pending, true);
+
+    const queue = await admin.get('users', { status: 'pending' });
+    const row = queue.body.items.find((item) => item.login === `${name}@gmail.com`);
+    assert.ok(row);
+    assert.ok(queue.body.counts.pending >= 1);
+    const teachers = await admin.get('users', { role: 'teacher', q: name });
+    assert.equal(teachers.body.items.length, 0);
+
+    assert.equal((await teacher.post('users', { action: 'approve', id: row.id })).statusCode, 403);
+    const approved = await admin.post('users', { action: 'approve', id: row.id });
+    assert.equal(approved.statusCode, 200);
+    assert.equal(harness.outbox.at(-1).approved, true);
+    assert.equal((await harness.client().login(name, 'a-valid-password')).statusCode, 200);
+    assert.equal((await admin.post('users', { action: 'approve', id: row.id })).statusCode, 404);
+  });
+
+  test('a rejected request is removed so the mailbox can apply again', async () => {
+    const name = unique('rejected');
+    await harness.client().register(name, 'teacher', { approve: false });
+    const [row] = await harness.sql`SELECT id FROM np_users WHERE login=${`${name}@gmail.com`}`;
+    assert.equal((await admin.post('users', { action: 'reject', id: row.id })).statusCode, 200);
+    assert.equal(harness.outbox.at(-1).approved, false);
+    assert.equal((await harness.sql`SELECT 1 FROM np_users WHERE id=${row.id}`).length, 0);
+    assert.equal((await harness.client().login(name, 'a-valid-password')).statusCode, 401);
+  });
+});
+
+describe('module ownership', () => {
+  let rival, rivalModule;
+  before(async () => {
+    rival = harness.client();
+    await rival.register(unique('rival_teacher'), 'teacher');
+    rivalModule = await addModule(rival);
+  });
+
+  test('a teacher cannot change another teacher’s module', async () => {
+    const edit = await teacher.post('modules', { id: rivalModule, order_num: 999001, title: 'Hijacked' });
+    assert.equal(edit.statusCode, 403);
+    assert.equal((await teacher.call('modules', { method: 'DELETE', query: { id: rivalModule } })).statusCode, 403);
+    assert.equal((await teacher.post('content', { module_id: rivalModule, step_type: 'task', content: { value: 'Mine now' } })).statusCode, 403);
+    assert.equal((await teacher.call('content', { method: 'DELETE', query: { module_id: rivalModule, step_type: 'task' } })).statusCode, 403);
+    const upload = await teacher.upload({ moduleId: rivalModule, stepType: 'pres', purpose: 'content', filename: 'x.pptx', bytes: PPTX });
+    assert.equal(upload.statusCode, 403);
+    const [module] = await harness.sql`SELECT title FROM np_modules WHERE id=${rivalModule}`;
+    assert.equal(module.title, 'Module');
+  });
+
+  test('the administrator manages every module', async () => {
+    assert.equal((await admin.post('modules', { id: rivalModule, order_num: 999002, title: 'Renamed by admin' })).statusCode, 200);
+    assert.equal((await admin.post('content', { module_id: rivalModule, step_type: 'task', content: { value: 'Admin task' } })).statusCode, 200);
+  });
+
+  test('a teacher sees and restores only their own deleted modules', async () => {
+    const mine = await addModule(teacher);
+    assert.equal((await teacher.call('modules', { method: 'DELETE', query: { id: mine } })).statusCode, 200);
+    assert.equal((await rival.call('modules', { method: 'DELETE', query: { id: rivalModule } })).statusCode, 200);
+
+    const listed = (await teacher.get('modules', { deleted: '1' })).body.map((row) => row.id);
+    assert.ok(listed.includes(mine));
+    assert.ok(!listed.includes(rivalModule));
+    assert.equal((await teacher.post('modules', { action: 'restore', id: rivalModule })).statusCode, 403);
+    assert.equal((await teacher.post('modules', { action: 'restore', id: mine })).statusCode, 200);
+    assert.equal((await admin.post('modules', { action: 'restore', id: rivalModule })).statusCode, 200);
+  });
+
+  test('only the module’s teacher or the administrator reviews its work', async () => {
+    const pupil = harness.client();
+    await pupil.register(unique('pupil'));
+    const id = await buildFullModule(rival);
+    await finishUntilTask(pupil, id);
+    await pupil.post('progress', { module_id: id, step_type: 'task', response: 'My answer' });
+    const [row] = await harness.sql`SELECT id FROM np_progress WHERE module_id=${id}`;
+    const review = { action: 'review', progress_id: row.id, step: 'task', feedback: 'Good' };
+    assert.equal((await teacher.post('progress', review)).statusCode, 403);
+    assert.equal((await rival.post('progress', review)).statusCode, 200);
+    assert.equal((await admin.post('progress', review)).statusCode, 200);
+  });
+});
+
+describe('error log', () => {
+  test('browsers report errors and only the administrator reads or clears them', async () => {
+    const visitor = harness.client();
+    const sent = await visitor.call('errors', {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '203.0.113.9', 'user-agent': 'Test browser' },
+      body: { message: 'TypeError: x is undefined', detail: 'at app.tsx:10', path: '/#/modules' }
+    });
+    assert.equal(sent.statusCode, 202);
+    assert.equal((await visitor.call('errors', { method: 'POST', body: { message: '  ' } })).statusCode, 400);
+
+    assert.equal((await teacher.get('errors')).statusCode, 403);
+    const log = await admin.get('errors');
+    assert.equal(log.statusCode, 200);
+    const row = log.body.items.find((item) => item.message === 'TypeError: x is undefined');
+    assert.equal(row.source, 'client');
+    assert.equal(row.path, '/#/modules');
+    assert.ok(log.body.last_day >= 1);
+  });
+
+  test('server failures are written to the log', async () => {
+    const { reportServerError } = require('../api/_errors');
+    const original = console.error;
+    console.error = () => {};
+    await reportServerError(new Error('database went away'), { method: 'POST', url: '/api/progress?x=1', headers: {} });
+    console.error = original;
+    const log = await admin.get('errors');
+    const row = log.body.items.find((item) => item.message === 'database went away');
+    assert.equal(row.source, 'server');
+    assert.equal(row.path, 'POST /api/progress');
+    assert.equal((await admin.call('errors', { method: 'DELETE' })).statusCode, 200);
+    assert.equal((await admin.get('errors')).body.total, 0);
+  });
+
+  test('error reports from one address are limited', async () => {
+    const visitor = harness.client();
+    const send = () => visitor.call('errors', { method: 'POST', headers: { 'x-forwarded-for': '198.51.100.7' }, body: { message: 'boom' } });
+    for (let i = 0; i < 30; i++) assert.equal((await send()).statusCode, 202);
+    assert.equal((await send()).statusCode, 429);
+  });
+});
+
+describe('migrations', () => {
+  test('each migration is recorded once and a second run applies nothing', async () => {
+    const versions = (await harness.sql`SELECT version FROM np_schema_migrations ORDER BY version`).map((row) => row.version);
+    assert.deepEqual(versions, require('../api/_migrations').map((migration) => migration.version));
+    const { migrate } = require('../api/_migrate');
+    assert.deepEqual(await migrate(harness.sql), []);
+  });
+});
+
+describe('Supabase Storage', () => {
+  const { createFakeStorage } = require('./helpers/fake-storage');
+  let fake, uninstall;
+  before(() => {
+    fake = createFakeStorage();
+    uninstall = fake.install();
+  });
+  after(() => uninstall());
+
+  async function directUpload(by, { moduleId: id, stepType, purpose, filename, bytes }) {
+    const init = await by.post('files', { action: 'init', module_id: id, step_type: stepType, purpose, filename, size: bytes.length });
+    if (init.statusCode !== 201) return init;
+    assert.equal(init.body.mode, 'direct');
+    const put = await fetch(init.body.upload_url, { method: 'PUT', body: bytes });
+    assert.equal(put.status, 200);
+    return by.post('files', { action: 'complete', id: init.body.id });
+  }
+
+  test('setup creates a private bucket once', async () => {
+    const storage = require('../api/_storage');
+    assert.equal(await storage.ensureBucket(), 'created');
+    assert.equal(await storage.ensureBucket(), 'exists');
+  });
+
+  test('files go straight to Storage and come back through a signed download link', async () => {
+    const id = await addModule(teacher);
+    const done = await directUpload(teacher, { moduleId: id, stepType: 'pres', purpose: 'content', filename: 'dars.pptx', bytes: PPTX });
+    assert.equal(done.statusCode, 200, JSON.stringify(done.body));
+    const [row] = await harness.sql`SELECT storage_path, status FROM np_files WHERE id=${done.body.id}::uuid`;
+    assert.equal(row.status, 'ready');
+    assert.ok(fake.objects.has(row.storage_path));
+    assert.equal((await harness.sql`SELECT 1 FROM np_file_chunks WHERE file_id=${done.body.id}::uuid`).length, 0);
+
+    const meta = await student.get('files', { id: done.body.id });
+    assert.equal(meta.statusCode, 200);
+    assert.match(meta.body.url, /^https:\/\/fake-project\.supabase\.co\/storage\/v1\/object\/sign\/files\/content\/.+\?token=dl&download=dars\.pptx$/);
+    assert.equal((await student.get('files', { id: done.body.id, chunk: '0' })).statusCode, 400);
+
+    await addContent(teacher, id, 'pres', { value: '', file_id: done.body.id });
+    const second = await directUpload(teacher, { moduleId: id, stepType: 'pres', purpose: 'content', filename: 'yangi.pptx', bytes: PPTX });
+    await addContent(teacher, id, 'pres', { value: '', file_id: second.body.id });
+    assert.ok(!fake.objects.has(row.storage_path), 'the replaced file is removed from Storage');
+  });
+
+  test('an upload that does not match its format or size is rejected and removed', async () => {
+    const id = await addModule(teacher);
+    const init = await teacher.post('files', { action: 'init', module_id: id, step_type: 'pres', purpose: 'content', filename: 'fake.pptx', size: PDF.length });
+    await fetch(init.body.upload_url, { method: 'PUT', body: PDF });
+    const done = await teacher.post('files', { action: 'complete', id: init.body.id });
+    assert.equal(done.statusCode, 415);
+    assert.equal((await harness.sql`SELECT 1 FROM np_files WHERE id=${init.body.id}::uuid`).length, 0);
+    assert.equal([...fake.objects.keys()].some((key) => key.includes(init.body.id)), false);
+
+    const lying = await teacher.post('files', { action: 'init', module_id: id, step_type: 'pres', purpose: 'content', filename: 'big.pptx', size: PPTX.length + 50 });
+    await fetch(lying.body.upload_url, { method: 'PUT', body: PPTX });
+    assert.equal((await teacher.post('files', { action: 'complete', id: lying.body.id })).statusCode, 415);
+
+    const missing = await teacher.post('files', { action: 'init', module_id: id, step_type: 'pres', purpose: 'content', filename: 'none.pptx', size: PPTX.length });
+    assert.equal((await teacher.post('files', { action: 'complete', id: missing.body.id })).statusCode, 409);
+    assert.equal((await teacher.post('files', { action: 'chunk', id: missing.body.id, index: 0, data: 'AAAA' })).statusCode, 409);
+  });
+
+  test('the old chunks move to Storage and stay downloadable', async () => {
+    uninstall();
+    const id = await addModule(teacher);
+    const legacy = await teacher.upload({ moduleId: id, stepType: 'doc', purpose: 'content', filename: 'eski.pdf', bytes: PDF });
+    assert.equal(legacy.statusCode, 200);
+    uninstall = fake.install();
+
+    const { moveFilesToStorage } = require('../scripts/move-files-to-storage');
+    const moved = await moveFilesToStorage(harness.sql, { log: () => {} });
+    assert.ok(moved >= 1);
+    const [row] = await harness.sql`SELECT storage_path FROM np_files WHERE id=${legacy.body.id}::uuid`;
+    assert.deepEqual(fake.objects.get(row.storage_path), PDF);
+    assert.equal((await harness.sql`SELECT 1 FROM np_file_chunks WHERE file_id=${legacy.body.id}::uuid`).length, 0);
+    assert.match((await student.get('files', { id: legacy.body.id })).body.url, /download=eski\.pdf$/);
+    uninstall();
+  });
+});
+
+describe('mail service', () => {
+  test('with a Resend key the code goes through the mail service from your own domain', async () => {
+    delete require.cache[require.resolve('../api/_mail')];
+    const mail = require('../api/_mail');
+    const saved = { fetch: global.fetch, key: process.env.RESEND_API_KEY, from: process.env.MAIL_FROM };
+    const sent = [];
+    global.fetch = async (url, init) => {
+      sent.push({ url, auth: init.headers.authorization, body: JSON.parse(init.body) });
+      return new Response('{"id":"1"}', { status: 200 });
+    };
+    process.env.RESEND_API_KEY = 're_test_key';
+    process.env.MAIL_FROM = 'noreply@talim.example';
+    const original = console.log;
+    console.log = () => {};
+    try {
+      await mail.sendCode('user@gmail.com', '123456', 'register');
+      global.fetch = async () => new Response('{"message":"domain not verified"}', { status: 403 });
+      await assert.rejects(mail.sendCode('user@gmail.com', '123456', 'register'), /refused/);
+    } finally {
+      console.log = original;
+      global.fetch = saved.fetch;
+      if (saved.key === undefined) delete process.env.RESEND_API_KEY; else process.env.RESEND_API_KEY = saved.key;
+      if (saved.from === undefined) delete process.env.MAIL_FROM; else process.env.MAIL_FROM = saved.from;
+    }
+    assert.equal(sent[0].url, 'https://api.resend.com/emails');
+    assert.equal(sent[0].auth, 'Bearer re_test_key');
+    assert.deepEqual(sent[0].body.to, ['user@gmail.com']);
+    assert.equal(sent[0].body.from, "Ta'lim Nazariyasi <noreply@talim.example>");
+    assert.match(sent[0].body.text, /123456/);
   });
 });

@@ -1,5 +1,6 @@
-// Runs the site and the real API handlers.
+// Runs the built site (dist/, made by `npm run build`) and the real API handlers.
 // With DATABASE_URL in .env it uses that database; otherwise a local one stored in .local-db/.
+// `npm run dev` runs this as the API behind Vite's dev server instead (API_ONLY=1).
 require('dotenv').config({ quiet: true });
 
 const fs = require('node:fs');
@@ -8,14 +9,15 @@ const path = require('node:path');
 const { TEST_ADMIN, createHarness, createResponse } = require('./helpers/harness');
 
 const ROOT = path.join(__dirname, '..');
-const HANDLER_NAMES = ['auth', 'chat', 'content', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
-const NEVER_SERVED = new Set(['node_modules', 'tests', 'api', 'test-results', 'playwright-report', 'package.json', 'package-lock.json', 'run_setup.js', 'playwright.config.js', 'vercel.json', 'README.md']);
+const DIST = path.join(ROOT, 'dist');
+const HANDLER_NAMES = ['auth', 'chat', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
 const MAX_PORT_ATTEMPTS = 10;
 const LOCK_FILE = path.join(ROOT, '.local-db.lock');
 let localDatabaseClaimed = false;
 const MIME = {
-  '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml'
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.map': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.txt': 'text/plain; charset=utf-8', '.xml': 'application/xml', '.webmanifest': 'application/manifest+json'
 };
 const securityHeaders = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')).headers[0].headers;
 
@@ -98,16 +100,18 @@ function captureTestMail() {
   const mail = require('../api/_mail');
   mail.sendCode = async (to, code) => { testMailbox.set(to, code); };
   mail.sendExistingAccountNotice = async () => {};
+  mail.sendTeacherRequest = async () => {};
+  mail.sendTeacherDecision = async () => {};
 }
 
 function isServable(relative) {
-  return relative.split('/').every((segment) => segment && !segment.startsWith('.'))
-    && !NEVER_SERVED.has(relative.split('/')[0]);
+  return relative.split(path.sep).every((segment) => segment && !segment.startsWith('.'));
 }
 
 async function handleApi(req, res, handler, url) {
   const raw = await readBody(req);
   const apiReq = {
+    url: req.url,
     method: req.method,
     headers: req.headers,
     query: Object.fromEntries(url.searchParams),
@@ -122,9 +126,9 @@ async function handleApi(req, res, handler, url) {
 
 function serveStatic(res, url) {
   const relative = url.pathname === '/' ? 'index.html' : decodeURIComponent(url.pathname.slice(1));
-  const file = path.resolve(ROOT, relative);
-  const insideRoot = file.startsWith(`${ROOT}${path.sep}`);
-  if (!insideRoot || !isServable(path.relative(ROOT, file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+  const file = path.resolve(DIST, relative);
+  const insideRoot = file.startsWith(`${DIST}${path.sep}`);
+  if (!insideRoot || !isServable(path.relative(DIST, file)) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     res.writeHead(404).end('Not found');
     return;
   }
@@ -144,6 +148,10 @@ function listen(server, port, attemptsLeft) {
 }
 
 async function main() {
+  if (process.env.API_ONLY !== '1' && !fs.existsSync(path.join(DIST, 'index.html'))) {
+    console.error('Sayt hali yig‘ilmagan. Avval quyidagini ishga tushiring: npm run build');
+    process.exit(1);
+  }
   const handlers = process.env.DATABASE_URL ? await useRealDatabase() : await useLocalDatabase();
   const exposeMail = process.env.E2E_MAIL === '1' && process.env.LOCAL_DB_DIR === 'memory';
   if (exposeMail) captureTestMail();

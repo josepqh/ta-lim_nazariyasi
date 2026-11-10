@@ -1,7 +1,9 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
 const { findAttachable, isUuid } = require('./_files');
 const { gradeAnswers, quizVersion } = require('./_quiz');
+const { canManage } = require('./_modules');
 
 const STEP_TYPES = ['diag', 'video', 'pres', 'doc', 'task', 'refl'];
 const REVIEWABLE_STEPS = ['task', 'refl'];
@@ -65,6 +67,12 @@ async function saveReview(res, teacher, body) {
   if (!Number.isSafeInteger(progressId) || progressId < 1) return res.status(400).json({ error: 'Topshiriq raqami noto‘g‘ri.' });
   if (!REVIEWABLE_STEPS.includes(step)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
   if (!feedback || feedback.length > 5000) return res.status(400).json({ error: 'Fikr 1–5000 belgidan iborat bo‘lsin.' });
+
+  const owners = await sql`
+    SELECT m.created_by FROM np_progress p JOIN np_modules m ON m.id = p.module_id
+    WHERE p.id=${progressId} LIMIT 1`;
+  if (!owners.length) return res.status(404).json({ error: 'Topshiriq topilmadi.' });
+  if (!canManage(teacher, owners[0])) return res.status(403).json({ error: 'Bu modul ishlarini faqat uning muallifi yoki administrator baholaydi.' });
 
   // jsonb_set only creates the last path element, so "reviews" must exist first.
   const rows = await sql`
@@ -192,7 +200,7 @@ module.exports = async (req, res) => {
     return await completeStep(res, user, body);
   } catch (error) {
     if (error.code === '23503') return res.status(404).json({ error: 'Modul topilmadi.' });
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

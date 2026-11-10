@@ -1,8 +1,12 @@
 const sql = require('./_db');
+const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
+const { loadManagedModule } = require('./_modules');
+const { randomUUID } = require('node:crypto');
+const storage = require('./_storage');
 const {
   ALLOWED_EXTENSIONS, CHUNK_SIZE, MAX_FILE_SIZE,
-  cleanFilename, extensionOf, isUuid, matchesSignature, publicFile
+  cleanFilename, extensionOf, isUuid, matchesSignature, publicFile, purgeStored
 } = require('./_files');
 
 const MAX_PENDING_UPLOADS = 5;
@@ -35,13 +39,17 @@ async function startUpload(res, user, body) {
 
   if (isQuizSource) {
     // A source file only lives until its questions are read; keep one per teacher.
-    await sql`DELETE FROM np_files WHERE owner_id=${user.id} AND purpose='quiz_source'`;
+    await purgeStored(await sql`DELETE FROM np_files WHERE owner_id=${user.id} AND purpose='quiz_source' RETURNING storage_path`);
+  } else if (purpose === 'content') {
+    if (!(await loadManagedModule(res, user, moduleId))) return;
   } else {
     const modules = await sql`SELECT id FROM np_modules WHERE id=${moduleId} AND deleted_at IS NULL LIMIT 1`;
     if (!modules.length) return res.status(404).json({ error: 'Modul topilmadi.' });
   }
 
-  await sql`DELETE FROM np_files WHERE owner_id=${user.id} AND status='uploading' AND created_at < NOW() - INTERVAL '1 day'`;
+  await purgeStored(await sql`
+    DELETE FROM np_files WHERE owner_id=${user.id} AND status='uploading' AND created_at < NOW() - INTERVAL '1 day'
+    RETURNING storage_path`);
 
   if (purpose === 'submission') {
     const done = await sql`
@@ -49,9 +57,10 @@ async function startUpload(res, user, body) {
       WHERE user_id=${user.id} AND module_id=${moduleId} AND completed_steps ? 'task' LIMIT 1`;
     if (done.length) return res.status(409).json({ error: 'Bu topshiriq allaqachon yuborilgan.' });
     // Until the step is submitted, earlier uploads for it are abandoned attempts.
-    await sql`
+    await purgeStored(await sql`
       DELETE FROM np_files
-      WHERE owner_id=${user.id} AND purpose='submission' AND module_id=${moduleId} AND step_type='task'`;
+      WHERE owner_id=${user.id} AND purpose='submission' AND module_id=${moduleId} AND step_type='task'
+      RETURNING storage_path`);
   }
 
   const pending = await sql`SELECT COUNT(*)::int AS n FROM np_files WHERE owner_id=${user.id} AND status='uploading'`;
@@ -59,12 +68,16 @@ async function startUpload(res, user, body) {
     return res.status(429).json({ error: 'Tugallanmagan yuklashlar ko‘p. Bir ozdan keyin urinib ko‘ring.' });
   }
 
+  const id = randomUUID();
   const totalChunks = Math.ceil(size / CHUNK_SIZE);
-  const rows = await sql`
-    INSERT INTO np_files(owner_id, module_id, step_type, purpose, filename, extension, size_bytes, total_chunks)
-    VALUES(${user.id}, ${isQuizSource ? null : moduleId}, ${isQuizSource ? 'quiz_source' : stepType}, ${purpose}, ${filename}, ${extension}, ${size}, ${totalChunks})
-    RETURNING id`;
-  return res.status(201).json({ id: rows[0].id, chunk_size: CHUNK_SIZE, total_chunks: totalChunks });
+  const storagePath = storage.isEnabled() ? `${purpose}/${id}.${extension}` : null;
+  await sql`
+    INSERT INTO np_files(id, owner_id, module_id, step_type, purpose, filename, extension, size_bytes, total_chunks, storage_path)
+    VALUES(${id}::uuid, ${user.id}, ${isQuizSource ? null : moduleId}, ${isQuizSource ? 'quiz_source' : stepType}, ${purpose}, ${filename}, ${extension}, ${size}, ${totalChunks}, ${storagePath})`;
+  if (storagePath) {
+    return res.status(201).json({ id, mode: 'direct', upload_url: await storage.createUploadUrl(storagePath) });
+  }
+  return res.status(201).json({ id, mode: 'chunks', chunk_size: CHUNK_SIZE, total_chunks: totalChunks });
 }
 
 async function loadOwnUpload(res, user, id) {
@@ -73,7 +86,7 @@ async function loadOwnUpload(res, user, id) {
     return null;
   }
   const rows = await sql`
-    SELECT id, filename, extension, size_bytes, total_chunks, status FROM np_files
+    SELECT id, filename, extension, size_bytes, total_chunks, status, storage_path FROM np_files
     WHERE id=${id}::uuid AND owner_id=${user.id} LIMIT 1`;
   if (!rows.length) {
     res.status(404).json({ error: 'Fayl topilmadi.' });
@@ -89,6 +102,7 @@ async function loadOwnUpload(res, user, id) {
 async function saveChunk(res, user, body) {
   const file = await loadOwnUpload(res, user, body.id);
   if (!file) return;
+  if (file.storage_path) return res.status(409).json({ error: 'Bu fayl to‘g‘ridan-to‘g‘ri yuklanadi.' });
 
   const index = Number(body.index);
   if (!Number.isSafeInteger(index) || index < 0 || index >= file.total_chunks) {
@@ -120,6 +134,22 @@ async function finishUpload(res, user, body) {
   const file = await loadOwnUpload(res, user, body.id);
   if (!file) return;
 
+  if (file.storage_path) {
+    // The browser uploaded on its own, so check that what arrived is what was announced.
+    let stored;
+    try {
+      stored = await storage.inspect(file.storage_path);
+    } catch {
+      return res.status(409).json({ error: 'Fayl to‘liq yuklanmadi. Qayta urinib ko‘ring.' });
+    }
+    if (stored.size !== Number(file.size_bytes) || !matchesSignature(file.extension, stored.head)) {
+      await purgeStored(await sql`DELETE FROM np_files WHERE id=${file.id}::uuid RETURNING storage_path`);
+      return res.status(415).json({ error: 'Fayl mazmuni uning formatiga mos emas.' });
+    }
+    await sql`UPDATE np_files SET status='ready', completed_at=NOW() WHERE id=${file.id}::uuid`;
+    return res.json(publicFile(file));
+  }
+
   const totals = await sql`
     SELECT COUNT(*)::int AS n, COALESCE(SUM(octet_length(data)), 0)::bigint AS bytes
     FROM np_file_chunks WHERE file_id=${file.id}::uuid`;
@@ -136,13 +166,17 @@ async function readFile(req, res, user) {
   if (!isUuid(id)) return res.status(400).json({ error: 'Fayl raqami noto‘g‘ri.' });
 
   const rows = await sql`
-    SELECT id, owner_id, purpose, filename, size_bytes, total_chunks FROM np_files
+    SELECT id, owner_id, purpose, filename, size_bytes, total_chunks, storage_path FROM np_files
     WHERE id=${id}::uuid AND status='ready' LIMIT 1`;
   const file = rows[0];
   const allowed = file && (file.purpose === 'content' || file.owner_id === user.id || STAFF.includes(user.role));
   // Same answer for "missing" and "forbidden", so file ids cannot be probed.
   if (!allowed) return res.status(404).json({ error: 'Fayl topilmadi.' });
 
+  if (file.storage_path) {
+    if (req.query.chunk !== undefined) return res.status(400).json({ error: 'Bu fayl havola orqali yuklab olinadi.' });
+    return res.json({ ...publicFile(file), url: await storage.createDownloadUrl(file.storage_path, file.filename) });
+  }
   if (req.query.chunk === undefined) {
     return res.json({ ...publicFile(file), total_chunks: file.total_chunks });
   }
@@ -173,7 +207,7 @@ module.exports = async (req, res) => {
     if (body.action === 'complete') return await finishUpload(res, user, body);
     return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
   } catch (error) {
-    console.error(error);
+    await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });
   }
 };

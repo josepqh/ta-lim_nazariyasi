@@ -3,31 +3,45 @@
   "version": "1.0.0",
   "description": "Ta'lim nazariyasi platformasi",
   "scripts": {
-    "start": "node tests/dev-server.js",
-    "dev": "node tests/dev-server.js",
-    "dev:vercel": "npx vercel dev",
+    "build": "tsc && vite build",
+    "db:migrate": "node run_setup.js",
     "db:setup": "node run_setup.js",
+    "dev": "node scripts/dev.js",
+    "dev:vercel": "npx vercel dev",
+    "prestart": "npm run build",
+    "pretest:e2e": "npm run build",
+    "start": "node tests/dev-server.js",
+    "storage:migrate": "node scripts/move-files-to-storage.js",
     "test": "node --test tests/api.test.js",
     "test:e2e": "playwright test",
-    "build:css": "tailwindcss -i src/tailwind.css -o assets/tailwind.css --minify",
-    "prestart": "npm run build:css",
-    "predev": "npm run build:css",
-    "pretest:e2e": "npm run build:css"
+    "typecheck": "tsc"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.19"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.107.1",
+    "chart.js": "^4.6.1",
     "dotenv": "^17.4.2",
+    "lucide-react": "^1.71.0",
     "mammoth": "^1.13.0",
     "nodemailer": "^10.4.0",
     "pg": "^8.23.1",
-    "unpdf": "^2.1.0"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "unpdf": "^2.1.0",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.15",
     "@playwright/test": "^1.65.0",
     "@tailwindcss/cli": "^4.3.5",
-    "tailwindcss": "^4.3.5"
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7"
   }
 }
