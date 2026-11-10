@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FileCard } from '../../components/FileCard';
+import { ListSkeleton, PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { queryClient, useModules } from '../../lib/queries';
 import { STEP_TYPES, canManage } from '../../lib/steps';
@@ -167,7 +168,7 @@ export function Submissions() {
         {module && !mayReview && <p className="field-hint">Bu modulni boshqa o‘qituvchi yaratgan: javoblarni ko‘rasiz, baholashni esa muallif yoki administrator qiladi.</p>}
       </div>
       <div id="submissionList" aria-live="polite">
-        {rows.isLoading && <div className="spinner"/>}
+        {rows.isLoading && <div className="card"><ListSkeleton/></div>}
         {rows.isError && <div className="card">Ma'lumotlarni yuklab bo‘lmadi.</div>}
         {rows.isSuccess && !submissions.length && !quizRows.length && (
           <div className="card"><p className="text-muted">Ushbu modul bo‘yicha topshirilgan yozma topshiriqlar hozircha yo‘q.</p></div>
@@ -224,7 +225,7 @@ export function StudentDetail({ studentId }: { studentId: number | null }) {
     if (rows.isSuccess) setTitle(name);
   }, [rows.isSuccess, name]);
 
-  if (rows.isLoading || modules.isLoading) return <div className="spinner"/>;
+  if (rows.isLoading || modules.isLoading) return <PageSkeleton/>;
   if (rows.isError) return <div className="card">Ma'lumotlarni yuklab bo‘lmadi.</div>;
   return (
     <>

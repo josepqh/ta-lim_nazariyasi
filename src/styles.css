@@ -16,7 +16,7 @@
   --color-overlay: var(--overlay);
   --color-success: var(--success);
   --color-danger: var(--danger);
-  --font-sans: "Onest", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 @theme {
@@ -304,6 +304,7 @@
   .badge-primary { @apply bg-primary/10 text-primary; }
   .badge-danger { @apply bg-danger/10 text-danger; }
 
+  .skeleton { @apply rounded-lg bg-line/70 motion-safe:animate-pulse; }
   .spinner { @apply mx-auto my-5 size-8 animate-spin rounded-full border-[3px] border-line border-t-primary; }
   .skeleton-card { @apply pointer-events-none; }
   .skeleton-shimmer { @apply animate-shimmer rounded bg-[linear-gradient(90deg,var(--skeleton-a)_25%,var(--skeleton-b)_50%,var(--skeleton-a)_75%)] bg-[length:200%_100%]; }
@@ -389,8 +390,9 @@
   .file-picker-box { @apply flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-line bg-page px-4 py-3.5 transition-colors duration-200 hover:border-primary peer-focus-visible:border-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30 [&.chosen]:border-solid [&.chosen]:border-primary/50 [&.dragging]:border-primary [&.dragging]:bg-primary/5; }
   .file-picker-action { @apply shrink-0 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-semibold text-ink; }
 
-  .hero-photo { background-image: url('/images/hero-960.jpg'); }
-  @media (min-width: 961px) { .hero-photo { background-image: url('/images/hero-1920.jpg'); } }
+  /* A dark base in the photo's own tones, so a slow network shows a calm hero instead of an empty one. */
+  .hero-photo { background-color: #2b2118; background-image: url('/images/hero-960.webp'); }
+  @media (min-width: 961px) { .hero-photo { background-image: url('/images/hero-1600.webp'); } }
 
   .legal-body { @apply mt-8 max-w-3xl space-y-4 text-base leading-relaxed text-muted [&_h2]:pt-4 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-ink [&_strong]:text-ink [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6; }
 

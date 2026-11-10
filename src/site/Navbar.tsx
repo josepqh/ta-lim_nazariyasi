@@ -4,11 +4,13 @@ import { AccountMenu } from '../components/AccountMenu';
 import { Logo } from '../components/Logo';
 import { openAuth, showSection, toggleTheme, useApp, type PublicSection } from '../store';
 
-const LINK = 'flex h-12 items-center gap-3 rounded-lg px-3 text-base font-medium text-ink transition-colors hover:bg-primary/10 hover:text-primary xl:h-10 xl:gap-2 xl:text-[15px]';
+// Plain text links: no pill behind them; the current section is told by colour alone.
+const LINK = 'flex h-12 items-center gap-3 px-3 text-base font-medium text-ink transition-colors hover:text-primary aria-[current=page]:text-primary xl:h-10 xl:gap-2 xl:px-2.5 xl:text-[15px]';
 
 export function Navbar() {
   const user = useApp((state) => state.user);
   const theme = useApp((state) => state.theme);
+  const current = useApp((state) => state.section);
   const [menuOpen, setMenuOpen] = useState(false);
 
   function go(section: PublicSection) {
@@ -17,7 +19,7 @@ export function Navbar() {
   }
 
   const link = (section: PublicSection, icon: ReactNode, label: string) => (
-    <li><a href="#" className={LINK} onClick={(event) => { event.preventDefault(); go(section); }}>{icon} {label}</a></li>
+    <li><a href="#" className={LINK} aria-current={current === section ? 'page' : undefined} onClick={(event) => { event.preventDefault(); go(section); }}>{icon} {label}</a></li>
   );
   const themeIcon = theme === 'dark' ? <Sun/> : <Moon/>;
   const themeLabel = theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim';
@@ -32,7 +34,7 @@ export function Navbar() {
           aria-expanded={menuOpen} aria-controls="mainNav" onClick={() => setMenuOpen((value) => !value)}>
           {menuOpen ? <X className="size-[22px]"/> : <Menu className="size-[22px]"/>}
         </button>
-        <ul id="mainNav" className={`absolute inset-x-0 top-full hidden flex-col gap-1 border-b border-line bg-surface px-4 py-3 shadow-lg sm:px-6 [&.open]:flex xl:static xl:flex xl:flex-row xl:items-center xl:gap-1 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none${menuOpen ? ' open' : ''}`}>
+        <ul id="mainNav" className={`hidden flex-col gap-1 [&.open]:flex max-xl:absolute max-xl:inset-x-0 max-xl:top-full max-xl:border-b max-xl:border-line max-xl:bg-surface max-xl:px-4 max-xl:py-3 max-xl:shadow-lg sm:max-xl:px-6 xl:flex xl:flex-row xl:items-center xl:gap-1${menuOpen ? ' open' : ''}`}>
           {link('home', <House className="size-[18px]"/>, 'Bosh sahifa')}
           {link('public-modules', <Layers className="size-[18px]"/>, 'Modullar')}
           {link('public-news', <Newspaper className="size-[18px]"/>, 'Maqolalar')}

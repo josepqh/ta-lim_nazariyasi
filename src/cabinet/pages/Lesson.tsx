@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Award, Check, CircleCheck, FileQuestion, LogIn, MessageSquare, Pencil, Plus, Send, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FileCard } from '../../components/FileCard';
+import { PageSkeleton } from '../../components/Skeleton';
 import { FilePicker } from '../../components/FilePicker';
 import { UploadProgress } from '../../components/UploadProgress';
 import { api } from '../../lib/api';
@@ -124,7 +125,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   }), [isStudent, editing, completed, contents, firstOpen]);
 
   if (modules.isLoading || (module && !content.isSuccess)) {
-    return <div className="spinner" aria-label="Yuklanmoqda"/>;
+    return <PageSkeleton/>;
   }
   if (!module) {
     return <div className="card"><p className="text-muted">Modul topilmadi yoki hali qo‘shilmagan.</p></div>;

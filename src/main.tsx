@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { queryClient } from './lib/queries';
 import { installErrorReporting } from './lib/report';
+// Served from this site: a font from another domain would add two slow connections before the first paint.
+import '@fontsource-variable/onest';
 import './styles.css';
 
 installErrorReporting();

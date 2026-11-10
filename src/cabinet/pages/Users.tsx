@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, RefreshCw, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { ListSkeleton, PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { ROLE_LABELS, formatDate } from '../../lib/format';
 import { queryClient, useModules } from '../../lib/queries';
@@ -71,7 +72,7 @@ export function UsersPage() {
         </div>
       </div>
       <div id="usersTable" aria-live="polite">
-        {data.isLoading && <div className="spinner"/>}
+        {data.isLoading && <ListSkeleton/>}
         {data.isError && <p className="muted-text">Ma'lumotlarni yuklab bo‘lmadi.</p>}
         {data.isSuccess && !items.length && (
           <p className="muted-text empty-text">
@@ -144,7 +145,7 @@ export function UserProfile({ profileId }: { profileId: number | null }) {
     }
   }, [profile.data]);
 
-  if (profile.isLoading) return <div className="spinner"/>;
+  if (profile.isLoading) return <PageSkeleton/>;
   if (!profile.data) return <div className="card">Foydalanuvchi topilmadi.</div>;
   const data = profile.data;
   return (
@@ -162,7 +163,7 @@ export function UserProfile({ profileId }: { profileId: number | null }) {
       </div>
       {isStudent ? (
         work.isError ? <div className="card">Natijalarni yuklab bo‘lmadi.</div>
-          : work.isLoading ? <div className="spinner"/> : <StudentWork rows={work.data ?? []} modules={modules.data ?? []}/>
+          : work.isLoading ? <div className="card"><ListSkeleton/></div> : <StudentWork rows={work.data ?? []} modules={modules.data ?? []}/>
       ) : (
         <div className="card">
           <h3 className="card-title">Yaratgan modullari</h3>
@@ -216,7 +217,7 @@ export function ErrorLog() {
             <button type="button" className="btn-danger btn-sm" disabled={!data?.total} onClick={clear}><Trash2/> Tozalash</button>
           </div>
         </div>
-        {log.isLoading && <div className="spinner"/>}
+        {log.isLoading && <ListSkeleton/>}
         {log.isError && <p className="muted-text">Jurnalni yuklab bo‘lmadi.</p>}
         {data && !data.items.length && <p className="muted-text empty-text">Xato qayd etilmagan.</p>}
         <ul className="error-list">

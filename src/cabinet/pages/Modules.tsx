@@ -1,5 +1,7 @@
 import { CircleCheck, CirclePlay, Eye } from 'lucide-react';
 import { useModules, useMyProgress } from '../../lib/queries';
+import { PageSkeleton } from '../../components/Skeleton';
+import { prefetchModule } from '../../lib/prefetch';
 import { navigate, openModule, useApp } from '../../store';
 
 export function StaffModuleTabs({ active }: { active: 'modules' | 'manage-modules' }) {
@@ -19,7 +21,7 @@ export function Modules() {
   const progress = useMyProgress();
   const list = modules.data ?? [];
 
-  if (modules.isLoading) return <><StaffModuleTabs active="modules"/><div className="spinner"/></>;
+  if (modules.isLoading) return <><StaffModuleTabs active="modules"/><PageSkeleton/></>;
   if (!list.length) return <><StaffModuleTabs active="modules"/><div className="card"><p>Hozircha modullar mavjud emas.</p></div></>;
 
   return (
@@ -32,7 +34,7 @@ export function Modules() {
           const pct = Math.round((steps / 6) * 100);
           const StatusIcon = done ? CircleCheck : isStudent ? CirclePlay : Eye;
           return (
-            <button key={module.id} type="button" className="module-card text-left" onClick={() => openModule(module.id)}>
+            <button key={module.id} type="button" className="module-card text-left" onPointerEnter={() => prefetchModule(module.id)} onFocus={() => prefetchModule(module.id)} onClick={() => openModule(module.id)}>
               <div className="mod-info flex-1 pr-5">
                 <div className="mb-1 text-sm text-primary">Modul {module.order_num}</div>
                 <h4>{module.title}</h4>

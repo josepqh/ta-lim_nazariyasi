@@ -2,6 +2,8 @@ import { ArrowLeft, BarChart3, BookOpen, ChevronRight, ClipboardCheck, LayoutDas
 import { Suspense, lazy, useEffect, useRef } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
 import { Logo } from '../components/Logo';
+import { PageSkeleton } from '../components/Skeleton';
+import { prefetchPage } from '../lib/prefetch';
 import { ROLE_LABELS, cx, initialOf } from '../lib/format';
 import { useModules } from '../lib/queries';
 import { navigate, returnToWebsite, useApp, type PageId } from '../store';
@@ -65,7 +67,7 @@ function Page() {
     case 'modules': return <Modules/>;
     case 'module-view': return <Lesson key={routeId} moduleId={routeId}/>;
     case 'manage-modules': return <ManageModules/>;
-    case 'analytics': return <Suspense fallback={<div className="spinner"/>}><Analytics/></Suspense>;
+    case 'analytics': return <Suspense fallback={<PageSkeleton/>}><Analytics/></Suspense>;
     case 'submissions': return <Submissions/>;
     case 'student-detail': return <StudentDetail studentId={routeId}/>;
     case 'users': return <UsersPage/>;
@@ -111,7 +113,8 @@ export function Cabinet() {
             </button>
             <nav id="sidebarNav" className="flex-1 space-y-1 overflow-y-auto p-3">
               {menu.map((item) => (
-                <button key={item.id} type="button" id={`nav-${item.id}`} className={cx('nav-item', menuId === item.id && 'active')} aria-current={menuId === item.id ? 'page' : undefined} onClick={() => navigate(item.id)}>
+                <button key={item.id} type="button" id={`nav-${item.id}`} className={cx('nav-item', menuId === item.id && 'active')} aria-current={menuId === item.id ? 'page' : undefined}
+                  onPointerEnter={() => prefetchPage(item.id)} onFocus={() => prefetchPage(item.id)} onClick={() => navigate(item.id)}>
                   <item.icon/> <span>{item.title}</span>
                 </button>
               ))}
@@ -142,7 +145,7 @@ export function Cabinet() {
             </div>
             <nav id="mobileBottomNav" className="fixed inset-x-0 bottom-0 z-[800] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-line bg-surface px-1.5 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Mobil pastki menyu">
               {menu.map((item) => (
-                <button key={item.id} type="button" id={`bnav-${item.id}`} className={cx('bottom-nav-item', menuId === item.id && 'active')} aria-label={item.title} onClick={() => navigate(item.id)}>
+                <button key={item.id} type="button" id={`bnav-${item.id}`} className={cx('bottom-nav-item', menuId === item.id && 'active')} aria-label={item.title} onTouchStart={() => prefetchPage(item.id)} onClick={() => navigate(item.id)}>
                   <item.icon/> <span>{item.short || item.title.split(' ')[0]}</span>
                 </button>
               ))}

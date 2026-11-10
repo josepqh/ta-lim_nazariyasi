@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { KeyRound, Save } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { ROLE_LABELS, formatDate, initialOf } from '../../lib/format';
 import { useMyProgress } from '../../lib/queries';
@@ -25,7 +26,7 @@ export function MyProfile() {
   const [passError, setPassError] = useState('');
   const [busy, setBusy] = useState<'name' | 'pass' | null>(null);
 
-  if (profile.isLoading) return <div className="spinner"/>;
+  if (profile.isLoading) return <PageSkeleton/>;
   if (!profile.data) return <div className="card">Profilni yuklab bo‘lmadi.</div>;
   const data = profile.data;
   const rows = Object.values(progress.data ?? {});

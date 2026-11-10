@@ -26,9 +26,9 @@
   <link rel="icon" type="image/png" href="/images/logo.png"/>
   <link rel="apple-touch-icon" href="/images/logo.png"/>
   <link rel="manifest" href="/manifest.webmanifest"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600;700&display=swap"/>
+  <!-- The hero photo starts downloading with the page instead of after the styles and scripts. -->
+  <link rel="preload" as="image" href="/images/hero-960.webp" type="image/webp" media="(max-width: 960px)" fetchpriority="high"/>
+  <link rel="preload" as="image" href="/images/hero-1600.webp" type="image/webp" media="(min-width: 961px)" fetchpriority="high"/>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",

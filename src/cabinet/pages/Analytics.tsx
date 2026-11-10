@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArcElement, BarController, BarElement, CategoryScale, Chart, DoughnutController, Legend, LinearScale, Tooltip } from 'chart.js';
 import { Award, BarChart2, Check, Layers, PieChart, Trophy } from 'lucide-react';
 import { useEffect, useRef } from 'react';
+import { PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { motionAllowed } from '../../lib/format';
 import { useModules } from '../../lib/queries';
@@ -89,7 +90,7 @@ export default function Analytics() {
     options: { responsive: true, maintainAspectRatio: false, animation, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
   }) : null), [hasStepData, STEP_LABELS.map(([id]) => stepCounts[id]).join(',')]);
 
-  if (rows.isLoading || modules.isLoading) return <div className="spinner"/>;
+  if (rows.isLoading || modules.isLoading) return <PageSkeleton/>;
   if (rows.isError) return <div className="card">Ma'lumotlarni yuklab bo‘lmadi.</div>;
 
   const empty = <p className="muted-text empty-text">Hozircha ma'lumot yo‘q.</p>;
