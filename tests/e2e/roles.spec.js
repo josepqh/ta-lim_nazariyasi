@@ -335,8 +335,7 @@ test('the public site has a footer', async ({ page }) => {
 
 test('a signed-in visitor stays on the public site after a refresh and is never asked to sign up', async ({ page }) => {
   await register(page, { name: 'Sahifa Egasi', login: unique('stay'), role: 'student' });
-  await page.locator('#topbarUser').click();
-  await page.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await page.locator('.topbar').getByRole('button', { name: 'Saytga qaytish' }).click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('#navUserName')).toBeVisible();
   await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
@@ -460,12 +459,10 @@ test('the role chip opens an account menu that works by mouse and keyboard', asy
   await expect(menu).toBeHidden();
 
   await trigger.click();
-  await menu.getByRole('menuitem', { name: 'Parolni almashtirish' }).click();
-  await expect(page.locator('#pageTitle')).toHaveText('Profilim');
-  await expect(page.locator('#profileCurrentPass')).toBeFocused();
+  await expect(menu.getByRole('menuitem')).toHaveText(['Profilim', /rejim$/, 'Chiqish']);
+  await page.keyboard.press('Escape');
 
-  await trigger.click();
-  await menu.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await page.locator('.topbar').getByRole('button', { name: 'Saytga qaytish' }).click();
   await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
   await expect(page.locator('#navUser').getByRole('button', { name: 'Chiqish' })).toHaveCount(0);
   await page.locator('#navUserName').click();
@@ -473,8 +470,7 @@ test('the role chip opens an account menu that works by mouse and keyboard', asy
   await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
   await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
 
-  await page.locator('#topbarUser').click();
-  await page.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await page.locator('.topbar').getByRole('button', { name: 'Saytga qaytish' }).click();
   await page.locator('#navUserName').click();
   await page.locator('#navMenu').getByRole('menuitem', { name: 'Chiqish' }).click();
   await expect(page.locator('#navLogin')).toBeVisible();

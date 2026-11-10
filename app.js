@@ -2562,12 +2562,6 @@ async function renderMyProfile(container) {
       </form>
     </div>`;
   refreshIcons();
-  if (profileFocus === 'password') {
-    const input = document.getElementById('profileCurrentPass');
-    input.closest('.card').scrollIntoView({ block: 'start' });
-    input.focus({ preventScroll: true });
-  }
-  profileFocus = null;
 }
 
 function saveProfileName(event) {
@@ -2593,7 +2587,6 @@ function saveProfilePassword(event) {
 
 // ===== ACCOUNT MENU =====
 // The role chip (cabinet) and the name chip (public site) open the same menu.
-let profileFocus = null;
 
 function roleIconFor(role) {
   return role === 'student' ? 'user' : (role === 'teacher' ? 'graduation-cap' : 'shield');
@@ -2617,10 +2610,7 @@ function accountMenuHtml(place) {
     </div>`;
   const theme = `<button type="button" role="menuitem" tabindex="-1" class="account-item theme-menu-item" onclick="toggleTheme()"></button>`;
   const items = place === 'app'
-    ? [accountItem('user-round', 'Profilim', "accountAction('profile')"),
-       accountItem('key-round', 'Parolni almashtirish', "accountAction('password')"),
-       theme,
-       accountItem('globe', 'Saytga qaytish', "accountAction('site')")]
+    ? [accountItem('user-round', 'Profilim', "accountAction('profile')"), theme]
     : [accountItem('layout-dashboard', 'Boshqaruv paneli', "accountAction('cabinet')"),
        accountItem('user-round', 'Profilim', "accountAction('profile')"),
        theme];
@@ -2673,10 +2663,8 @@ function showCabinet() {
 function accountAction(kind) {
   closeAccountMenus();
   if (kind === 'logout') return logout();
-  if (kind === 'site') return returnToWebsite();
   showCabinet();
   if (kind === 'cabinet') return navigate('home');
-  profileFocus = kind === 'password' ? 'password' : null;
   navigate('profile');
 }
 
