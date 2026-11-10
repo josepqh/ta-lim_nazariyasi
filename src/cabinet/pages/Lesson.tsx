@@ -247,11 +247,11 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
     body = (
       <>
         <div className="step-text">{stepContent.value || 'Ushbu modul davomida nimalarni o‘rgandingiz va ularni qanday qo‘llashni rejalashtirdingiz?'}</div>
-        <label htmlFor="stepResponse" className="step-label">Refleksiya hisoboti</label>
+        <label htmlFor="stepResponse" className="step-label">Sizning refleksiyangiz</label>
         <textarea id="stepResponse" className="step-input" rows={6} maxLength={10000} placeholder="Refleksiyangizni bu yerga yozing..." value={response} onChange={(e) => setResponse(e.target.value)}/>
       </>
     );
-    action = actionButton(<Send/>, 'Hisobotni yuborish');
+    action = actionButton(<Send/>, 'Refleksiyani yuborish');
   }
 
   if (!user) {

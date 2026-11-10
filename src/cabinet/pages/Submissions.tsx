@@ -128,7 +128,7 @@ function ReviewForm({ row, step, existing }: { row: Progress; step: 'task' | 're
   );
 }
 
-const RESPONSE_LABELS = { task: '5. Amaliy topshiriq', refl: '6. Refleksiv hisobot' } as const;
+const RESPONSE_LABELS = { task: '5. Amaliy topshiriq', refl: '6. Refleksiya' } as const;
 
 export function Submissions() {
   const user = useApp((state) => state.user)!;

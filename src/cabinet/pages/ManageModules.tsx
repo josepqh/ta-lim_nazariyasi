@@ -212,7 +212,7 @@ export function ManageModules() {
               </div>
             </fieldset>
             <fieldset className="module-step">
-              <legend>6. Refleksiv hisobot</legend>
+              <legend>6. Refleksiya</legend>
               <div className="form-group">
                 <label htmlFor="newRefl">Yo‘naltiruvchi savollar</label>
                 <textarea id="newRefl" rows={3} maxLength={30000} placeholder="Modul yakunida talaba nimalar haqida yozsin?" value={refl} onChange={(e) => setRefl(e.target.value)}/>

@@ -17,7 +17,7 @@ export const STEP_TYPES: StepType[] = [
   { id: 'pres', title: '3. Taqdimot (Prezentatsiya)', name: 'Taqdimot (Prezentatsiya)', short: 'Taqdimot', kind: 'doc', icon: Presentation },
   { id: 'doc', title: '4. Qo‘shimcha material', name: 'Qo‘shimcha material', short: 'Material', kind: 'doc', icon: FileText },
   { id: 'task', title: '5. Amaliy topshiriq', name: 'Amaliy topshiriq', short: 'Topshiriq', kind: 'upload', icon: UploadCloud },
-  { id: 'refl', title: '6. Refleksiv hisobot', name: 'Refleksiv hisobot', short: 'Refleksiya', kind: 'text', icon: Feather }
+  { id: 'refl', title: '6. Refleksiya', name: 'Refleksiya', short: 'Refleksiya', kind: 'text', icon: Feather }
 ];
 
 export const STAFF_ROLES = ['teacher', 'admin'] as const;
