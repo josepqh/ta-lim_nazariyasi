@@ -14,7 +14,7 @@
   <script src="assets/vendor/lucide-0.468.0.min.js"></script>
   <!-- Chart.js -->
   <script src="assets/vendor/chart-4.4.7.umd.js"></script>
-  <link rel="stylesheet" href="assets/tailwind.css?v=8"/>
+  <link rel="stylesheet" href="assets/tailwind.css?v=10"/>
 </head>
 <body class="min-h-dvh overflow-x-hidden bg-page font-sans text-[15px] leading-[1.7] text-ink">
 <a class="fixed -top-16 left-3 z-[3000] rounded-xl bg-ink px-4 py-2.5 text-surface focus:top-3" href="#mainContent">Asosiy mazmunga o‘tish</a>
@@ -49,11 +49,10 @@
         </button>
       </div>
       <div id="navUser" class="order-2 items-center gap-2 xl:flex-1 xl:justify-end" style="display:none">
-        <button type="button" data-theme-toggle class="icon-btn hidden sm:inline-flex" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <span id="navUserName" class="hidden min-w-0 items-center gap-1.5 font-medium wrap-anywhere text-ink sm:inline-flex"></span>
-        <button class="btn btn-solid" onclick="logout()">
-          <i data-lucide="log-out"></i> Chiqish
-        </button>
+        <div class="account">
+          <button type="button" id="navUserName" class="account-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="navMenu" onclick="toggleAccountMenu(this)"></button>
+          <div id="navMenu" class="account-menu" role="menu" aria-labelledby="navUserName" hidden></div>
+        </div>
       </div>
     </div>
   </nav>
@@ -328,8 +327,8 @@
 
 <!-- ════════ PRIVATE PLATFORM SYSTEM ════════ -->
 <div id="screen-app" class="screen hidden h-dvh w-full overflow-hidden bg-page text-base leading-normal [&.active]:flex">
-  <div id="sidebarBackdrop" class="fixed inset-0 z-[99] hidden bg-black/40 [&.active]:block lg:[&.active]:hidden" onclick="toggleSidebar()"></div>
-  <aside id="sidebar" class="fixed inset-y-0 left-0 z-[100] flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-line bg-surface transition-transform duration-300 lg:static lg:translate-x-0 [&.open]:translate-x-0">
+  <div id="sidebarBackdrop" class="fixed inset-0 z-[840] hidden bg-black/40 [&.active]:block lg:[&.active]:hidden" onclick="toggleSidebar()"></div>
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-[850] flex h-full w-64 shrink-0 -translate-x-full flex-col border-r border-line bg-surface transition-transform duration-300 lg:static lg:translate-x-0 [&.open]:translate-x-0">
     <div class="sidebar-logo flex h-16 shrink-0 cursor-pointer items-center gap-3 px-5" onclick="returnToWebsite()">
       <img src="assets/logo.png?v=4" alt="" width="36" height="36" class="size-9 object-contain"/>
       <span class="flex flex-col whitespace-nowrap"><span class="text-[17px] leading-none font-bold tracking-tight text-ink">Ta'lim</span><span class="mt-1 text-[13px] leading-none font-medium text-muted">Nazariyasi</span></span>
@@ -337,9 +336,6 @@
     <nav id="sidebarNav" class="flex-1 space-y-1 overflow-y-auto p-3"></nav>
     <div class="border-t border-line p-3">
       <div id="sidebarUser" class="flex items-center gap-3 rounded-xl p-2"></div>
-      <button class="btn-logout btn btn-line mt-2 w-full" onclick="logout()">
-        <i data-lucide="log-out"></i> Chiqish
-      </button>
     </div>
   </aside>
 
@@ -353,14 +349,16 @@
           <i data-lucide="arrow-left" class="size-5"></i>
         </button>
         <button class="hidden items-center gap-2 text-[15px] font-medium text-muted transition-colors hover:text-primary lg:in-[.in-lesson]:inline-flex" onclick="navigate('modules')">Modullar <i data-lucide="chevron-right"></i></button>
-        <h1 id="pageTitle" class="min-w-0 text-base leading-tight font-semibold tracking-tight wrap-anywhere text-ink sm:text-xl">Bosh sahifa</h1>
+        <h1 id="pageTitle" class="min-w-0 text-base leading-tight font-semibold tracking-tight wrap-anywhere text-ink sm:text-xl">Boshqaruv paneli</h1>
       </div>
       <div class="flex shrink-0 items-center gap-2">
         <button class="btn btn-line hidden sm:inline-flex" onclick="returnToWebsite()">
           <i data-lucide="arrow-left"></i> Saytga qaytish
         </button>
-        <button type="button" data-theme-toggle class="icon-btn" onclick="toggleTheme()" aria-label="Tungi rejim"><i data-lucide="moon"></i></button>
-        <button type="button" id="topbarUser" class="flex h-11 items-center gap-2 rounded-xl border border-line px-3 text-[15px] font-medium text-ink transition-colors duration-200 hover:border-primary" aria-label="Profilim" onclick="navigate('profile')"></button>
+        <div class="account">
+          <button type="button" id="topbarUser" class="account-trigger" aria-haspopup="menu" aria-expanded="false" aria-controls="topbarMenu" onclick="toggleAccountMenu(this)"></button>
+          <div id="topbarMenu" class="account-menu" role="menu" aria-labelledby="topbarUser" hidden></div>
+        </div>
       </div>
     </div>
     <div id="pageContainer" class="min-h-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6"></div>
@@ -406,6 +404,6 @@
 <!-- TOAST -->
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="app.js?v=27"></script>
+<script src="app.js?v=29"></script>
 </body>
 </html>

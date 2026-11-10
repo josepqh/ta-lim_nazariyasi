@@ -557,12 +557,8 @@ async function startSession(user, modulesLoaded = false) {
   document.getElementById('navAuth').style.display = 'none';
   document.getElementById('navUser').style.display = 'flex';
 
-  const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
-  const roleLabel = ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin;
-
-  document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
   renderSidebarUser();
-  document.getElementById('topbarUser').innerHTML = `<i data-lucide="${roleIcon}"></i> <span class="hidden sm:inline">${roleLabel}</span>`;
+  renderAccountMenus();
 
   buildSidebar();
   syncAiChatAccess();
@@ -571,6 +567,7 @@ async function startSession(user, modulesLoaded = false) {
 }
 
 async function logout() {
+  closeAccountMenus();
   await fetchAPI('/auth', 'POST', { action: 'logout' });
   currentUser = null;
   progressCache = {};
@@ -599,10 +596,7 @@ function returnToWebsite() {
   document.getElementById('public-website').style.display = 'block';
   document.getElementById('navAuth').style.display = currentUser ? 'none' : 'flex';
   document.getElementById('navUser').style.display = currentUser ? 'flex' : 'none';
-  if (currentUser) {
-    const roleIcon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
-    document.getElementById('navUserName').innerHTML = `<i data-lucide="${roleIcon}"></i> ${escapeHTML(currentUser.name || currentUser.login)}`;
-  }
+  if (currentUser) renderAccountMenus();
   showPublicSection('home');
   refreshIcons();
 }
@@ -619,14 +613,14 @@ const PAGE_ROLES = {
   'user-profile': ['admin']
 };
 const STAFF_MENU = [
-  { id: 'home', title: 'Bosh sahifa', icon: 'home' },
+  { id: 'home', title: 'Boshqaruv paneli', short: 'Panel', icon: 'layout-dashboard' },
   { id: 'modules', title: 'Modullar', icon: 'book-open' },
   { id: 'analytics', title: 'Tahlil va grafika', icon: 'bar-chart-3' },
   { id: 'submissions', title: 'Talaba javoblari', icon: 'clipboard-check' }
 ];
 const NAV_MENU = {
   student: [
-    { id: 'home', title: 'Bosh sahifa', icon: 'home' },
+    { id: 'home', title: 'Boshqaruv paneli', short: 'Panel', icon: 'layout-dashboard' },
     { id: 'modules', title: 'Modullar', icon: 'book-open' }
   ],
   teacher: STAFF_MENU,
@@ -641,7 +635,7 @@ function pageTitle(pageId) {
   if (pageId === 'student-detail') return 'Talaba ishlari';
   if (pageId === 'user-profile') return 'Profil';
   if (pageId === 'profile') return 'Profilim';
-  return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Bosh sahifa';
+  return (NAV_MENU[currentUser?.role] || []).find(item => item.id === pageId)?.title || 'Boshqaruv paneli';
 }
 
 // ===== SKELETON LOADER HELPER =====
@@ -1082,7 +1076,7 @@ async function renderAnalytics(container) {
           labels: ['Diagnostika', 'Video dars', 'Taqdimot', 'Material', 'Topshiriq', 'Refleksiya'],
           datasets: [{
             data: [stepCounts.diag, stepCounts.video, stepCounts.pres, stepCounts.doc, stepCounts.task, stepCounts.refl],
-            backgroundColor: ['#A89B8C', '#81987F', '#C9B99A', '#D4B896', '#7A7571', '#333130'],
+            backgroundColor: ['#A89B8C', '#8C6A3F', '#C9B99A', '#D4B896', '#7A7571', '#333130'],
             borderWidth: 2,
             borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-alt').trim()
           }]
@@ -2406,11 +2400,8 @@ function renderSidebarUser() {
 }
 
 function syncDisplayedName() {
-  const name = escapeHTML(currentUser.name || currentUser.login);
   renderSidebarUser();
-  const icon = currentUser.role === 'student' ? 'user' : (currentUser.role === 'teacher' ? 'graduation-cap' : 'shield');
-  document.getElementById('navUserName').innerHTML = `<i data-lucide="${icon}"></i> ${name}`;
-  refreshIcons();
+  renderAccountMenus();
 }
 
 async function renderMyProfile(container) {
@@ -2470,6 +2461,12 @@ async function renderMyProfile(container) {
       </form>
     </div>`;
   refreshIcons();
+  if (profileFocus === 'password') {
+    const input = document.getElementById('profileCurrentPass');
+    input.closest('.card').scrollIntoView({ block: 'start' });
+    input.focus({ preventScroll: true });
+  }
+  profileFocus = null;
 }
 
 function saveProfileName(event) {
@@ -2492,6 +2489,123 @@ function saveProfilePassword(event) {
     showToast('Parol yangilandi ✅');
   });
 }
+
+// ===== ACCOUNT MENU =====
+// The role chip (cabinet) and the name chip (public site) open the same menu.
+let profileFocus = null;
+
+function roleIconFor(role) {
+  return role === 'student' ? 'user' : (role === 'teacher' ? 'graduation-cap' : 'shield');
+}
+
+function accountItem(icon, label, onclick, extra = '') {
+  return `<button type="button" role="menuitem" tabindex="-1" class="account-item ${extra}" onclick="${onclick}"><i data-lucide="${icon}"></i> ${label}</button>`;
+}
+
+function accountMenuHtml(place) {
+  const name = currentUser.name || currentUser.login;
+  const role = ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin;
+  const head = `
+    <div class="account-head" role="none">
+      <span class="account-avatar size-10 text-base" aria-hidden="true">${escapeHTML(name.charAt(0).toUpperCase())}</span>
+      <div class="min-w-0">
+        <p class="leading-snug font-semibold wrap-anywhere text-ink">${escapeHTML(name)}</p>
+        <p class="truncate text-sm text-muted" title="${escapeHTML(currentUser.login)}">${escapeHTML(currentUser.login)}</p>
+        <span class="account-role"><i data-lucide="${roleIconFor(currentUser.role)}"></i> ${role}</span>
+      </div>
+    </div>`;
+  const theme = `<button type="button" role="menuitem" tabindex="-1" class="account-item theme-menu-item" onclick="toggleTheme()"></button>`;
+  const items = place === 'app'
+    ? [accountItem('user-round', 'Profilim', "accountAction('profile')"),
+       accountItem('key-round', 'Parolni almashtirish', "accountAction('password')"),
+       theme,
+       accountItem('globe', 'Saytga qaytish', "accountAction('site')")]
+    : [accountItem('layout-dashboard', 'Boshqaruv paneli', "accountAction('cabinet')"),
+       accountItem('user-round', 'Profilim', "accountAction('profile')"),
+       theme];
+  return `${head}<div class="account-sep" role="separator"></div>${items.join('')}<div class="account-sep" role="separator"></div>${accountItem('log-out', 'Chiqish', "accountAction('logout')", 'account-item-danger')}`;
+}
+
+function renderAccountMenus() {
+  const name = currentUser.name || currentUser.login;
+  const role = ROLE_LABELS[currentUser.role] || ROLE_LABELS.admin;
+  const avatar = `<span class="account-avatar" aria-hidden="true">${escapeHTML(name.charAt(0).toUpperCase())}</span>`;
+  const chevron = '<i data-lucide="chevron-down" aria-hidden="true"></i>';
+
+  const topbar = document.getElementById('topbarUser');
+  topbar.innerHTML = `${avatar}<span class="hidden sm:inline">${role}</span>${chevron}`;
+  topbar.setAttribute('aria-label', `${role}: hisob menyusi`);
+  document.getElementById('topbarMenu').innerHTML = accountMenuHtml('app');
+
+  const nav = document.getElementById('navUserName');
+  nav.innerHTML = `${avatar}<span class="hidden max-w-40 truncate sm:inline">${escapeHTML(name)}</span>${chevron}`;
+  nav.setAttribute('aria-label', `${name}: hisob menyusi`);
+  document.getElementById('navMenu').innerHTML = accountMenuHtml('site');
+
+  syncThemeButtons();
+}
+
+function toggleAccountMenu(button) {
+  const menu = document.getElementById(button.getAttribute('aria-controls'));
+  const opening = menu.hidden;
+  closeAccountMenus();
+  if (!opening) return;
+  menu.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  menu.querySelector('[role="menuitem"]')?.focus();
+}
+
+function closeAccountMenus(returnFocus = false) {
+  document.querySelectorAll('.account-menu:not([hidden])').forEach(menu => {
+    menu.hidden = true;
+    const trigger = document.querySelector(`[aria-controls="${menu.id}"]`);
+    trigger?.setAttribute('aria-expanded', 'false');
+    if (returnFocus) trigger?.focus();
+  });
+}
+
+function showCabinet() {
+  document.getElementById('public-website').style.display = 'none';
+  document.getElementById('screen-app').classList.add('active');
+}
+
+function accountAction(kind) {
+  closeAccountMenus();
+  if (kind === 'logout') return logout();
+  if (kind === 'site') return returnToWebsite();
+  showCabinet();
+  if (kind === 'cabinet') return navigate('home');
+  profileFocus = kind === 'password' ? 'password' : null;
+  navigate('profile');
+}
+
+document.addEventListener('click', (event) => {
+  if (!event.target.closest?.('.account')) closeAccountMenus();
+});
+
+document.addEventListener('keydown', (event) => {
+  const trigger = event.target.closest?.('.account-trigger');
+  if (trigger && event.key === 'ArrowDown' && trigger.getAttribute('aria-expanded') !== 'true') {
+    event.preventDefault();
+    toggleAccountMenu(trigger);
+    return;
+  }
+  const menu = event.target.closest?.('.account-menu');
+  if (!menu) return;
+  const items = [...menu.querySelectorAll('[role="menuitem"]')];
+  const index = items.indexOf(event.target);
+  const moves = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: items.length - 1 };
+  if (event.key in moves) {
+    event.preventDefault();
+    items[(moves[event.key] + items.length) % items.length].focus();
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAccountMenus(true);
+  } else if (event.key === 'Tab') {
+    closeAccountMenus();
+  }
+});
 
 // ===== THEME =====
 function activeTheme() {

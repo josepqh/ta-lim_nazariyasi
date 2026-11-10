@@ -35,7 +35,7 @@ async function register(page, { name, login, role }) {
   await page.locator('#regCode').fill(await emailedCode(page, email));
   await page.locator('#registerCodeForm button[type="submit"]').click();
   await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
-  await expect(page.locator('#pageTitle')).toHaveText('Bosh sahifa');
+  await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
 }
 
 async function signIn(page, { login, password, role }) {
@@ -339,7 +339,8 @@ test('registration needs the emailed code, and a forgotten password can be reset
   await page.locator('#registerCodeForm button[type="submit"]').click();
   await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
 
-  await page.locator('.btn-logout').click();
+  await page.locator('#topbarUser').click();
+  await page.getByRole('menuitem', { name: 'Chiqish' }).click();
   await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
   await page.locator('#navLogin').click();
   await page.getByText('Parolni unutdingizmi?').click();
@@ -359,6 +360,7 @@ test('registration needs the emailed code, and a forgotten password can be reset
 test('the corner label opens the user’s own profile', async ({ page }) => {
   await register(page, { name: 'Profil Egasi', login: unique('profiler'), role: 'teacher' });
   await page.locator('#topbarUser').click();
+  await page.getByRole('menuitem', { name: 'Profilim' }).click();
   await expect(page.locator('#pageTitle')).toHaveText('Profilim');
   await expect(page.locator('#profileName')).toHaveText('Profil Egasi');
   await expect(page.locator('.profile-grid')).toContainText('@gmail.com');
@@ -375,6 +377,66 @@ test('the corner label opens the user’s own profile', async ({ page }) => {
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('#profileName')).toHaveText('Yangi Ism');
+});
+
+test('the role chip opens an account menu that works by mouse and keyboard', async ({ page }) => {
+  const login = unique('menu');
+  await register(page, { name: 'Menyu Egasi', login, role: 'student' });
+  await expect(page.locator('#nav-home')).toHaveText('Boshqaruv paneli');
+  await expect(page.locator('#sidebar')).not.toContainText('Chiqish');
+
+  const trigger = page.locator('#topbarUser');
+  const menu = page.locator('#topbarMenu');
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  await trigger.click();
+  await expect(menu).toBeVisible();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(menu).toContainText('Menyu Egasi');
+  await expect(menu).toContainText(`${login}@gmail.com`);
+  await expect(menu.getByRole('menuitem').first()).toBeFocused();
+
+  await page.keyboard.press('End');
+  await expect(menu.getByRole('menuitem', { name: 'Chiqish' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(menu.getByRole('menuitem', { name: 'Profilim' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  // The theme switch lives in the menu only, not as a separate topbar button.
+  await expect(page.locator('.topbar [data-theme-toggle]')).toHaveCount(0);
+  await expect(page.locator('#navUser [data-theme-toggle]')).toHaveCount(0);
+  const theme = () => page.evaluate(() => document.documentElement.dataset.theme || '');
+  const before = await theme();
+  await trigger.click();
+  await menu.locator('.theme-menu-item').click();
+  expect(await theme()).not.toBe(before);
+  await menu.locator('.theme-menu-item').click();
+  await page.keyboard.press('Escape');
+
+  await trigger.click();
+  await page.locator('#pageContainer').click({ position: { x: 5, y: 5 } });
+  await expect(menu).toBeHidden();
+
+  await trigger.click();
+  await menu.getByRole('menuitem', { name: 'Parolni almashtirish' }).click();
+  await expect(page.locator('#pageTitle')).toHaveText('Profilim');
+  await expect(page.locator('#profileCurrentPass')).toBeFocused();
+
+  await trigger.click();
+  await menu.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
+  await expect(page.locator('#navUser').getByRole('button', { name: 'Chiqish' })).toHaveCount(0);
+  await page.locator('#navUserName').click();
+  await page.locator('#navMenu').getByRole('menuitem', { name: 'Boshqaruv paneli' }).click();
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+  await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
+
+  await page.locator('#topbarUser').click();
+  await page.getByRole('menuitem', { name: 'Saytga qaytish' }).click();
+  await page.locator('#navUserName').click();
+  await page.locator('#navMenu').getByRole('menuitem', { name: 'Chiqish' }).click();
+  await expect(page.locator('#navLogin')).toBeVisible();
 });
 
 test('the theme toggle overrides the system and is remembered', async ({ browser }) => {
