@@ -1,7 +1,7 @@
-const { getSessionUser } = require('./_auth');
-const { reportServerError } = require('./_errors');
-const mail = require('./_mail');
-const { isWithinLimit } = require('./_rateLimit');
+const { getSessionUser } = require('../_auth');
+const { reportServerError } = require('../_errors');
+const mail = require('../_mail');
+const { isWithinLimit } = require('../_rateLimit');
 
 // Where questions from the "Aloqa" form arrive. CONTACT_EMAIL overrides it without a code change.
 const DEFAULT_INBOX = 'uzforedu@gmail.com';

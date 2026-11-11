@@ -1051,3 +1051,184 @@ describe('deleting accounts', () => {
     await harness.sql`DELETE FROM np_users WHERE id=${other.id}`;
   });
 });
+
+describe('one router for every endpoint', () => {
+  test('the router hands /api/<name> to its handler and refuses unknown names', async () => {
+    const { createResponse } = require('./helpers/harness');
+    const call = async (url, query = {}) => {
+      const res = createResponse();
+      await harness.handlers.router({ method: 'GET', url, query, headers: {} }, res);
+      return res;
+    };
+    const viaRewrite = await call('/api/router?__route=modules', { __route: 'modules' });
+    assert.equal(viaRewrite.statusCode, 200);
+    assert.ok(Array.isArray(viaRewrite.body));
+    assert.equal((await call('/api/modules')).statusCode, 200);
+    assert.equal((await call('/api/nothing-here')).statusCode, 404);
+    assert.equal((await call('/api/router', { __route: 'constructor' })).statusCode, 404);
+  });
+});
+
+describe('groups', () => {
+  let groupId, code;
+  test('a teacher creates a group and a student joins it with the code', async () => {
+    const created = await teacher.post('groups', { action: 'create', name: '  301-guruh  ' });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.name, '301-guruh');
+    assert.match(created.body.code, /^[A-HJ-NP-Z2-9]{6}$/);
+    ({ id: groupId, code } = created.body);
+
+    assert.equal((await student.post('groups', { action: 'join', code: 'ZZZZZZ' })).statusCode, 404);
+    assert.equal((await student.post('groups', { action: 'join', code: code.toLowerCase() })).statusCode, 201);
+    assert.equal((await student.post('groups', { action: 'join', code })).statusCode, 409);
+    assert.equal((await student.get('groups')).body[0].name, '301-guruh');
+    assert.equal((await student.post('groups', { action: 'create', name: 'Mine' })).statusCode, 403);
+
+    const detail = await teacher.get('groups', { id: String(groupId) });
+    assert.deepEqual(detail.body.members.map((m) => m.login), ['student_one@gmail.com']);
+    assert.equal((await teacher.get('groups')).body.find((g) => g.id === groupId).member_count, 1);
+  });
+
+  test('results can be filtered by group, and only the owner or the administrator manages it', async () => {
+    const all = await teacher.get('progress', { module_id: String(moduleId) });
+    const inGroup = await teacher.get('progress', { module_id: String(moduleId), group_id: String(groupId) });
+    assert.ok(inGroup.body.every((row) => row.student_login === 'student_one@gmail.com'));
+    assert.ok(all.body.length >= inGroup.body.length);
+
+    const outsider = harness.client();
+    await outsider.register(unique('outsider_teacher'), 'teacher');
+    assert.equal((await outsider.get('groups', { id: String(groupId) })).statusCode, 404);
+    assert.equal((await outsider.post('groups', { action: 'new_code', id: groupId })).statusCode, 404);
+    assert.ok((await admin.get('groups')).body.some((g) => g.id === groupId));
+
+    const renewed = await teacher.post('groups', { action: 'new_code', id: groupId });
+    assert.notEqual(renewed.body.code, code);
+    const [{ id: studentId }] = await harness.sql`SELECT id FROM np_users WHERE login='student_one@gmail.com'`;
+    assert.equal((await teacher.post('groups', { action: 'remove_member', id: groupId, user_id: studentId })).statusCode, 200);
+    assert.equal((await teacher.call('groups', { method: 'DELETE', query: { id: String(groupId) } })).statusCode, 200);
+    assert.equal((await student.get('groups')).body.length, 0);
+  });
+});
+
+describe('quiz retakes, answers and certificates', () => {
+  const QUESTIONS = [
+    { text: 'Didaktika nima?', options: ['Kimyo', 'Ta’lim nazariyasi', 'Fizika'], correct: 1, explanation: 'Didaktika ta’lim nazariyasidir.' },
+    { text: '2 + 2?', options: ['3', '4'], correct: 0 }
+  ];
+  let quizModule;
+
+  async function answerAll(by, id, attemptRetake = false) {
+    const paper = (await by.get('quiz', { module_id: String(id) })).body;
+    const answers = paper.questions.map(() => 0);
+    return by.post('progress', { module_id: id, step_type: 'diag', answers, version: paper.version, ...(attemptRetake ? { retake: true } : {}) });
+  }
+
+  test('explanations are stored and a retake needs the teacher’s permission', async () => {
+    quizModule = await buildFullModule(teacher);
+    await addContent(teacher, quizModule, 'diag', { value: '', questions: QUESTIONS, allow_retake: false, show_answers: false });
+    const pupil = harness.client();
+    await pupil.register(unique('retaker'));
+    const first = await answerAll(pupil, quizModule);
+    assert.equal(first.statusCode, 200);
+    assert.equal(first.body.step_responses.diag_detail, undefined);
+    assert.equal((await answerAll(pupil, quizModule, true)).statusCode, 403);
+
+    await addContent(teacher, quizModule, 'diag', { value: '', questions: QUESTIONS, allow_retake: true, show_answers: true });
+    const before = (await pupil.get('progress', { module_id: String(quizModule) })).body[0];
+    assert.equal(before.step_responses.diag_detail.find((d) => d.explanation)?.explanation, 'Didaktika ta’lim nazariyasidir.');
+
+    const retake = await answerAll(pupil, quizModule, true);
+    assert.equal(retake.statusCode, 200);
+    assert.equal(retake.body.step_responses.diag_attempts, 2);
+    assert.ok(retake.body.total_score >= before.total_score, 'the best result counts');
+    assert.ok(retake.body.step_responses.diag_last);
+  });
+
+  test('finishing every step issues one certificate that anyone can check', async () => {
+    const pupil = harness.client();
+    const name = unique('graduate');
+    await pupil.register(name);
+    await finishUntilTask(pupil, moduleId);
+    await pupil.post('progress', { module_id: moduleId, step_type: 'task', response: 'Rejam' });
+    const last = await pupil.post('progress', { module_id: moduleId, step_type: 'refl', response: 'O‘rgandim' });
+    assert.equal(last.statusCode, 200);
+    assert.match(last.body.certificate.code, /^[A-HJ-NP-Z2-9]{10}$/);
+    assert.equal(last.body.certificate.student_name, `Name ${name}`);
+
+    const mine = await pupil.get('certificates');
+    assert.equal(mine.body.length, 1);
+    assert.equal(mine.body[0].code, last.body.certificate.code);
+    const check = await harness.client().get('certificates', { code: last.body.certificate.code.toLowerCase() });
+    assert.equal(check.body.valid, true);
+    assert.equal(check.body.module_title, 'Module');
+    assert.deepEqual((await harness.client().get('certificates', { code: 'NOTREAL234' })).body, { valid: false });
+    assert.equal((await teacher.get('certificates')).statusCode, 403);
+  });
+});
+
+describe('articles, images and public numbers', () => {
+  const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+
+  test('the old guides are the first articles and the administrator writes new ones', async () => {
+    const list = await harness.client().get('articles');
+    assert.ok(list.body.some((a) => a.slug === 'darsni-rejalashtirish'));
+    assert.equal((await teacher.post('articles', { title: 'Sarlavha', body: 'Yetarlicha uzun maqola matni shu yerda.' })).statusCode, 403);
+
+    const created = await admin.post('articles', { title: 'O‘quv natijalarini qanday o‘lchash mumkin?', body: '**Muhim:** natijani o‘lchashdan oldin maqsadni yozing.', published: false });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.slug, 'oquv-natijalarini-qanday-olchash-mumkin');
+    assert.equal((await harness.client().get('articles', { slug: created.body.slug })).statusCode, 404);
+    assert.equal((await admin.get('articles', { all: '1' })).body.find((a) => a.id === created.body.id).published, false);
+
+    const again = await admin.post('articles', { title: 'O‘quv natijalarini qanday o‘lchash mumkin?', body: 'Ikkinchi maqola matni ham yetarlicha uzun.' });
+    assert.equal(again.body.slug, 'oquv-natijalarini-qanday-olchash-mumkin-2');
+    assert.equal((await admin.post('articles', { id: created.body.id, title: 'O‘quv natijalari', body: 'Yangilangan va e’lon qilingan matn.', published: true })).statusCode, 200);
+    const article = await harness.client().get('articles', { slug: created.body.slug });
+    assert.equal(article.body.title, 'O‘quv natijalari');
+    assert.match(article.body.excerpt, /Yangilangan/);
+    assert.equal((await admin.call('articles', { method: 'DELETE', query: { id: String(again.body.id) } })).statusCode, 200);
+  });
+
+  test('covers are checked images, served as they are, and a replaced cover is removed', async () => {
+    assert.equal((await student.post('images', { mime: 'image/png', data: PNG.toString('base64') })).statusCode, 403);
+    assert.equal((await teacher.post('images', { mime: 'image/png', data: PDF.toString('base64') })).statusCode, 415);
+    const first = await teacher.post('images', { mime: 'image/png', data: PNG.toString('base64') });
+    assert.equal(first.statusCode, 201);
+    const served = await harness.client().get('images', { id: first.body.id });
+    assert.equal(served.headers['content-type'], 'image/png');
+    assert.match(served.headers['cache-control'], /immutable/);
+    assert.deepEqual(Buffer.from(served.raw), PNG);
+
+    assert.equal((await teacher.post('modules', { action: 'cover', id: moduleId, cover_image_id: first.body.id })).body.cover_image_id, first.body.id);
+    const second = await teacher.post('images', { mime: 'image/png', data: PNG.toString('base64') });
+    await teacher.post('modules', { action: 'cover', id: moduleId, cover_image_id: second.body.id });
+    assert.equal((await harness.sql`SELECT 1 FROM np_images WHERE id=${first.body.id}::uuid`).length, 0);
+    const outsider = harness.client();
+    await outsider.register(unique('cover_outsider'), 'teacher');
+    assert.equal((await outsider.post('modules', { action: 'cover', id: moduleId, cover_image_id: null })).statusCode, 403);
+  });
+
+  test('the home page numbers come from the database', async () => {
+    const res = await harness.client().get('stats');
+    assert.equal(res.statusCode, 200);
+    const [{ n }] = await harness.sql`SELECT COUNT(*)::int AS n FROM np_modules WHERE deleted_at IS NULL`;
+    assert.equal(res.body.modules, n);
+    assert.ok(res.body.students >= 1 && res.body.teachers >= 1 && res.body.certificates >= 1);
+    assert.match(res.headers['cache-control'], /s-maxage/);
+  });
+});
+
+describe('action log', () => {
+  test('approvals, deletions and content changes are recorded for the administrator', async () => {
+    assert.equal((await teacher.get('audit')).statusCode, 403);
+    const log = await admin.get('audit');
+    assert.ok(log.body.total > log.body.items.length, 'the log is paged');
+    const actions = new Set((await harness.sql`SELECT DISTINCT action FROM np_audit_log`).map((row) => row.action));
+    for (const action of ['module.create', 'content.save', 'teacher.approve', 'account.delete', 'group.create', 'article.create', 'module.cover']) {
+      assert.ok(actions.has(action), `missing ${action}`);
+    }
+    const entry = log.body.items[0];
+    assert.ok(entry.actor_name && entry.action && entry.created_at);
+    assert.equal((await admin.get('audit', { page: '2' })).body.page, 2);
+  });
+});

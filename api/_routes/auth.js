@@ -1,11 +1,11 @@
 const { createHash, randomInt, timingSafeEqual } = require('node:crypto');
-const { reportServerError } = require('./_errors');
-const sql = require('./_db');
-const { createSession, destroySession, getSessionUser } = require('./_auth');
-const { normalizeGmail } = require('./_email');
-const mail = require('./_mail');
-const { hashPassword, verifyPassword } = require('./_password');
-const { consumeLimit, isWithinLimit } = require('./_rateLimit');
+const { reportServerError } = require('../_errors');
+const sql = require('../_db');
+const { createSession, destroySession, getSessionUser } = require('../_auth');
+const { normalizeGmail } = require('../_email');
+const mail = require('../_mail');
+const { hashPassword, verifyPassword } = require('../_password');
+const { consumeLimit, isWithinLimit } = require('../_rateLimit');
 
 const MAX_FAILED_LOGINS = 5;
 const MAX_CODE_REQUESTS_PER_HOUR = 10;

@@ -1,6 +1,7 @@
 import { CircleCheck, CirclePlay, Eye } from 'lucide-react';
 import { useModules, useMyProgress } from '../../lib/queries';
 import { PageSkeleton } from '../../components/Skeleton';
+import { imageUrl } from '../../lib/learning';
 import { prefetchModule } from '../../lib/prefetch';
 import { navigate, openModule, useApp } from '../../store';
 
@@ -35,6 +36,7 @@ export function Modules() {
           const StatusIcon = done ? CircleCheck : isStudent ? CirclePlay : Eye;
           return (
             <button key={module.id} type="button" className="module-card text-left" onPointerEnter={() => prefetchModule(module.id)} onFocus={() => prefetchModule(module.id)} onClick={() => openModule(module.id)}>
+              {module.cover_image_id && <img src={imageUrl(module.cover_image_id)!} alt="" loading="lazy" className="module-cover"/>}
               <div className="mod-info flex-1 pr-5">
                 <div className="mb-1 text-sm text-primary">Modul {module.order_num}</div>
                 <h4>{module.title}</h4>

@@ -112,7 +112,7 @@ function clickLink(href: string, filename?: string) {
 export type DownloadResult = { kind: 'done' } | { kind: 'needsTap'; file: File };
 
 // Phones get the system share sheet (save to Files, open in PowerPoint) and stay on the page.
-async function deliver(parts: Uint8Array<ArrayBuffer>[], name: string): Promise<DownloadResult> {
+export async function deliver(parts: Uint8Array<ArrayBuffer>[], name: string): Promise<DownloadResult> {
   const extension = name.split('.').pop()?.toLowerCase() ?? '';
   const file = new File(parts, name, { type: FILE_TYPES[extension] || 'application/octet-stream' });
   if (canShareFile(file)) {

@@ -1,9 +1,11 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { requireUser } = require('./_auth');
-const { findAttachable, isUuid } = require('./_files');
-const { gradeAnswers, quizVersion } = require('./_quiz');
-const { canManage } = require('./_modules');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { requireUser } = require('../_auth');
+const { findAttachable, isUuid } = require('../_files');
+const { gradeAnswers, quizVersion } = require('../_quiz');
+const { canManage } = require('../_modules');
+const { audit } = require('../_audit');
+const { ensureCertificate } = require('../_certificates');
 
 const STEP_TYPES = ['diag', 'video', 'pres', 'doc', 'task', 'refl'];
 const REVIEWABLE_STEPS = ['task', 'refl'];
@@ -21,11 +23,25 @@ function normalizeAnswer(value) {
     .toLocaleLowerCase('uz');
 }
 
-// The per-question breakdown holds answers other students could still be asked.
-function forStudent(row) {
-  if (!row?.step_responses?.diag_detail) return row;
+// The per-question breakdown holds answers other students could still be asked,
+// so a student sees it only where the teacher chose to show answers after the test.
+function forStudent(row, showAnswers = false) {
+  if (!row?.step_responses?.diag_detail || showAnswers) return row;
   const { diag_detail: _hidden, ...stepResponses } = row.step_responses;
   return { ...row, step_responses: stepResponses };
+}
+
+async function quizSettings(moduleId) {
+  const rows = await sql`
+    SELECT content FROM np_module_content WHERE module_id=${moduleId} AND step_type='diag' LIMIT 1`;
+  const content = rows[0]?.content || {};
+  return { allowRetake: content.allow_retake === true, showAnswers: content.show_answers === true, questions: Array.isArray(content.questions) && content.questions.length ? content.questions : null };
+}
+
+async function modulesShowingAnswers() {
+  const rows = await sql`
+    SELECT module_id FROM np_module_content WHERE step_type='diag' AND content->>'show_answers' = 'true'`;
+  return new Set(rows.map((row) => Number(row.module_id)));
 }
 
 function parseOptionalId(value) {
@@ -37,6 +53,8 @@ function parseOptionalId(value) {
 async function readProgress(req, res, user) {
   const moduleId = parseOptionalId(req.query.module_id);
   const studentId = parseOptionalId(req.query.user_id);
+  const groupId = parseOptionalId(req.query.group_id);
+  if (Number.isNaN(groupId)) return res.status(400).json({ error: 'Guruh raqami noto‘g‘ri.' });
   if (Number.isNaN(moduleId)) return res.status(400).json({ error: 'Modul raqami noto‘g‘ri.' });
   if (Number.isNaN(studentId)) return res.status(400).json({ error: 'Talaba raqami noto‘g‘ri.' });
 
@@ -46,7 +64,8 @@ async function readProgress(req, res, user) {
       SELECT * FROM np_progress
       WHERE user_id=${user.id} AND (${moduleId}::int IS NULL OR module_id=${moduleId}::int)
         AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)`;
-    return res.json(rows.map(forStudent));
+    const showing = await modulesShowingAnswers();
+    return res.json(rows.map((row) => forStudent(row, showing.has(Number(row.module_id)))));
   }
 
   return res.json(await sql`
@@ -57,6 +76,7 @@ async function readProgress(req, res, user) {
     WHERE u.deleted_at IS NULL AND m.deleted_at IS NULL
       AND (${moduleId}::int IS NULL OR p.module_id=${moduleId}::int)
       AND (${studentId}::int IS NULL OR p.user_id=${studentId}::int)
+      AND (${groupId}::int IS NULL OR p.user_id IN (SELECT user_id FROM np_group_members WHERE group_id=${groupId}::int))
     ORDER BY p.updated_at DESC`);
 }
 
@@ -87,7 +107,41 @@ async function saveReview(res, teacher, body) {
     WHERE id=${progressId}
     RETURNING *`;
   if (!rows.length) return res.status(404).json({ error: 'Topshiriq topilmadi.' });
+  await audit(teacher, 'work.review', `Talaba ishi #${progressId}: ${step}`, { progress_id: progressId, step });
   return res.json(rows[0]);
+}
+
+// A new attempt at the test, when the teacher allows it. The best result counts; the order of
+// questions and answers is new each time.
+async function retakeQuiz(res, user, body, progress) {
+  const moduleId = Number(body.module_id);
+  const settings = await quizSettings(moduleId);
+  if (!settings.allowRetake || !settings.questions) return res.status(403).json({ error: 'Bu testni qayta topshirib bo‘lmaydi.' });
+  if (body.version !== quizVersion(settings.questions)) return res.status(409).json({ error: 'Test yangilandi. Sahifani yangilab, qayta yeching.' });
+  const attempt = Number(progress.step_responses?.diag_attempts) || 1;
+  const result = gradeAnswers(settings.questions, user.id, moduleId, body.answers, attempt);
+  if (!result) return res.status(400).json({ error: 'Barcha savollarga javob bering.' });
+
+  const earned = Math.round((STEP_SCORE * result.correct) / result.total);
+  const previous = progress.step_responses?.diag_result;
+  const previousScore = Number(previous?.score) || 0;
+  const better = earned >= previousScore;
+  const responses = { ...progress.step_responses, diag_attempts: attempt + 1, diag_last: { correct: result.correct, total: result.total, score: earned } };
+  if (better) {
+    responses.diag = `${result.correct}/${result.total}`;
+    responses.diag_correct = result.correct === result.total;
+    responses.diag_result = { correct: result.correct, total: result.total, score: earned };
+    responses.diag_detail = result.detail;
+  }
+  const score = Number(progress.total_score || 0) - previousScore + Math.max(earned, previousScore);
+  // The attempt number in WHERE stops a double submit from counting one attempt twice.
+  const rows = await sql`
+    UPDATE np_progress SET step_responses=${JSON.stringify(responses)}, total_score=${score}, updated_at=NOW()
+    WHERE user_id=${user.id} AND module_id=${moduleId}
+      AND COALESCE((step_responses->>'diag_attempts')::int, 1) = ${attempt}
+    RETURNING *`;
+  const saved = rows[0] || (await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`)[0];
+  return res.json(forStudent(saved, settings.showAnswers));
 }
 
 async function hasMaterial(moduleId, stepType) {
@@ -115,7 +169,12 @@ async function completeStep(res, user, body) {
     FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`;
   const progress = current[0] || { completed_steps: [], total_score: 0, step_responses: {} };
   const completedSteps = Array.isArray(progress.completed_steps) ? progress.completed_steps : [];
-  if (completedSteps.includes(stepType)) return res.json(forStudent(progress));
+  if (stepType === 'diag' && body.retake === true) {
+    if (!completedSteps.includes('diag')) return res.status(409).json({ error: 'Avval testni bir marta topshiring.' });
+    return await retakeQuiz(res, user, body, progress);
+  }
+  const { showAnswers } = stepType === 'diag' ? await quizSettings(moduleId) : { showAnswers: false };
+  if (completedSteps.includes(stepType)) return res.json(forStudent(progress, showAnswers));
   if (stepIndex > 0 && !completedSteps.includes(STEP_TYPES[stepIndex - 1])) {
     return res.status(409).json({ error: 'Avval oldingi qadamni bajaring.' });
   }
@@ -176,10 +235,11 @@ async function completeStep(res, user, body) {
       SET completed_steps=${steps}, total_score=${score}, step_responses=${serializedResponses}, updated_at=NOW()
       WHERE NOT (np_progress.completed_steps ? ${stepType}::text)
     RETURNING *`;
-  if (rows.length) return res.json(forStudent(rows[0]));
-
-  const latest = await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`;
-  return res.json(forStudent(latest[0]));
+  const saved = rows.length ? rows[0] : (await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`)[0];
+  // The sixth step earns the module's certificate.
+  const certificate = saved && saved.completed_steps.length >= STEP_TYPES.length ? await ensureCertificate(user.id, moduleId) : null;
+  const showing = await modulesShowingAnswers();
+  return res.json({ ...forStudent(saved, showing.has(moduleId)), ...(certificate ? { certificate } : {}) });
 }
 
 module.exports = async (req, res) => {

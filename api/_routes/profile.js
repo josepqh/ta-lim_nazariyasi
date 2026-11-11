@@ -1,8 +1,8 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { createSession, requireUser } = require('./_auth');
-const { hashPassword, verifyPassword } = require('./_password');
-const { consumeLimit } = require('./_rateLimit');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { createSession, requireUser } = require('../_auth');
+const { hashPassword, verifyPassword } = require('../_password');
+const { consumeLimit } = require('../_rateLimit');
 
 const MAX_PASSWORD_ATTEMPTS = 5;
 const PASSWORD_ATTEMPT_WINDOW_SECONDS = 15 * 60;

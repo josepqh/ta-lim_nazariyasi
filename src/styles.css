@@ -275,7 +275,7 @@
 
   .form-group { @apply mb-5 text-left; }
   .form-group > label, .form-label { @apply field-label; }
-  .form-group input:not([type="radio"], [type="checkbox"], [type="file"]), .form-group textarea, .form-group select { @apply field; }
+  .form-group input:not([type="radio"], [type="checkbox"], [type="file"]), .form-group textarea:not(.rte-area), .form-group select { @apply field; }
   .file-input { @apply w-full py-2.5 text-sm text-ink; }
   .field-hint { @apply mt-1.5 block text-sm text-muted; }
   .upload-progress { @apply mt-2 text-sm text-muted; }
@@ -399,6 +399,43 @@
   .error-list { @apply divide-y divide-line; }
   .error-entry { @apply py-4; }
   .error-detail { @apply mt-2 max-h-72 overflow-auto rounded-lg bg-page p-3 text-xs leading-relaxed whitespace-pre-wrap text-ink; }
+
+  /* Formatting editor and the text it produces */
+  .rte { @apply overflow-hidden rounded-xl border border-line bg-page focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25; }
+  .rte-bar { @apply flex flex-wrap items-center gap-0.5 border-b border-line bg-surface px-1.5 py-1; }
+  .rte-tool { @apply grid size-9 place-items-center rounded-lg text-muted transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-40; }
+  .rte-mode { @apply inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-muted transition-colors hover:text-primary [&.active]:bg-primary/10 [&.active]:text-primary; }
+  .rte-area { @apply block w-full resize-y border-0 bg-transparent px-4 py-3 text-base text-ink outline-none placeholder:text-muted; }
+  .rte-preview { @apply min-h-24 px-4 py-3; }
+  .prose-text { @apply space-y-3 text-[15px] leading-relaxed text-ink [&_a]:font-medium [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/40 [&_blockquote]:pl-4 [&_blockquote]:text-muted [&_code]:rounded [&_code]:bg-line/70 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[0.9em] [&_h3]:pt-2 [&_h3]:text-lg [&_h3]:font-semibold [&_h4]:font-semibold [&_ol]:list-decimal [&_ol]:space-y-1 [&_ol]:pl-6 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6; }
+
+  .continue-card { @apply mb-5 flex flex-wrap items-center gap-4 rounded-2xl border border-primary/30 bg-surface p-5 sm:flex-nowrap sm:p-6; }
+  .continue-icon { @apply grid size-14 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary [&_svg]:size-7; }
+  .continue-cover { @apply h-20 w-32 shrink-0 rounded-xl object-cover; }
+  .certificate-row { @apply flex flex-wrap items-center gap-3 py-3.5 sm:flex-nowrap; }
+
+  .answer-review { @apply mt-5 rounded-2xl border border-line bg-surface p-4 sm:p-5 [&_ol]:mt-2 [&_ol]:space-y-3 [&_li]:rounded-xl [&_li]:p-3 [&_li.right]:bg-primary/5 [&_li.wrong]:bg-danger/5; }
+  .answer-explanation { @apply mt-2 rounded-lg border-l-4 border-primary/40 bg-surface px-3 py-2 text-sm text-ink; }
+
+  .quiz-settings { @apply mb-4 space-y-2 rounded-xl border border-line bg-page p-3.5 text-[15px] text-ink [&_label]:flex [&_label]:items-start [&_label]:gap-2.5 [&_input]:mt-1 [&_input]:size-4 [&_input]:accent-[var(--primary)]; }
+  .quiz-explanation { @apply mt-2 w-full resize-y rounded-lg border border-dashed border-line bg-transparent px-3 py-2 text-sm text-ink outline-none placeholder:text-muted focus:border-primary; }
+
+  .group-code { @apply flex flex-col items-start gap-1.5 rounded-xl border border-dashed border-primary/50 bg-primary/5 px-4 py-3 [&_strong]:font-mono [&_strong]:text-2xl [&_strong]:tracking-[0.3em] [&_strong]:text-primary; }
+  .group-grid { @apply grid gap-3 sm:grid-cols-2 lg:grid-cols-3; }
+  .group-card { @apply flex flex-col items-start gap-0.5 rounded-xl border border-line bg-page p-4 text-left transition-colors duration-200 hover:border-primary; }
+
+  .cover-picker { @apply flex flex-wrap items-center gap-4; }
+  .cover-preview { @apply h-24 w-40 rounded-xl border border-line object-cover; }
+  .cover-empty { @apply grid h-24 w-40 place-items-center rounded-xl border-2 border-dashed border-line text-muted [&_svg]:size-7; }
+
+  .audit-entry { @apply flex flex-wrap items-center gap-x-3 gap-y-1 py-3; }
+
+  .module-cover { @apply h-20 w-28 shrink-0 rounded-xl object-cover sm:h-24 sm:w-36; }
+
+  .article-card { @apply flex flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-lg; }
+  .article-placeholder { @apply grid aspect-[16/9] w-full place-items-center bg-primary/10 text-6xl font-bold text-primary/50; }
+  .article-body { @apply text-[17px] [&_p]:leading-[1.8]; }
+  .verify-result { @apply mt-6 flex items-start gap-4 rounded-2xl border p-5 [&.valid]:border-primary/40 [&.valid]:bg-primary/5 [&.invalid]:border-danger/40 [&.invalid]:bg-danger/5; }
 
   /* Account menu: opened from the role chip (cabinet) or the name chip (public site) */
   .account { @apply relative; }

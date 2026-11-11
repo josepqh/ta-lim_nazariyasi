@@ -718,7 +718,8 @@ test('browser errors reach the administrator’s error log', async ({ browser })
 
   const admin = await (await browser.newContext()).newPage();
   await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
-  await openMenu(admin, 'Xatolar jurnali');
+  await openMenu(admin, 'Jurnallar');
+  await admin.locator('#logsTabErrors').click();
   await expect(admin.locator('.error-entry', { hasText: message })).toContainText('Brauzer');
 });
 
@@ -788,4 +789,139 @@ test('the administrator deletes a student’s account from the profile page', as
 
   await signIn(student, { login: `${login}@gmail.com`, password: PASSWORD, role: 'student' });
   await expect(student.locator('#loginError')).toHaveText('Gmail yoki parol noto‘g‘ri.');
+});
+
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+
+test('a student joins a group, continues where they stopped and earns a checkable certificate', async ({ browser }) => {
+  test.setTimeout(120000);
+  const title = unique('Sertifikatli');
+  const teacher = await (await browser.newContext()).newPage();
+  await register(teacher, { name: 'Group Teacher', login: unique('gteacher'), role: 'teacher' });
+  await fillNewModuleForm(teacher, browser, title, 950000 + Math.floor(Math.random() * 40000));
+  await teacher.locator('#newTask').fill('**Muhim:** dars rejasini tuzing');
+  await teacher.getByRole('button', { name: 'Modulni yaratish' }).click();
+  await expect(teacher.locator('#toast')).toContainText('barcha materiallari');
+
+  await openMenu(teacher, 'Guruhlar');
+  await teacher.locator('#groupName').fill('Sertifikat guruhi');
+  await teacher.getByRole('button', { name: 'Guruh yaratish' }).click();
+  const code = (await teacher.locator('#groupCodeValue').innerText()).trim();
+  expect(code).toMatch(/^[A-Z2-9]{6}$/);
+
+  const studentName = unique('Bitiruvchi');
+  const student = await (await browser.newContext({ acceptDownloads: true })).newPage();
+  await register(student, { name: studentName, login: unique('grad'), role: 'student' });
+  await student.locator('#groupCode').fill(code.toLowerCase());
+  await student.getByRole('button', { name: 'Guruhga qo‘shilish' }).click();
+  await expect(student.locator('#studentGroups')).toContainText('Sertifikat guruhi');
+
+  await expect(student.locator('#continueCard')).toBeVisible();
+  await openMenu(student, 'Modullar');
+  await student.locator('.module-card', { hasText: title }).click();
+  await doStep(student, 0, answerQuizCorrectly);
+  await doStep(student, 1);
+  await openMenu(student, 'Boshqaruv paneli');
+  await expect(student.locator('#continueCard')).toContainText('3-qadam');
+  await student.locator('#continueCard').getByRole('button', { name: 'Davom etish' }).click();
+  await expect(student.locator('#stepHeading')).toHaveText('Taqdimot (Prezentatsiya)');
+  await doStep(student, 2);
+  await doStep(student, 3);
+  await student.locator('.step-item').nth(4).click();
+  await expect(student.locator('#stepBody strong', { hasText: 'Muhim:' })).toBeVisible();
+  await doStep(student, 4, (p) => p.locator('#stepResponse').fill('Reja tayyor'));
+  await doStep(student, 5, (p) => p.locator('#stepResponse').fill('Ko‘p narsa o‘rgandim'));
+  await expect(student.locator('#toast')).toContainText('sertifikat berildi');
+
+  const downloading = student.waitForEvent('download');
+  await student.locator('#certificateButton').click();
+  const pdf = await downloading;
+  expect(pdf.suggestedFilename()).toMatch(/^sertifikat-[A-Z2-9]{10}\.pdf$/);
+  const certificateCode = pdf.suggestedFilename().slice('sertifikat-'.length, -4);
+
+  await openMenu(student, 'Boshqaruv paneli');
+  await expect(student.locator('#certificatesCard')).toContainText(title);
+
+  const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto(`/#verify/${certificateCode}`, { waitUntil: 'domcontentloaded' });
+  await expect(visitor.locator('#verifyResult')).toContainText('Sertifikat haqiqiy');
+  await expect(visitor.locator('#verifyResult')).toContainText(studentName);
+  await visitor.locator('#verifyCode').fill('NOTREAL234');
+  await visitor.getByRole('button', { name: 'Tekshirish' }).click();
+  await expect(visitor.locator('#verifyResult')).toContainText('topilmadi');
+
+  await openMenu(teacher, 'Tahlil va grafika');
+  await teacher.locator('#groupFilter').selectOption({ label: 'Sertifikat guruhi (1)' });
+  await expect(teacher.locator('.leaderboard-table').last()).toContainText(studentName);
+});
+
+test('a teacher allows retakes and shows answers with explanations', async ({ browser }) => {
+  test.setTimeout(120000);
+  const title = unique('Qayta');
+  const teacher = await (await browser.newContext()).newPage();
+  await register(teacher, { name: 'Retake Teacher', login: unique('rteacher'), role: 'teacher' });
+  await fillNewModuleForm(teacher, browser, title, 990000 + Math.floor(Math.random() * 9000));
+  await teacher.locator('#newAllowRetake').check();
+  await teacher.locator('#newShowAnswers').check();
+  await teacher.locator('#newExplain0').fill('Didaktika pedagogikaning bo‘limi.');
+  await teacher.getByRole('button', { name: 'Modulni yaratish' }).click();
+  await expect(teacher.locator('#toast')).toContainText('barcha materiallari');
+
+  const student = await (await browser.newContext()).newPage();
+  await register(student, { name: 'Retake Student', login: unique('rstudent'), role: 'student' });
+  await openMenu(student, 'Modullar');
+  await student.locator('.module-card', { hasText: title }).click();
+  await doStep(student, 0, answerQuizCorrectly);
+  await student.locator('.step-item').nth(0).click();
+  await expect(student.locator('.answer-review')).toContainText('To‘g‘ri javob');
+  await expect(student.locator('.answer-review')).toContainText('Didaktika pedagogikaning bo‘limi.');
+
+  await student.getByRole('button', { name: /Testni qayta topshirish/ }).click();
+  await answerQuizCorrectly(student);
+  await student.getByRole('button', { name: 'Testni yakunlash' }).click();
+  await expect(student.locator('#toast')).toContainText('Yangi urinish');
+  await expect(student.getByRole('button', { name: /3-urinish/ })).toBeVisible();
+});
+
+test('the administrator publishes an article, sets a cover and sees it in the action log', async ({ browser }) => {
+  const admin = await (await browser.newContext()).newPage();
+  await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
+  const title = unique('Faol o‘qitish');
+  await openMenu(admin, 'Maqolalar');
+  await admin.locator('#newArticle').click();
+  await admin.locator('#articleTitle').fill(title);
+  await admin.locator('#articleBody').fill('## Asosiy fikr\n\n- **Savol** bering\n- Guruhda ishlang\n\n[Batafsil](https://example.com)');
+  await admin.locator('.cover-picker input[type=file]').setInputFiles({ name: 'muqova.png', mimeType: 'image/png', buffer: TINY_PNG });
+  await expect(admin.locator('.cover-picker img')).toBeVisible();
+  await admin.locator('#articleSave').click();
+  await expect(admin.locator('#toast')).toContainText('e’lon qilindi');
+
+  await openMenu(admin, 'Jurnallar');
+  await expect(admin.locator('#auditList')).toContainText('Maqola yaratildi');
+
+  const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(visitor.locator('[data-stat="students"]')).toHaveText(/^\d[\d\s,.]*$/);
+  await visitor.locator('#mainNav').getByText('Maqolalar').click();
+  await visitor.locator('.article-card', { hasText: title }).click();
+  await expect(visitor.locator('#articlePage h1')).toHaveText(title);
+  await expect(visitor.locator('#articlePage h3')).toHaveText('Asosiy fikr');
+  await expect(visitor.locator('#articlePage li strong')).toHaveText('Savol');
+  await expect(visitor.locator('#articlePage a[href="https://example.com"]')).toHaveAttribute('rel', /noopener/);
+  await expect(visitor.locator('#articlePage img')).toBeVisible();
+
+  await admin.setViewportSize({ width: 390, height: 800 });
+  await expect(admin.locator('#bnav-more')).toBeVisible();
+  expect(await admin.locator('.bottom-nav-item').count()).toBe(5);
+});
+
+test('a teacher gives a module a cover that students see on its card', async ({ page, browser }) => {
+  const title = unique('Muqovali');
+  await register(page, { name: 'Cover Teacher', login: unique('cover'), role: 'teacher' });
+  await publishFullModule(page, browser, title, 900000 + Math.floor(Math.random() * 40000));
+  const row = page.locator('#pageContainer > .card > div', { hasText: title });
+  await row.locator('.cover-picker input[type=file]').setInputFiles({ name: 'muqova.png', mimeType: 'image/png', buffer: TINY_PNG });
+  await expect(page.locator('#toast')).toContainText('Muqova saqlandi');
+  await openMenu(page, 'Modullar');
+  await expect(page.locator('.module-card', { hasText: title }).locator('img.module-cover')).toBeVisible();
 });

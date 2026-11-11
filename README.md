@@ -6,7 +6,7 @@ Ta'lim nazariyasi bo‘yicha olti qadamli modullar platformasi. Frontend React +
 
 - `src/` — React ilova: `site/` (ochiq sayt), `cabinet/` (kabinet sahifalari), `components/`, `lib/` (API, fayllar, so‘rovlar), `store.ts` (holat va manzillar).
 - `public/` — rasmlar, `robots.txt`, `sitemap.xml`, manifest, ijtimoiy tarmoq rasmi (`og-image.jpg`).
-- `api/` — serverless funksiyalar; `_` bilan boshlanganlari yordamchi modullar. `api/_migrations/` — bazaning versiyalangan migratsiyalari.
+- `api/router.js` — yagona serverless funksiya: `vercel.json` `/api/<nom>` so‘rovlarini unga yo‘naltiradi, u esa `api/_routes/<nom>.js` ga uzatadi. Yangi endpoint uchun `api/_routes/` ga fayl qo‘shib, `api/_routes/index.js` ga yozing; Vercel’ning funksiyalar soni cheklovi ta’sir qilmaydi. `api/_migrations/` — bazaning versiyalangan migratsiyalari.
 - `scripts/` — lokal ishga tushirish va fayllarni Storage’ga ko‘chirish skriptlari.
 - `tests/` — API testlari (`node --test`, xotiradagi PGlite bazada) va Playwright E2E testlari.
 
@@ -37,6 +37,17 @@ npm start            # yig‘ilgan saytni lokal API bilan ishga tushiradi
 - Talaba ro‘yxatdan o‘tgach darhol kiradi.
 - O‘qituvchi Gmail’ni tasdiqlagach **administrator tasdig‘ini kutadi**: admin “Foydalanuvchilar → Tasdiq kutayotganlar” bo‘limida tasdiqlaydi yoki rad etadi, ikkala holatda ham xat boradi.
 - O‘qituvchi faqat **o‘zi yaratgan modullarni** tahrirlaydi, o‘chiradi, materiallarini o‘zgartiradi va ularning javoblarini baholaydi; administrator hammasini boshqaradi. Bu qoida serverda (`api/_modules.js`) tekshiriladi.
+
+## O‘quv imkoniyatlari
+
+- **Guruhlar.** O‘qituvchi “Guruhlar” bo‘limida guruh yaratadi va 6 belgili taklif kodini talabalarga beradi; talaba kabinetdagi “Guruhlarim” orqali qo‘shiladi. Tahlil va javoblar sahifalarida natijalarni guruh bo‘yicha saralash mumkin. Kod oshkor bo‘lsa, “Yangi kod” eskisini bekor qiladi.
+- **Sertifikatlar.** Talaba modulning oltita qadamini tugatganda sertifikat avtomatik beriladi. PDF brauzerda chiziladi (ism, modul, ball, sana, raqam, QR kod). Istalgan kishi uni saytdagi “Sertifikatni tekshirish” sahifasida (`#verify/RAQAM`) tekshira oladi.
+- **Testni qayta topshirish va izohlar.** Test muharririda o‘qituvchi “qayta topshirish mumkin” va “to‘g‘ri javoblarni ko‘rsatish” ni yoqadi, har savolga izoh yozadi. Qayta topshirishda savollar yangi tartibda chiqadi, eng yaxshi natija hisobga olinadi.
+- **Matn muharriri.** Topshiriq, refleksiya, material izohlari va maqolalar Markdown’da yoziladi (qalin, kursiv, sarlavha, ro‘yxat, iqtibos, havola). Ko‘rsatishda matn HTML sifatida emas, React elementlari sifatida chiziladi; havolalar faqat `http(s)` va `mailto`.
+- **Maqolalar.** Administrator “Maqolalar” bo‘limida muqovali maqola yozadi, qoralama qilib saqlay oladi.
+- **Muqovalar.** Modul va maqolaga rasm qo‘yiladi; brauzer uni 1200 px gacha kichraytirib yuboradi, server formatini tekshiradi.
+- **Amallar jurnali.** Tasdiqlash, o‘chirish, modul va material o‘zgarishlari, baholash va guruh amallari yoziladi; admin “Jurnallar” sahifasida ko‘radi.
+- **Bosh sahifadagi raqamlar** `/api/stats` dan keladi va 5 daqiqa keshlanadi.
 
 ## Migratsiyalar
 

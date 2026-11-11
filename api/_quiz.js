@@ -4,6 +4,7 @@ const MAX_QUESTIONS = 200;
 const MAX_QUESTION_LENGTH = 2000;
 const MAX_OPTION_LENGTH = 1000;
 const MAX_OPTIONS = 8;
+const MAX_EXPLANATION_LENGTH = 2000;
 const BOLD_MARK = '\u0001';
 
 const LETTER = '[A-HА-Е]';
@@ -133,7 +134,9 @@ function normalizeQuestions(value, { allowMissing = false } = {}) {
     const correct = item.correct;
     const validCorrect = Number.isInteger(correct) && correct >= 0 && correct < options.length;
     if (!validCorrect && !(allowMissing && correct === null)) return null;
-    result.push({ text, options, correct });
+    const explanation = typeof item.explanation === 'string' ? item.explanation.trim() : '';
+    if (explanation.length > MAX_EXPLANATION_LENGTH) return null;
+    result.push(explanation ? { text, options, correct, explanation } : { text, options, correct });
   }
   return result;
 }
@@ -151,9 +154,10 @@ function shuffled(length, seed) {
     .map((item) => item.index);
 }
 
-// Derived from the student and module, so a reload shows the same paper and nothing extra is stored.
-function buildPaper(questions, userId, moduleId) {
-  const seed = `${userId}:${moduleId}:${quizVersion(questions)}`;
+// Derived from the student, module and attempt, so a reload shows the same paper and nothing extra
+// is stored, while a retake gets a fresh order.
+function buildPaper(questions, userId, moduleId, attempt = 0) {
+  const seed = `${userId}:${moduleId}:${quizVersion(questions)}${attempt ? `:attempt${attempt}` : ''}`;
   return shuffled(questions.length, `${seed}:questions`).map((questionIndex) => ({
     questionIndex,
     optionOrder: shuffled(questions[questionIndex].options.length, `${seed}:options:${questionIndex}`)
@@ -161,10 +165,10 @@ function buildPaper(questions, userId, moduleId) {
 }
 
 // Positions only: original indexes would reveal where the author placed the correct answer.
-function studentPaper(questions, userId, moduleId) {
+function studentPaper(questions, userId, moduleId, attempt = 0) {
   return {
     version: quizVersion(questions),
-    questions: buildPaper(questions, userId, moduleId).map(({ questionIndex, optionOrder }) => ({
+    questions: buildPaper(questions, userId, moduleId, attempt).map(({ questionIndex, optionOrder }) => ({
       text: questions[questionIndex].text,
       options: optionOrder.map((index) => questions[questionIndex].options[index])
     }))
@@ -172,8 +176,8 @@ function studentPaper(questions, userId, moduleId) {
 }
 
 // answers[i] is the chosen option position in the i-th question as this student saw it.
-function gradeAnswers(questions, userId, moduleId, answers) {
-  const paper = buildPaper(questions, userId, moduleId);
+function gradeAnswers(questions, userId, moduleId, answers, attempt = 0) {
+  const paper = buildPaper(questions, userId, moduleId, attempt);
   if (!Array.isArray(answers) || answers.length !== paper.length) return null;
   const detail = [];
   for (const [position, entry] of paper.entries()) {
@@ -185,7 +189,8 @@ function gradeAnswers(questions, userId, moduleId, answers) {
       question: question.text,
       chosen: question.options[original],
       right: question.options[question.correct],
-      correct: original === question.correct
+      correct: original === question.correct,
+      ...(question.explanation ? { explanation: question.explanation } : {})
     });
   }
   return { correct: detail.filter((item) => item.correct).length, total: detail.length, detail };

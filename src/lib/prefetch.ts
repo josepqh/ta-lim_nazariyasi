@@ -11,6 +11,9 @@ export function prefetchPage(page: PageId) {
   void fetch(keys.modules, '/modules');
   if (page === 'analytics') void fetch(['progress', 'all'], '/progress');
   if (page === 'profile') void fetch(['profile'], '/profile');
+  if (page === 'groups') void fetch(['groups'], '/groups');
+  if (page === 'articles') void fetch(['articles', 'all'], '/articles?all=1');
+  if (page === 'errors') void fetch(['audit', 1], '/audit?page=1');
   if (page === 'errors') void fetch(['errors', 1], '/errors?page=1');
   if (page === 'home' && state.user?.role === 'admin') void fetch(['users', 'counts'], '/users?page_size=1');
   if (page === 'users') {

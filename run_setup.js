@@ -1,5 +1,5 @@
 require('dotenv').config();
-const setup = require('./api/setup');
+const setup = require('./api/_routes/setup');
 
 const req = {
   method: 'POST',

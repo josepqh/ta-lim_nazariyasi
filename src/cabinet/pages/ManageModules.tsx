@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { Archive, CircleHelp, CirclePlay, Feather, FileText, Layers, Lock, Pencil, PencilLine, Presentation, RotateCcw, Save, Trash2, UploadCloud, X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
+import { CoverPicker } from '../../components/CoverPicker';
 import { FilePicker } from '../../components/FilePicker';
-import { QuizBuilder, quizReady } from '../../components/QuizBuilder';
+import { QuizBuilder, quizReady, type QuizSettings } from '../../components/QuizBuilder';
+import { RichTextEditor } from '../../components/RichTextEditor';
 import { api } from '../../lib/api';
 import { DOCUMENT_ACCEPT, uploadFile } from '../../lib/files';
 import { youTubeEmbedUrl } from '../../lib/format';
@@ -38,6 +40,7 @@ export function ManageModules() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [quizSettings, setQuizSettings] = useState<QuizSettings>({ allowRetake: false, showAnswers: false });
   const [video, setVideo] = useState('');
   const [presFile, setPresFile] = useState<File | null>(null);
   const [docFile, setDocFile] = useState<File | null>(null);
@@ -45,6 +48,7 @@ export function ManageModules() {
   const [task, setTask] = useState('');
   const [taskFile, setTaskFile] = useState<File | null>(null);
   const [refl, setRefl] = useState('');
+  const [cover, setCover] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
   const [formKey, setFormKey] = useState(0);
@@ -61,6 +65,7 @@ export function ManageModules() {
   function resetForm() {
     useApp.setState({ editModuleId: null });
     setQuestions([]);
+    setQuizSettings({ allowRetake: false, showAnswers: false });
     setVideo('');
     setPresFile(null);
     setDocFile(null);
@@ -68,6 +73,7 @@ export function ManageModules() {
     setTask('');
     setTaskFile(null);
     setRefl('');
+    setCover(null);
     setStatus('');
     setFormKey((key) => key + 1);
   }
@@ -84,7 +90,7 @@ export function ManageModules() {
 
   async function saveSteps(moduleId: number): Promise<string[]> {
     const steps: [string, StepId, () => Promise<Record<string, unknown>>][] = [
-      ['Diagnostika testi', 'diag', async () => ({ value: '', questions })],
+      ['Diagnostika testi', 'diag', async () => ({ value: '', questions, allow_retake: quizSettings.allowRetake, show_answers: quizSettings.showAnswers })],
       ['Video', 'video', async () => ({ value: video.trim() })],
       ['Taqdimot', 'pres', async () => ({ value: '', file_id: (await uploadFile(presFile!, { moduleId, stepType: 'pres', purpose: 'content' })).id })],
       ['Qo‘shimcha material', 'doc', async () => ({ value: docNote.trim(), file_id: (await uploadFile(docFile!, { moduleId, stepType: 'doc', purpose: 'content' })).id })],
@@ -111,7 +117,7 @@ export function ManageModules() {
     if (creating && !validateSteps()) return;
     setBusy(true);
     try {
-      const payload: Record<string, unknown> = { order_num: Number(order), title: title.trim(), description: description.trim() };
+      const payload: Record<string, unknown> = { order_num: Number(order), title: title.trim(), description: description.trim(), ...(editing ? {} : { cover_image_id: cover }) };
       if (editing) payload.id = editing.id;
       const saved = await api<Module>('/modules', 'POST', payload);
       const failed = creating ? await saveSteps(saved.id) : [];
@@ -165,6 +171,12 @@ export function ManageModules() {
             <input type="text" id="newModTitle" maxLength={200} placeholder="Masalan: Ta'lim tamoyillari" value={title} onChange={(e) => setTitle(e.target.value)}/>
           </div>
         </div>
+        {!editing && (
+          <div className="form-group">
+            <span className="form-label">Muqova rasmi <span className="text-muted">(ixtiyoriy)</span></span>
+            <CoverPicker value={cover} onChange={setCover}/>
+          </div>
+        )}
         <div className="form-group">
           <label htmlFor="newModDesc">Modul haqida qisqacha ta'rif</label>
           <input type="text" id="newModDesc" maxLength={5000} placeholder="Modul nimalarni o‘rgatadi…" value={description} onChange={(e) => setDescription(e.target.value)}/>
@@ -173,7 +185,7 @@ export function ManageModules() {
           <div className="module-steps" key={formKey}>
             <fieldset className="module-step">
               <legend>1. Diagnostika testi</legend>
-              <QuizBuilder prefix="new" questions={questions} onChange={setQuestions}/>
+              <QuizBuilder prefix="new" questions={questions} onChange={setQuestions} settings={quizSettings} onSettings={setQuizSettings}/>
             </fieldset>
             <fieldset className="module-step">
               <legend>2. Video dars</legend>
@@ -197,14 +209,14 @@ export function ManageModules() {
               </div>
               <div className="form-group">
                 <label htmlFor="newDocNote">Qisqacha izoh (ixtiyoriy)</label>
-                <textarea id="newDocNote" rows={2} maxLength={30000} value={docNote} onChange={(e) => setDocNote(e.target.value)}/>
+                <RichTextEditor id="newDocNote" rows={2} value={docNote} onChange={setDocNote}/>
               </div>
             </fieldset>
             <fieldset className="module-step">
               <legend>5. Amaliy topshiriq</legend>
               <div className="form-group">
                 <label htmlFor="newTask">Topshiriq matni</label>
-                <textarea id="newTask" rows={3} maxLength={30000} placeholder="Talaba bajarishi kerak bo‘lgan topshiriq…" value={task} onChange={(e) => setTask(e.target.value)}/>
+                <RichTextEditor id="newTask" rows={4} placeholder="Talaba bajarishi kerak bo‘lgan topshiriq…" value={task} onChange={setTask}/>
               </div>
               <div className="form-group">
                 <span className="form-label">Ilova fayl (ixtiyoriy)</span>
@@ -215,7 +227,7 @@ export function ManageModules() {
               <legend>6. Refleksiya</legend>
               <div className="form-group">
                 <label htmlFor="newRefl">Yo‘naltiruvchi savollar</label>
-                <textarea id="newRefl" rows={3} maxLength={30000} placeholder="Modul yakunida talaba nimalar haqida yozsin?" value={refl} onChange={(e) => setRefl(e.target.value)}/>
+                <RichTextEditor id="newRefl" rows={3} placeholder="Modul yakunida talaba nimalar haqida yozsin?" value={refl} onChange={setRefl}/>
               </div>
             </fieldset>
             <div id="moduleSaveStatus" className="field-hint" aria-live="polite">{status}</div>
@@ -251,6 +263,19 @@ export function ManageModules() {
                   <span className="badge badge-muted"><Lock/> Boshqa o‘qituvchining moduli</span>
                 )}
               </div>
+              {mine && (
+                <div className="mt-4 border-t border-dashed border-line pt-4">
+                  <CoverPicker value={module.cover_image_id ?? null} label="Muqova qo‘shish" onChange={async (imageId) => {
+                    try {
+                      await api('/modules', 'POST', { action: 'cover', id: module.id, cover_image_id: imageId });
+                      await refreshModules();
+                      showToast(imageId ? 'Muqova saqlandi.' : 'Muqova olib tashlandi.', 'success');
+                    } catch (error) {
+                      showToast((error as Error).message, 'error');
+                    }
+                  }}/>
+                </div>
+              )}
               {mine && (
                 <div className="mt-4 border-t border-dashed border-line pt-4">
                   <div className="mb-2 text-sm text-muted">6 ta qadam materiallarini biriktirish:</div>

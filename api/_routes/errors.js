@@ -1,7 +1,7 @@
-const sql = require('./_db');
-const { getSessionUser, requireUser } = require('./_auth');
-const { recordError } = require('./_errors');
-const { isWithinLimit } = require('./_rateLimit');
+const sql = require('../_db');
+const { getSessionUser, requireUser } = require('../_auth');
+const { recordError } = require('../_errors');
+const { isWithinLimit } = require('../_rateLimit');
 
 const MAX_REPORTS_PER_HOUR = 30;
 const PAGE_SIZE = 50;

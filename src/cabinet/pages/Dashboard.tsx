@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { useModules, useMyProgress } from '../../lib/queries';
 import { openUsers, useApp } from '../../store';
 import type { UsersPage } from '../../types';
+import { CertificatesCard, ContinueCard, StudentGroupsCard } from './StudentPanels';
 
 function Stat({ icon, value, label, id, onClick }: { icon: ReactNode; value: ReactNode; label: string; id?: string; onClick?: () => void }) {
   const inner = (
@@ -61,6 +62,7 @@ export function Dashboard() {
 
   return (
     <>
+      {user.role === 'student' && <ContinueCard/>}
       <div className="dashboard-grid">{cards}</div>
       <div className="card">
         <h3 className="card-title">Xush kelibsiz, {user.name || user.login}!</h3>
@@ -71,6 +73,12 @@ export function Dashboard() {
             : "Siz o‘z modullaringizni boshqarishingiz, materiallar kiritishingiz, 'Tahlil va grafika' bo‘limida o‘quvchilar natijalarini tahlil qilishingiz mumkin."}
         </p>
       </div>
+      {user.role === 'student' && (
+        <>
+          <CertificatesCard/>
+          <StudentGroupsCard/>
+        </>
+      )}
     </>
   );
 }

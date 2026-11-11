@@ -1,4 +1,4 @@
-import { ArrowLeft, BarChart3, BookOpen, ChevronRight, ClipboardCheck, LayoutDashboard, Menu, TriangleAlert, Users, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BarChart3, BookOpen, ChevronRight, ClipboardCheck, LayoutDashboard, Menu, Newspaper, ScrollText, UsersRound, Users, type LucideIcon } from 'lucide-react';
 import { Suspense, lazy, useEffect, useRef } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
 import { Logo } from '../components/Logo';
@@ -14,7 +14,9 @@ import { ManageModules } from './pages/ManageModules';
 import { Modules } from './pages/Modules';
 import { MyProfile } from './pages/MyProfile';
 import { StudentDetail, Submissions } from './pages/Submissions';
-import { ErrorLog, UserProfile, UsersPage } from './pages/Users';
+import { ArticlesAdmin } from './pages/Articles';
+import { Groups } from './pages/Groups';
+import { Logs, UserProfile, UsersPage } from './pages/Users';
 
 // Charts are the heaviest dependency and only staff open them.
 const Analytics = lazy(() => import('./pages/Analytics'));
@@ -29,8 +31,9 @@ interface MenuItem {
 const STAFF_MENU: MenuItem[] = [
   { id: 'home', title: 'Boshqaruv paneli', short: 'Panel', icon: LayoutDashboard },
   { id: 'modules', title: 'Modullar', icon: BookOpen },
+  { id: 'groups', title: 'Guruhlar', icon: UsersRound },
   { id: 'analytics', title: 'Tahlil va grafika', icon: BarChart3 },
-  { id: 'submissions', title: 'Talaba javoblari', icon: ClipboardCheck }
+  { id: 'submissions', title: 'Talaba javoblari', short: 'Javoblar', icon: ClipboardCheck }
 ];
 export const NAV_MENU: Record<Role, MenuItem[]> = {
   student: [
@@ -41,7 +44,8 @@ export const NAV_MENU: Record<Role, MenuItem[]> = {
   admin: [
     ...STAFF_MENU,
     { id: 'users', title: 'Foydalanuvchilar', short: 'Ro‘yxat', icon: Users },
-    { id: 'errors', title: 'Xatolar jurnali', short: 'Xatolar', icon: TriangleAlert }
+    { id: 'articles', title: 'Maqolalar', icon: Newspaper },
+    { id: 'errors', title: 'Jurnallar', icon: ScrollText }
   ]
 };
 
@@ -73,7 +77,9 @@ function Page() {
     case 'users': return <UsersPage/>;
     case 'user-profile': return <UserProfile profileId={routeId}/>;
     case 'profile': return <MyProfile/>;
-    case 'errors': return <ErrorLog/>;
+    case 'errors': return <Logs/>;
+    case 'groups': return <Groups/>;
+    case 'articles': return <ArticlesAdmin/>;
     default: return <div className="card">Sahifa topilmadi.</div>;
   }
 }
@@ -85,6 +91,7 @@ export function Cabinet() {
   const routeId = useApp((state) => state.routeId);
   const titleOverride = useApp((state) => state.titleOverride);
   const sidebarOpen = useApp((state) => state.sidebarOpen);
+  const navKey = useApp((state) => state.navKey);
   const modules = useModules();
   const container = useRef<HTMLDivElement>(null);
   const active = view === 'cabinet' && Boolean(user);
@@ -134,14 +141,20 @@ export function Cabinet() {
               </div>
             </div>
             <div ref={container} id="pageContainer" className={cx('min-h-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6', inLesson && 'lesson-mode')}>
-              <Page/>
+              <Page key={navKey}/>
             </div>
             <nav id="mobileBottomNav" className="fixed inset-x-0 bottom-0 z-[800] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-line bg-surface px-1.5 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Mobil pastki menyu">
-              {menu.map((item) => (
+              {/* Four places fit a thumb's reach; the rest live in the side menu behind "Yana". */}
+              {menu.slice(0, menu.length > 5 ? 4 : 5).map((item) => (
                 <button key={item.id} type="button" id={`bnav-${item.id}`} className={cx('bottom-nav-item', menuId === item.id && 'active')} aria-label={item.title} onTouchStart={() => prefetchPage(item.id)} onClick={() => navigate(item.id)}>
                   <item.icon/> <span>{item.short || item.title.split(' ')[0]}</span>
                 </button>
               ))}
+              {menu.length > 5 && (
+                <button type="button" id="bnav-more" className={cx('bottom-nav-item', menu.slice(4).some((item) => item.id === menuId) && 'active')} aria-label="Boshqa bo‘limlar" onClick={toggleSidebar}>
+                  <Menu/> <span>Yana</span>
+                </button>
+              )}
             </nav>
           </main>
         </>

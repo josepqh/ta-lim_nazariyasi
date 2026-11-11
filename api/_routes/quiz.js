@@ -1,11 +1,11 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { requireUser } = require('./_auth');
-const { isUuid } = require('./_files');
-const llm = require('./_llm');
-const storage = require('./_storage');
-const { consumeLimit } = require('./_rateLimit');
-const { extractDocumentText, normalizeQuestions, parseTests, studentPaper, toAiText } = require('./_quiz');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { requireUser } = require('../_auth');
+const { isUuid } = require('../_files');
+const llm = require('../_llm');
+const storage = require('../_storage');
+const { consumeLimit } = require('../_rateLimit');
+const { extractDocumentText, normalizeQuestions, parseTests, studentPaper, toAiText } = require('../_quiz');
 
 const STAFF = ['teacher', 'admin'];
 const MIN_TEXT_LENGTH = 30;
@@ -116,7 +116,15 @@ async function readPaper(req, res, user) {
     WHERE c.module_id=${moduleId} AND c.step_type='diag' AND m.deleted_at IS NULL LIMIT 1`;
   const questions = rows[0]?.content?.questions;
   if (!Array.isArray(questions) || !questions.length) return res.status(404).json({ error: 'Test topilmadi.' });
-  return res.json(studentPaper(questions, user.id, moduleId));
+  // After a finished test, a retake (when allowed) gets the paper of the next attempt.
+  let attempt = 0;
+  if (user.role === 'student' && rows[0].content.allow_retake === true) {
+    const progress = await sql`
+      SELECT completed_steps ? 'diag' AS done, COALESCE((step_responses->>'diag_attempts')::int, 1) AS attempts
+      FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId} LIMIT 1`;
+    if (progress[0]?.done) attempt = progress[0].attempts;
+  }
+  return res.json(studentPaper(questions, user.id, moduleId, attempt));
 }
 
 module.exports = async (req, res) => {

@@ -2,5 +2,6 @@
 module.exports = [
   require('./001_baseline'),
   require('./002_error_logs'),
-  require('./003_file_storage')
+  require('./003_file_storage'),
+  require('./004_learning_features')
 ];

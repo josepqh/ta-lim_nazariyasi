@@ -2,19 +2,15 @@ import { ArrowRight, BarChart2, Camera, Check, CircleArrowRight, CircleCheck, Gr
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
+import { imageUrl } from '../lib/learning';
 import { Lesson } from '../cabinet/pages/Lesson';
 import { cx } from '../lib/format';
 import { useModules, useMyProgress } from '../lib/queries';
 import { navigate, openAuth, openModule, showSection, useApp, type PublicSection } from '../store';
 import { Navbar } from './Navbar';
+import { ArticleList, ArticlePage, StatsBar, VerifyPage } from './Content';
 import { Privacy, Terms } from './Legal';
 
-const GUIDES = [
-  { title: 'Darsni rejalashtirish', desc: 'Aniq o‘quv maqsadini belgilang, mazmun va mashqlarni shu maqsadga moslang.' },
-  { title: 'Faol o‘rganish', desc: 'Savol, bahs-munozara va amaliy mashqlar orqali o‘quvchini dars jarayoniga jalb qiling.' },
-  { title: 'O‘quv natijalarini baholash', desc: 'Baholash mezonlarini oldindan tushuntiring va natijaga konstruktiv fikr-mulohaza qo‘shing.' },
-  { title: 'Refleksiya va o‘z-o‘zini rivojlantirish', desc: 'Darsdan keyin nimalar samarali ishlaganini ko‘rib chiqing va keyingi mashg‘ulotni shunga qarab boyiting.' }
-];
 
 function Section({ id, children }: { id: PublicSection; children: ReactNode }) {
   const active = useApp((state) => state.section === id);
@@ -64,16 +60,7 @@ function Home() {
         </div>
       </div>
 
-      <div className="border-b border-line bg-surface">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 lg:grid-cols-4">
-          {[['6', 'Har bir moduldagi qadam'], ['3', 'Foydalanuvchi roli'], ['1', 'Yagona platforma'], ['O‘z', 'sur\'atingizda o‘rganing']].map(([value, label]) => (
-            <div key={label} className="px-4 py-7 text-center lg:py-10 lg:not-first:border-l lg:not-first:border-line">
-              <span className="block text-3xl font-bold text-ink lg:text-4xl">{value}</span>
-              <span className="mt-1 block text-sm text-muted sm:text-base">{label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <StatsBar/>
 
       <div className="page-section bg-page">
         <div className="page-container grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
@@ -140,7 +127,8 @@ function PublicModules() {
           const steps = progress.data?.[module.id]?.completed_steps.length ?? 0;
           const pct = Math.round((steps / 6) * 100);
           return (
-            <div key={module.id} className="info-tile flex flex-col">
+            <div key={module.id} className="info-tile flex flex-col overflow-hidden">
+              {module.cover_image_id && <img src={imageUrl(module.cover_image_id)!} alt="" loading="lazy" className="-mx-6 -mt-6 mb-5 aspect-[16/9] w-[calc(100%+3rem)] max-w-none object-cover sm:-mx-7 sm:-mt-7 sm:w-[calc(100%+3.5rem)]"/>}
               <span className="section-eyebrow">Modul {Number(module.order_num)}</span>
               <h3 className="mt-2 text-xl font-semibold text-ink">{module.title}</h3>
               <p className="mt-2 flex-1 text-base leading-relaxed text-muted">{module.description || "Ta'lim nazariyasi moduli"}</p>
@@ -257,7 +245,7 @@ function Footer() {
             <h2 id="footerHelp" className="footer-heading">Yordam</h2>
             <ul className="footer-links">
               <li><a href="#public-news" onClick={go('public-news')}>Foydalanish bo‘yicha tavsiyalar</a></li>
-              <li><a href="#privacy" onClick={go('privacy')}>Maxfiylik siyosati</a></li>
+              <li><a href="#verify" onClick={go('verify')}>Sertifikatni tekshirish</a></li>
               <li><a href="#public-contact" onClick={go('public-contact')}>Aloqa</a></li>
             </ul>
           </nav>
@@ -287,8 +275,10 @@ export function PublicSite() {
   const user = useApp((state) => state.user);
   const publicModuleId = useApp((state) => state.publicModuleId);
   const hidden = view === 'cabinet' && Boolean(user);
+  // While the cabinet is open the site is not drawn at all: nothing hidden fetches data or catches clicks.
+  if (hidden) return <div id="public-website" className="min-h-screen" style={{ display: 'none' }}/>;
   return (
-    <div id="public-website" className="min-h-screen" style={hidden ? { display: 'none' } : undefined}>
+    <div id="public-website" className="min-h-screen">
       <Navbar/>
       <main>
         <Section id="home"><Home/></Section>
@@ -297,17 +287,12 @@ export function PublicSite() {
         <Section id="public-news">
           <div className="page-container page-section">
             <Heading eyebrow="Foydali mavzular" title="O‘qitish va o‘rganish bo‘yicha tavsiyalar"/>
-            <div className="grid gap-5 sm:grid-cols-2" id="publicNewsList">
-              {GUIDES.map((guide) => (
-                <div key={guide.title} className="info-tile">
-                  <h3 className="text-xl font-semibold text-ink">{guide.title}</h3>
-                  <p className="mt-2 text-base leading-relaxed text-muted">{guide.desc}</p>
-                </div>
-              ))}
-            </div>
+            <ArticleList/>
           </div>
         </Section>
+        <Section id="public-article"><ArticlePage/></Section>
         <Section id="public-contact"><Contact/></Section>
+        <Section id="verify"><VerifyPage/></Section>
         <Section id="privacy"><Privacy/></Section>
         <Section id="terms"><Terms/></Section>
       </main>

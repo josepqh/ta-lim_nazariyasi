@@ -1,9 +1,10 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { getSessionUser, requireUser } = require('./_auth');
-const { deleteOtherContentFiles, findAttachable } = require('./_files');
-const { normalizeQuestions } = require('./_quiz');
-const { loadManagedModule } = require('./_modules');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { getSessionUser, requireUser } = require('../_auth');
+const { deleteOtherContentFiles, findAttachable } = require('../_files');
+const { normalizeQuestions } = require('../_quiz');
+const { loadManagedModule } = require('../_modules');
+const { audit } = require('../_audit');
 
 const STEP_TYPES = new Set(['diag', 'video', 'pres', 'doc', 'task', 'refl']);
 const FILE_REQUIRED_STEPS = new Set(['pres', 'doc']);
@@ -85,6 +86,11 @@ module.exports = async (req, res) => {
       const content = { value };
       if (questions) content.questions = questions;
       else if (stepType === 'diag') content.answer = answer;
+      if (stepType === 'diag') {
+        // The teacher decides whether a test may be taken again and whether students see the answers afterwards.
+        content.allow_retake = body.content?.allow_retake === true;
+        content.show_answers = body.content?.show_answers === true;
+      }
       if (file) content.file = file;
       const serialized = JSON.stringify(content);
 
@@ -95,6 +101,7 @@ module.exports = async (req, res) => {
           SET content=${serialized}, updated_by=${user.id}, updated_at=NOW()
         RETURNING *`;
       if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, file ? file.id : null);
+      await audit(user, 'content.save', `Modul #${moduleId}: ${stepType}`, { module_id: moduleId, step: stepType });
       return res.json(rows[0]);
     }
 
@@ -109,6 +116,7 @@ module.exports = async (req, res) => {
       if (!(await loadManagedModule(res, user, moduleId))) return;
 
       await sql`DELETE FROM np_module_content WHERE module_id=${moduleId} AND step_type=${stepType}`;
+      await audit(user, 'content.delete', `Modul #${moduleId}: ${stepType}`, { module_id: moduleId, step: stepType });
       if (FILE_ALLOWED_STEPS.has(stepType)) await deleteOtherContentFiles(moduleId, stepType, null);
       return res.json({ ok: true });
     }

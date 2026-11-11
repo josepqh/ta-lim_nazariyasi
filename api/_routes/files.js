@@ -1,13 +1,13 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { requireUser } = require('./_auth');
-const { loadManagedModule } = require('./_modules');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { requireUser } = require('../_auth');
+const { loadManagedModule } = require('../_modules');
 const { randomUUID } = require('node:crypto');
-const storage = require('./_storage');
+const storage = require('../_storage');
 const {
   ALLOWED_EXTENSIONS, CHUNK_SIZE, MAX_FILE_SIZE,
   cleanFilename, extensionOf, isUuid, matchesSignature, publicFile, purgeStored
-} = require('./_files');
+} = require('../_files');
 
 const MAX_PENDING_UPLOADS = 5;
 const QUIZ_SOURCE_EXTENSIONS = ['docx', 'pdf'];

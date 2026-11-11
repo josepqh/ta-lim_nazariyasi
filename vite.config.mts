@@ -12,6 +12,8 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules/chart.js')) return 'charts';
+          // Only needed when a certificate is downloaded, so it loads then.
+          if (/node_modules\/(pdf-lib|@pdf-lib|pako|qrcode|dijkstrajs|tslib)\//.test(id)) return 'certificate';
           if (id.includes('node_modules')) return 'vendor';
           return undefined;
         }

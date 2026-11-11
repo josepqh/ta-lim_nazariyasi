@@ -1,17 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Award, Check, CircleCheck, FileQuestion, LogIn, MessageSquare, Pencil, Plus, Send, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Award, Check, CircleCheck, CircleX, Download, FileQuestion, LogIn, MessageSquare, Pencil, Plus, RotateCcw, Send, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { FileCard } from '../../components/FileCard';
+import { Markdown } from '../../components/Markdown';
 import { PageSkeleton } from '../../components/Skeleton';
 import { FilePicker } from '../../components/FilePicker';
 import { UploadProgress } from '../../components/UploadProgress';
 import { api } from '../../lib/api';
+import { downloadCertificate } from '../../lib/certificate';
 import { DOCUMENT_ACCEPT, uploadFile } from '../../lib/files';
+import { imageUrl, useCertificates } from '../../lib/learning';
 import { cx, youTubeEmbedUrl } from '../../lib/format';
 import { keys, queryClient, useContent, useModules, useMyProgress } from '../../lib/queries';
 import { STEP_TYPES, canManage, stepHasMaterial, type StepType } from '../../lib/steps';
 import { openAuth, showSection, showToast, useApp } from '../../store';
-import type { Progress, Review, StepContent, StudentPaper } from '../../types';
+import type { Progress, QuizDetail, Review, StepContent, StudentPaper } from '../../types';
 
 const LETTERS = 'ABCDEFGH';
 
@@ -21,6 +24,25 @@ function ReviewBox({ review }: { review?: Review | null }) {
     <div className="teacher-review-box">
       <h5><MessageSquare/> O‘qituvchi xulosasi ({review.teacher_name || 'Ustoz'}):</h5>
       <p>{review.feedback}</p>
+    </div>
+  );
+}
+
+// Shown after a test only when the teacher chose to reveal answers.
+function AnswerReview({ detail }: { detail: QuizDetail[] }) {
+  return (
+    <div className="answer-review">
+      <p className="step-label">Javoblaringiz tahlili</p>
+      <ol>
+        {detail.map((item, index) => (
+          <li key={index} className={item.correct ? 'right' : 'wrong'}>
+            <p className="flex items-start gap-2 font-medium text-ink">{item.correct ? <CircleCheck className="mt-0.5 size-5 text-primary"/> : <CircleX className="mt-0.5 size-5 text-danger"/>} {item.question}</p>
+            <p className="mt-1 text-sm text-muted">Sizning javobingiz: {item.chosen}</p>
+            {!item.correct && item.right && <p className="text-sm text-ink">To‘g‘ri javob: <strong>{item.right}</strong></p>}
+            {item.explanation && <p className="answer-explanation">{item.explanation}</p>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -67,6 +89,8 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   const [quizAnswers, setQuizAnswers] = useState<(number | null)[]>([]);
   const [busy, setBusy] = useState(false);
   const [uploadPercent, setUploadPercent] = useState<number | null>(null);
+  const [retaking, setRetaking] = useState(false);
+  const certificates = useCertificates();
 
   // A new module (or a switch between edit and preview) picks its starting step once data is in.
   const ready = Boolean(module) && content.isSuccess && (!isStudent || myProgress.isSuccess);
@@ -97,12 +121,14 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
     setPicked(null);
     setQuizAnswers([]);
     setUploadPercent(null);
+    setRetaking(false);
     document.querySelector('.lesson-main')?.scrollTo(0, 0);
   }, [stepIndex, module?.id]);
 
+  // A retake asks for the paper of the next attempt, with questions in a new order.
   const paper = useQuery({
-    queryKey: ['paper', module?.id],
-    enabled: Boolean(module) && isStudent && step.id === 'diag' && !isDone && questionCount > 0,
+    queryKey: ['paper', module?.id, isDone ? (responses.diag_attempts ?? 1) : 0],
+    enabled: Boolean(module) && isStudent && step.id === 'diag' && (!isDone || retaking) && questionCount > 0,
     queryFn: () => api<StudentPaper>(`/quiz?module_id=${module!.id}`)
   });
 
@@ -141,7 +167,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
       const answers = paper.data.questions.map((_, index) => quizAnswers[index] ?? null);
       const unanswered = answers.findIndex((value) => value === null);
       if (unanswered >= 0) return showToast(`Iltimos, ${unanswered + 1}-savolga javob bering.`, 'warning');
-      Object.assign(payload, { answers, version: paper.data.version });
+      Object.assign(payload, { answers, version: paper.data.version, ...(retaking ? { retake: true } : {}) });
     } else if (step.id === 'diag') {
       if (!answer.trim()) return showToast('Iltimos, javobni kiriting.', 'warning');
       payload.response = answer.trim();
@@ -159,7 +185,17 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
       const saved = await api<Progress>('/progress', 'POST', payload);
       queryClient.setQueryData<Record<number, Progress>>(keys.myProgress, (old) => ({ ...(old ?? {}), [module!.id]: saved }));
       const result = saved.step_responses?.diag_result;
-      if (step.id === 'diag' && result) showToast(`Natija: ${result.correct}/${result.total} (+${result.score} ball)`, 'success');
+      if (retaking) {
+        const last = saved.step_responses?.diag_last;
+        setRetaking(false);
+        setQuizAnswers([]);
+        showToast(last ? `Yangi urinish: ${last.correct}/${last.total}. Eng yaxshi natija hisobga olinadi.` : 'Test qayta topshirildi.', 'success');
+        return;
+      }
+      if (saved.certificate) {
+        await queryClient.invalidateQueries({ queryKey: ['certificates'] });
+        showToast('Tabriklaymiz! Modul tamomlandi va sertifikat berildi.', 'success');
+      } else if (step.id === 'diag' && result) showToast(`Natija: ${result.correct}/${result.total} (+${result.score} ball)`, 'success');
       else if (step.id === 'diag') showToast(saved.step_responses?.diag_correct ? 'To‘g‘ri javob! +15 ball' : 'Javobingiz qabul qilindi (0 ball).', saved.step_responses?.diag_correct ? 'success' : 'info');
       else showToast('Qadam muvaffaqiyatli bajarildi!', 'success');
       const nextOpen = STEP_TYPES.findIndex((item) => !saved.completed_steps.includes(item.id));
@@ -179,11 +215,11 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   // ===== Step body and its main action =====
   let body: ReactNode = null;
   let action: ReactNode = null;
-  const note = stepContent.value ? <div className="step-text">{stepContent.value}</div> : null;
+  const note = stepContent.value ? <div className="step-text"><Markdown text={stepContent.value}/></div> : null;
 
   if (step.kind === 'quiz') {
     if (questionCount) {
-      if (isStudent && !isDone && paper.data) {
+      if (isStudent && (!isDone || retaking) && paper.data) {
         body = paper.data.questions.map((question, index) => (
           <fieldset key={index} className="student-question">
             <legend>{index + 1}. {question.text}</legend>
@@ -229,7 +265,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   } else if (step.kind === 'upload') {
     body = (
       <>
-        <div className="step-text">{stepContent.value || 'Amaliy topshiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.'}</div>
+        <div className="step-text"><Markdown text={stepContent.value || 'Amaliy topshiriqni bajaring va javobingizni yozing yoki fayl sifatida yuklang.'}/></div>
         <FileCard file={stepContent.file}/>
         {!isDone && (
           <>
@@ -246,7 +282,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   } else {
     body = (
       <>
-        <div className="step-text">{stepContent.value || 'Ushbu modul davomida nimalarni o‘rgandingiz va ularni qanday qo‘llashni rejalashtirdingiz?'}</div>
+        <div className="step-text"><Markdown text={stepContent.value || 'Ushbu modul davomida nimalarni o‘rgandingiz va ularni qanday qo‘llashni rejalashtirdingiz?'}/></div>
         <label htmlFor="stepResponse" className="step-label">Sizning refleksiyangiz</label>
         <textarea id="stepResponse" className="step-input" rows={6} maxLength={10000} placeholder="Refleksiyangizni bu yerga yozing..." value={response} onChange={(e) => setResponse(e.target.value)}/>
       </>
@@ -256,6 +292,13 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
 
   if (!user) {
     action = <button type="button" className="btn-primary" onClick={() => openAuth('login')}><LogIn/> Davom etish uchun kiring</button>;
+  } else if (isStudent && isDone && retaking) {
+    action = (
+      <>
+        <button type="button" className="btn-outline" onClick={() => setRetaking(false)}>Bekor qilish</button>
+        {action}
+      </>
+    );
   } else if (isStudent && isDone) {
     if (myResponse || myFile) {
       const result = responses.diag_result;
@@ -270,11 +313,14 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
             {myResponse && <div className="text-sm whitespace-pre-wrap">{myResponse}</div>}
             <FileCard file={myFile}/>
           </div>
+          {step.id === 'diag' && Boolean(responses.diag_detail?.length) && <AnswerReview detail={responses.diag_detail!}/>}
           <ReviewBox review={responses.reviews?.[step.id]}/>
         </>
       );
     }
-    action = null;
+    action = step.id === 'diag' && stepContent.allow_retake && questionCount > 0
+      ? <button type="button" data-step-action className="btn-outline" onClick={() => { setRetaking(true); setQuizAnswers([]); }}><RotateCcw/> Testni qayta topshirish{responses.diag_attempts ? ` (${responses.diag_attempts + 1}-urinish)` : ''}</button>
+      : null;
   } else if (!isStudent) {
     action = null;
     if (editing) {
@@ -300,6 +346,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
       )}
       <div className={cx('lesson', isPublic && 'lesson-public')}>
         <aside className="lesson-rail">
+          {module.cover_image_id && <img src={imageUrl(module.cover_image_id)!} alt="" className="aspect-[16/9] w-full object-cover"/>}
           <div className="border-b border-line p-5">
             <p className="text-sm font-medium text-primary">Modul {Number(module.order_num)}</p>
             <p className="mt-0.5 text-lg leading-snug font-bold wrap-anywhere">{module.title}</p>
@@ -344,6 +391,14 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
                 <div className="mb-2 text-primary"><Award className="h-12 w-12"/></div>
                 <h3>Tabriklaymiz! Siz ushbu modulni muvaffaqiyatli tamomladingiz!</h3>
                 <p className="text-sm text-muted">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
+                {(() => {
+                  const certificate = certificates.data?.find((item) => Number(item.module_id) === Number(module.id));
+                  return certificate ? (
+                    <button type="button" id="certificateButton" className="btn-primary mt-4" onClick={() => downloadCertificate(certificate).catch((error: Error) => showToast(error.message, 'error'))}>
+                      <Download/> Sertifikatni yuklab olish (PDF)
+                    </button>
+                  ) : null;
+                })()}
               </div>
             )}
             <div className="flex flex-wrap items-start justify-between gap-3">

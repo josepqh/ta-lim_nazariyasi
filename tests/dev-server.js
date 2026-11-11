@@ -10,7 +10,6 @@ const { TEST_ADMIN, createHarness, createResponse } = require('./helpers/harness
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const HANDLER_NAMES = ['auth', 'chat', 'contact', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'users'];
 const MAX_PORT_ATTEMPTS = 10;
 const LOCK_FILE = path.join(ROOT, '.local-db.lock');
 let localDatabaseClaimed = false;
@@ -38,7 +37,7 @@ async function useRealDatabase() {
     process.exit(1);
   }
   console.log('Baza: .env dagi DATABASE_URL');
-  return Object.fromEntries(HANDLER_NAMES.map((name) => [name, require(`../api/${name}.js`)]));
+  return require('../api/router.js');
 }
 
 // Removes the trial accounts earlier versions added to the local database.
@@ -91,7 +90,7 @@ async function useLocalDatabase() {
     process.env.LOCAL_DEV_MAIL = '1';
     console.log('Gmail sozlanmagan: tasdiqlash kodlari shu terminalga chiqadi.');
   }
-  return handlers;
+  return handlers.router;
 }
 
 // Lets browser tests read the code a real user would get by email. Never enabled by npm start.
@@ -122,6 +121,11 @@ async function handleApi(req, res, handler, url) {
   const apiRes = createResponse();
   await handler(apiReq, apiRes);
   for (const [name, value] of Object.entries(apiRes.headers)) res.setHeader(name, value);
+  if (apiRes.raw !== undefined) {
+    res.writeHead(apiRes.statusCode);
+    res.end(apiRes.raw);
+    return;
+  }
   res.writeHead(apiRes.statusCode, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(apiRes.body));
 }
@@ -154,7 +158,7 @@ async function main() {
     console.error('Sayt hali yig‘ilmagan. Avval quyidagini ishga tushiring: npm run build');
     process.exit(1);
   }
-  const handlers = process.env.DATABASE_URL ? await useRealDatabase() : await useLocalDatabase();
+  const router = process.env.DATABASE_URL ? await useRealDatabase() : await useLocalDatabase();
   const exposeMail = process.env.E2E_MAIL === '1' && process.env.LOCAL_DB_DIR === 'memory';
   if (exposeMail) captureTestMail();
 
@@ -164,7 +168,7 @@ async function main() {
     }
     try {
       const url = new URL(req.url, 'http://localhost');
-      const apiName = url.pathname.match(/^\/api\/([a-z]+)$/)?.[1];
+      const isApi = /^\/api\/[a-z-]+$/.test(url.pathname);
       if (exposeMail && url.pathname === '/__test/mail') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         const to = url.searchParams.get('to');
@@ -172,7 +176,8 @@ async function main() {
         res.end(JSON.stringify(typeof saved === 'string' || saved === null ? { code: saved } : { message: saved }));
         return;
       }
-      if (apiName && HANDLER_NAMES.includes(apiName)) await handleApi(req, res, handlers[apiName], url);
+      // Every /api/<name> goes through the same router the deployment uses.
+      if (isApi) await handleApi(req, res, router, url);
       else if (url.pathname.startsWith('/api/')) res.writeHead(404).end('Not found');
       else serveStatic(res, url);
     } catch (error) {

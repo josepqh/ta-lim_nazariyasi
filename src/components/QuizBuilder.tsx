@@ -19,14 +19,21 @@ export interface QuizMeta {
 
 export const quizReady = (questions: QuizQuestion[]) => questions.length > 0 && questions.every((q) => Number.isInteger(q.correct));
 
+export interface QuizSettings {
+  allowRetake: boolean;
+  showAnswers: boolean;
+}
+
 interface Props {
   prefix: 'new' | 'modal';
   questions: QuizQuestion[];
   onChange: (questions: QuizQuestion[]) => void;
+  settings: QuizSettings;
+  onSettings: (settings: QuizSettings) => void;
 }
 
 // Reads a test from a .docx/.pdf (or has AI write one) and lets the teacher fix the answers before saving.
-export function QuizBuilder({ prefix, questions, onChange }: Props) {
+export function QuizBuilder({ prefix, questions, onChange, settings, onSettings }: Props) {
   const [mode, setMode] = useState<'parsed' | 'generate'>('parsed');
   const [file, setFile] = useState<File | null>(null);
   const [count, setCount] = useState('10');
@@ -63,6 +70,8 @@ export function QuizBuilder({ prefix, questions, onChange }: Props) {
   const setCorrect = (index: number, optionIndex: number) =>
     onChange(questions.map((q, i) => (i === index ? { ...q, correct: optionIndex, ai_marked: false } : q)));
   const remove = (index: number) => onChange(questions.filter((_, i) => i !== index));
+  const explain = (index: number, explanation: string) =>
+    onChange(questions.map((q, i) => (i === index ? { ...q, explanation } : q)));
   const missing = questions.filter((q) => !Number.isInteger(q.correct)).length;
 
   return (
@@ -81,6 +90,11 @@ export function QuizBuilder({ prefix, questions, onChange }: Props) {
           <input type="number" id={`${prefix}QuizCount`} min={1} max={30} value={count} onChange={(e) => setCount(e.target.value)}/>
         </div>
       )}
+      <fieldset className="quiz-settings">
+        <legend className="sr-only">Test sozlamalari</legend>
+        <label><input type="checkbox" id={`${prefix}AllowRetake`} checked={settings.allowRetake} onChange={(e) => onSettings({ ...settings, allowRetake: e.target.checked })}/> Talabalar testni qayta topshira oladi <span className="text-muted">(eng yaxshi natija hisobga olinadi)</span></label>
+        <label><input type="checkbox" id={`${prefix}ShowAnswers`} checked={settings.showAnswers} onChange={(e) => onSettings({ ...settings, showAnswers: e.target.checked })}/> Test topshirilgach to‘g‘ri javoblar va izohlarni ko‘rsatish</label>
+      </fieldset>
       <button type="button" className="btn-outline" id={`${prefix}QuizPrepare`} disabled={busy} onClick={prepare}><Sparkles/> Testni tayyorlash</button>
       <div id={`${prefix}QuizPreview`} className="quiz-preview" aria-live="polite">
         {status && (status.error
@@ -108,6 +122,9 @@ export function QuizBuilder({ prefix, questions, onChange }: Props) {
                       <span>{LETTERS[optionIndex]}) {option}</span>
                     </label>
                   ))}
+                  <label className="sr-only" htmlFor={`${prefix}Explain${index}`}>{index + 1}-savol izohi</label>
+                  <textarea id={`${prefix}Explain${index}`} className="quiz-explanation" rows={1} maxLength={2000}
+                    placeholder="Izoh (ixtiyoriy): nega aynan shu javob to‘g‘ri?" value={question.explanation ?? ''} onChange={(e) => explain(index, e.target.value)}/>
                 </li>
               ))}
             </ol>

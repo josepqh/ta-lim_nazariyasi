@@ -42,8 +42,8 @@ function loadHandlers(sql) {
   });
   const dbPath = path.join(API_DIR, '_db.js');
   require.cache[dbPath] = { id: dbPath, filename: dbPath, loaded: true, exports: sql };
-  return Object.fromEntries(['auth', 'chat', 'contact', 'content', 'errors', 'files', 'modules', 'profile', 'progress', 'quiz', 'setup', 'users']
-    .map((name) => [name, require(path.join(API_DIR, `${name}.js`))]));
+  // Every route, as the single deployed router sees them, plus the router itself.
+  return { ...require(path.join(API_DIR, '_routes')), router: require(path.join(API_DIR, 'router.js')) };
 }
 
 async function runSetup(handlers) {
@@ -62,7 +62,10 @@ function createResponse() {
     body: undefined,
     setHeader(name, value) { this.headers[name.toLowerCase()] = value; },
     status(code) { this.statusCode = code; return this; },
-    json(data) { this.body = data; return this; }
+    json(data) { this.body = data; return this; },
+    // Binary answers (images) are sent as they are.
+    send(data) { this.raw = data; return this; },
+    end(data) { this.raw = data ?? ''; return this; }
   };
 }
 

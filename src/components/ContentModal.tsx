@@ -9,7 +9,8 @@ import { showToast, useApp } from '../store';
 import type { ContentRow, QuizQuestion, StepId, StoredFile } from '../types';
 import { FileCard } from './FileCard';
 import { FilePicker } from './FilePicker';
-import { QuizBuilder, quizReady } from './QuizBuilder';
+import { QuizBuilder, quizReady, type QuizSettings } from './QuizBuilder';
+import { RichTextEditor } from './RichTextEditor';
 import { UploadProgress } from './UploadProgress';
 import { useModal } from './useModal';
 
@@ -28,6 +29,7 @@ export function ContentModal() {
   const [loaded, setLoaded] = useState(false);
   const [value, setValue] = useState('');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [quizSettings, setQuizSettings] = useState<QuizSettings>({ allowRetake: false, showAnswers: false });
   const [existingFile, setExistingFile] = useState<StoredFile | null>(null);
   const [picked, setPicked] = useState<File | null>(null);
   const [percent, setPercent] = useState<number | null>(null);
@@ -45,6 +47,7 @@ export function ContentModal() {
         const existing = rows.find((row) => row.step_type === target.stepId)?.content ?? {};
         setValue(existing.value ?? '');
         setQuestions(Array.isArray(existing.questions) ? existing.questions.map((q) => ({ ...q })) : []);
+        setQuizSettings({ allowRetake: existing.allow_retake === true, showAnswers: existing.show_answers === true });
         setExistingFile(existing.file ?? null);
         setLoaded(true);
       })
@@ -73,6 +76,8 @@ export function ContentModal() {
     if (stepId === 'diag') {
       if (!quizReady(questions)) return showToast('Testni tayyorlang va har savolda to‘g‘ri javobni belgilang.', 'warning');
       content.questions = questions;
+      content.allow_retake = quizSettings.allowRetake;
+      content.show_answers = quizSettings.showAnswers;
     }
     if (stepId === 'video' && !youTubeEmbedUrl(text)) return showToast('Noto‘g‘ri YouTube havolasi! Iltimos, to‘g‘ri YouTube URL kiriting.', 'error');
 
@@ -127,13 +132,13 @@ export function ContentModal() {
                   <small className="field-hint">Masalan: https://youtube.com/watch?v=... yoki https://youtu.be/...</small>
                 </div>
               )}
-              {stepId === 'diag' && <QuizBuilder prefix="modal" questions={questions} onChange={setQuestions}/>}
+              {stepId === 'diag' && <QuizBuilder prefix="modal" questions={questions} onChange={setQuestions} settings={quizSettings} onSettings={setQuizSettings}/>}
               {(stepId === 'pres' || stepId === 'doc') && (
                 <>
                   {fileField}
                   <div className="form-group">
                     <label htmlFor="teacherUploadVal">Qisqacha izoh (ixtiyoriy)</label>
-                    <textarea id="teacherUploadVal" rows={3} maxLength={30000} placeholder="Fayl haqida talabalarga izoh..." value={value} onChange={(e) => setValue(e.target.value)}/>
+                    <RichTextEditor id="teacherUploadVal" rows={3} placeholder="Fayl haqida talabalarga izoh..." value={value} onChange={setValue}/>
                   </div>
                 </>
               )}
@@ -141,7 +146,7 @@ export function ContentModal() {
                 <>
                   <div className="form-group">
                     <label htmlFor="teacherUploadVal">Ko‘rsatma matni</label>
-                    <textarea id="teacherUploadVal" rows={6} value={value} onChange={(e) => setValue(e.target.value)}
+                    <RichTextEditor id="teacherUploadVal" rows={6} value={value} onChange={setValue}
                       placeholder={stepId === 'task' ? 'Talaba bajarishi kerak bo‘lgan amaliy topshiriq matni...' : 'Refleksiya uchun yo‘naltiruvchi savollar...'}/>
                   </div>
                   {stepId === 'task' && fileField}

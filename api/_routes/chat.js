@@ -1,7 +1,7 @@
-const { requireUser } = require('./_auth');
-const { reportServerError } = require('./_errors');
-const llm = require('./_llm');
-const { consumeLimit } = require('./_rateLimit');
+const { requireUser } = require('../_auth');
+const { reportServerError } = require('../_errors');
+const llm = require('../_llm');
+const { consumeLimit } = require('../_rateLimit');
 
 const MAX_MESSAGES = 30;
 const MAX_MESSAGE_LENGTH = 8000;

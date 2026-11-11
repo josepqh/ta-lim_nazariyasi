@@ -19,7 +19,7 @@ export function Navbar() {
   }
 
   const link = (section: PublicSection, icon: ReactNode, label: string) => (
-    <li><a href="#" className={LINK} aria-current={current === section ? 'page' : undefined} onClick={(event) => { event.preventDefault(); go(section); }}>{icon} {label}</a></li>
+    <li><a href="#" className={LINK} aria-current={current === section || (section === 'public-news' && current === 'public-article') ? 'page' : undefined} onClick={(event) => { event.preventDefault(); go(section); }}>{icon} {label}</a></li>
   );
   const themeIcon = theme === 'dark' ? <Sun/> : <Moon/>;
   const themeLabel = theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim';

@@ -1,9 +1,9 @@
-const sql = require('./_db');
+const sql = require('../_db');
 const { randomBytes, timingSafeEqual } = require('node:crypto');
-const { hashPassword } = require('./_password');
-const { normalizeGmail } = require('./_email');
-const { migrate } = require('./_migrate');
-const storage = require('./_storage');
+const { hashPassword } = require('../_password');
+const { normalizeGmail } = require('../_email');
+const { migrate } = require('../_migrate');
+const storage = require('../_storage');
 
 function hasSetupAccess(req) {
   const expected = process.env.SETUP_SECRET || '';

@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { ArcElement, BarController, BarElement, CategoryScale, Chart, DoughnutController, Legend, LinearScale, Tooltip } from 'chart.js';
 import { Award, BarChart2, Check, Layers, PieChart, Trophy } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { GroupFilter } from '../../components/GroupFilter';
 import { PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { motionAllowed } from '../../lib/format';
@@ -26,7 +27,11 @@ function useChart(build: (canvas: HTMLCanvasElement) => Chart | null, deps: unkn
 
 export default function Analytics() {
   const modules = useModules();
-  const rows = useQuery({ queryKey: ['progress', 'all'], queryFn: () => api<Progress[]>('/progress') });
+  const [groupId, setGroupId] = useState<number | null>(null);
+  const rows = useQuery({
+    queryKey: groupId ? ['progress', 'all', groupId] : ['progress', 'all'],
+    queryFn: () => api<Progress[]>(groupId ? `/progress?group_id=${groupId}` : '/progress')
+  });
   const list = modules.data ?? [];
   const all = rows.data ?? [];
 
@@ -98,6 +103,7 @@ export default function Analytics() {
 
   return (
     <>
+      <div className="mb-5 flex flex-wrap items-end gap-3"><GroupFilter value={groupId} onChange={setGroupId}/></div>
       <div className="charts-grid">
         <div className="chart-card">
           <div className="chart-header"><h4><BarChart2/> Modullar bo‘yicha o‘zlashtirish (%)</h4><p>To‘liq yakunlash koeffitsiyenti</p></div>

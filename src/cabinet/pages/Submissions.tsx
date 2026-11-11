@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Check, ClipboardCheck, MessageSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { FileCard } from '../../components/FileCard';
+import { GroupFilter } from '../../components/GroupFilter';
 import { ListSkeleton, PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { queryClient, useModules } from '../../lib/queries';
@@ -135,14 +136,15 @@ export function Submissions() {
   const modules = useModules();
   const list = modules.data ?? [];
   const [moduleId, setModuleId] = useState<number | null>(null);
+  const [groupId, setGroupId] = useState<number | null>(null);
   useEffect(() => {
     if (moduleId === null && list.length) setModuleId(list[0]!.id);
   }, [list, moduleId]);
   const module = list.find((item) => item.id === moduleId) ?? null;
   const rows = useQuery({
-    queryKey: ['progress', `module:${moduleId}`],
+    queryKey: ['progress', `module:${moduleId}`, groupId],
     enabled: moduleId !== null,
-    queryFn: () => api<Progress[]>(`/progress?module_id=${moduleId}`)
+    queryFn: () => api<Progress[]>(`/progress?module_id=${moduleId}${groupId ? `&group_id=${groupId}` : ''}`)
   });
 
   if (modules.isSuccess && !list.length) return <div className="card">Javoblarni ko‘rish uchun avval modullar qo‘shing.</div>;
@@ -159,11 +161,14 @@ export function Submissions() {
     <>
       <div className="card">
         <h3 className="card-title"><ClipboardCheck/> Talaba javoblari va monitoring</h3>
-        <div className="form-group">
-          <label htmlFor="submissionModule">Modulni tanlang</label>
-          <select id="submissionModule" value={moduleId ?? ''} onChange={(event) => setModuleId(Number(event.target.value))}>
-            {list.map((item) => <option key={item.id} value={item.id}>{item.order_num}. {item.title}</option>)}
-          </select>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="form-group mb-0 min-w-64 flex-1">
+            <label htmlFor="submissionModule">Modulni tanlang</label>
+            <select id="submissionModule" value={moduleId ?? ''} onChange={(event) => setModuleId(Number(event.target.value))}>
+              {list.map((item) => <option key={item.id} value={item.id}>{item.order_num}. {item.title}</option>)}
+            </select>
+          </div>
+          <GroupFilter value={groupId} onChange={setGroupId}/>
         </div>
         {module && !mayReview && <p className="field-hint">Bu modulni boshqa o‘qituvchi yaratgan: javoblarni ko‘rasiz, baholashni esa muallif yoki administrator qiladi.</p>}
       </div>

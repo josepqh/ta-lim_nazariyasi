@@ -14,6 +14,7 @@ export interface Module {
   title: string;
   description: string | null;
   created_by: number | null;
+  cover_image_id?: string | null;
   deleted_at?: string | null;
 }
 
@@ -28,6 +29,7 @@ export interface QuizQuestion {
   options: string[];
   correct: number | null;
   ai_marked?: boolean;
+  explanation?: string;
 }
 
 export interface StepContent {
@@ -36,6 +38,8 @@ export interface StepContent {
   file?: StoredFile | null;
   questions?: QuizQuestion[];
   questions_count?: number;
+  allow_retake?: boolean;
+  show_answers?: boolean;
 }
 
 export interface ContentRow {
@@ -55,6 +59,7 @@ export interface QuizDetail {
   chosen: string;
   right?: string;
   correct: boolean;
+  explanation?: string;
 }
 
 export interface StepResponses {
@@ -63,6 +68,8 @@ export interface StepResponses {
   diag_correct?: boolean;
   diag_result?: { correct: number; total: number; score: number };
   diag_detail?: QuizDetail[];
+  diag_attempts?: number;
+  diag_last?: { correct: number; total: number; score: number };
   task?: string;
   refl?: string;
   task_file?: StoredFile;
@@ -81,6 +88,7 @@ export interface Progress {
   student_login?: string;
   module_title?: string;
   module_order?: number;
+  certificate?: Certificate;
 }
 
 export interface StudentPaper {
@@ -130,4 +138,58 @@ export interface ErrorLogEntry {
   path: string | null;
   user_agent: string | null;
   user_name: string | null;
+}
+
+export interface Group {
+  id: number;
+  name: string;
+  code?: string;
+  teacher_id?: number;
+  teacher_name?: string;
+  member_count?: number;
+  created_at?: string;
+  joined_at?: string;
+}
+
+export interface GroupDetail extends Group {
+  members: { id: number; name: string | null; login: string; joined_at: string; modules_finished: number; total_score: number }[];
+}
+
+export interface Certificate {
+  code: string;
+  module_id: number;
+  student_name: string;
+  module_title: string;
+  score: number;
+  issued_at: string;
+}
+
+export interface Article {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  body?: string;
+  cover_image_id: string | null;
+  published: boolean;
+  created_at: string;
+  updated_at?: string;
+  author_name: string | null;
+}
+
+export interface PublicStats {
+  modules: number;
+  students: number;
+  teachers: number;
+  certificates: number;
+}
+
+export interface AuditEntry {
+  id: number;
+  created_at: string;
+  actor_name: string | null;
+  actor_role: string | null;
+  action: string;
+  target: string | null;
+  detail: Record<string, unknown> | null;
 }

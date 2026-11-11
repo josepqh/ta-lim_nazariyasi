@@ -42,11 +42,17 @@
     }
   ],
   "functions": {
-    "api/chat.js": {
+    "api/router.js": {
       "maxDuration": 60
     }
   },
   "regions": [
     "bom1"
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:route((?!router$)[a-z-]+)",
+      "destination": "/api/router?__route=:route"
+    }
   ]
 }

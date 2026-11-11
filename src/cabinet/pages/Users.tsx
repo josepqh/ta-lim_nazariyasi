@@ -6,7 +6,7 @@ import { api } from '../../lib/api';
 import { ROLE_LABELS, formatDate } from '../../lib/format';
 import { queryClient, useModules } from '../../lib/queries';
 import { navigate, setTitle, showToast, useApp, type UsersTab } from '../../store';
-import type { ErrorLogEntry, Progress, UserProfile as Profile, UsersPage as UsersData } from '../../types';
+import type { AuditEntry, ErrorLogEntry, Progress, UserProfile as Profile, UsersPage as UsersData } from '../../types';
 import { StudentWork } from './Submissions';
 
 function StatusBadge({ status }: { status: string | null }) {
@@ -236,8 +236,81 @@ interface ErrorPage {
   page_size: number;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  'module.create': 'Modul yaratildi',
+  'module.update': 'Modul tahrirlandi',
+  'module.delete': 'Modul o‘chirildi',
+  'module.restore': 'Modul tiklandi',
+  'module.cover': 'Muqova qo‘yildi',
+  'module.cover_remove': 'Muqova olib tashlandi',
+  'content.save': 'Material saqlandi',
+  'content.delete': 'Material o‘chirildi',
+  'teacher.approve': 'O‘qituvchi tasdiqlandi',
+  'teacher.reject': 'O‘qituvchi rad etildi',
+  'account.delete': 'Hisob o‘chirildi',
+  'group.create': 'Guruh yaratildi',
+  'group.delete': 'Guruh o‘chirildi',
+  'group.remove_member': 'Talaba guruhdan chiqarildi',
+  'article.create': 'Maqola yaratildi',
+  'article.update': 'Maqola tahrirlandi',
+  'article.delete': 'Maqola o‘chirildi',
+  'work.review': 'Ish baholandi'
+};
+const DANGER_ACTIONS = new Set(['module.delete', 'content.delete', 'teacher.reject', 'account.delete', 'group.delete', 'article.delete']);
+
+// Who approved, deleted or changed what, newest first.
+function AuditLog() {
+  const [page, setPage] = useState(1);
+  const log = useQuery({
+    queryKey: ['audit', page],
+    queryFn: () => api<{ items: AuditEntry[]; total: number; page_size: number }>(`/audit?page=${page}`),
+    placeholderData: keepPreviousData
+  });
+  const data = log.data;
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / data.page_size)) : 1;
+  return (
+    <div className="card">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 className="card-title m-0">Amallar jurnali</h3>
+        <button type="button" className="btn-outline btn-sm" onClick={() => log.refetch()}><RefreshCw/> Yangilash</button>
+      </div>
+      {log.isLoading && <ListSkeleton/>}
+      {data && !data.items.length && <p className="muted-text empty-text">Hali amal qayd etilmagan.</p>}
+      <ul className="error-list" id="auditList">
+        {data?.items.map((entry) => (
+          <li key={entry.id} className="audit-entry">
+            <span className={`badge ${DANGER_ACTIONS.has(entry.action) ? 'badge-danger' : 'badge-primary'}`}>{ACTION_LABELS[entry.action] ?? entry.action}</span>
+            <span className="min-w-0 flex-1 font-medium wrap-anywhere text-ink">{entry.target}</span>
+            <span className="text-sm text-muted">{entry.actor_name ?? 'Tizim'} · {formatDate(entry.created_at)}</span>
+          </li>
+        ))}
+      </ul>
+      {totalPages > 1 && (
+        <div className="pagination">
+          <button type="button" className="btn-outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>Oldingi</button>
+          <span>{page} / {totalPages}</span>
+          <button type="button" className="btn-outline" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Keyingi</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Logs() {
+  const [tab, setTab] = useState<'audit' | 'errors'>('audit');
+  return (
+    <>
+      <div className="segmented mb-5" role="group" aria-label="Jurnal turi">
+        <button type="button" id="logsTabAudit" aria-pressed={tab === 'audit'} onClick={() => setTab('audit')}>Amallar</button>
+        <button type="button" id="logsTabErrors" aria-pressed={tab === 'errors'} onClick={() => setTab('errors')}>Xatolar</button>
+      </div>
+      {tab === 'audit' ? <AuditLog/> : <ErrorLog/>}
+    </>
+  );
+}
+
 // What broke on the server or in visitors' browsers in the last 30 days.
-export function ErrorLog() {
+function ErrorLog() {
   const [page, setPage] = useState(1);
   const log = useQuery({ queryKey: ['errors', page], queryFn: () => api<ErrorPage>(`/errors?page=${page}`), placeholderData: keepPreviousData });
 

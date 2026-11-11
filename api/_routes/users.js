@@ -1,8 +1,9 @@
-const sql = require('./_db');
-const { reportServerError } = require('./_errors');
-const { requireUser } = require('./_auth');
-const mail = require('./_mail');
-const storage = require('./_storage');
+const sql = require('../_db');
+const { reportServerError } = require('../_errors');
+const { requireUser } = require('../_auth');
+const mail = require('../_mail');
+const storage = require('../_storage');
+const { audit } = require('../_audit');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -77,7 +78,7 @@ async function listUsers(req, res) {
   });
 }
 
-async function decideTeacher(res, body) {
+async function decideTeacher(res, admin, body) {
   const id = Number(body.id);
   if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Foydalanuvchi raqami noto‘g‘ri.' });
   const approve = body.action === 'approve';
@@ -93,6 +94,7 @@ async function decideTeacher(res, body) {
         RETURNING id, name, login, role`;
   if (!rows.length) return res.status(404).json({ error: 'Tasdiq kutayotgan o‘qituvchi topilmadi.' });
   await mail.sendTeacherDecision(rows[0].login, approve);
+  await audit(admin, approve ? 'teacher.approve' : 'teacher.reject', `O‘qituvchi: ${rows[0].name || rows[0].login}`, { user_id: id, login: rows[0].login });
   return res.json({ ...rows[0], decision: approve ? 'approved' : 'rejected' });
 }
 
@@ -131,6 +133,7 @@ async function deleteAccount(res, admin, body) {
   if (!result.removed) return res.status(404).json({ error: 'Foydalanuvchi topilmadi.' });
   await storage.remove(Array.isArray(result.paths) ? result.paths : JSON.parse(result.paths || '[]'));
   if (account.login.includes('@')) await mail.sendAccountDeleted(account.login);
+  await audit(admin, 'account.delete', `${account.role === 'teacher' ? 'O‘qituvchi' : 'Talaba'}: ${account.name || account.login}`, { user_id: id, login: account.login, modules_kept: result.modules_kept });
   return res.json({ id, role: account.role, deleted: true, modules_kept: result.modules_kept });
 }
 
@@ -142,7 +145,7 @@ module.exports = async (req, res) => {
     if (!admin) return;
     if (req.method === 'POST') {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
-      if (['approve', 'reject'].includes(body.action)) return await decideTeacher(res, body);
+      if (['approve', 'reject'].includes(body.action)) return await decideTeacher(res, admin, body);
       if (body.action === 'delete') return await deleteAccount(res, admin, body);
       return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
     }
