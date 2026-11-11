@@ -427,7 +427,9 @@ test('the corner label opens the user’s own profile', async ({ page }) => {
   await page.locator('#profileNameInput').fill('Yangi Ism');
   await page.getByRole('button', { name: 'Saqlash', exact: true }).click();
   await expect(page.locator('#profileName')).toHaveText('Yangi Ism');
-  await expect(page.locator('#sidebarUser')).toContainText('Yangi Ism');
+  await page.locator('#topbarUser').click();
+  await expect(page.locator('#topbarMenu')).toContainText('Yangi Ism');
+  await page.keyboard.press('Escape');
 
   await page.locator('#profileCurrentPass').fill('wrong-password');
   await page.locator('#profileNewPass').fill('another-long-password');

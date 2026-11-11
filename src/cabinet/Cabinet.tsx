@@ -4,7 +4,7 @@ import { AccountMenu } from '../components/AccountMenu';
 import { Logo } from '../components/Logo';
 import { PageSkeleton } from '../components/Skeleton';
 import { prefetchPage } from '../lib/prefetch';
-import { ROLE_LABELS, cx, initialOf } from '../lib/format';
+import { cx } from '../lib/format';
 import { useModules } from '../lib/queries';
 import { navigate, returnToWebsite, useApp, type PageId } from '../store';
 import type { Role } from '../types';
@@ -99,7 +99,6 @@ export function Cabinet() {
   const title = titleOverride
     ?? (inLesson ? lessonTitle ?? 'Modul' : FIXED_TITLES[page] ?? menu.find((item) => item.id === page)?.title ?? 'Boshqaruv paneli');
   const menuId = activeMenuId(page);
-  const name = user ? user.name || user.login : '';
   const toggleSidebar = () => useApp.setState({ sidebarOpen: !sidebarOpen });
 
   return (
@@ -119,12 +118,6 @@ export function Cabinet() {
                 </button>
               ))}
             </nav>
-            <div className="border-t border-line p-3">
-              <div id="sidebarUser" className="flex items-center gap-3 rounded-xl p-2">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary font-semibold text-on-primary">{initialOf(name)}</span>
-                <div className="min-w-0"><p className="text-[15px] leading-snug font-semibold wrap-anywhere">{name}</p><p className="text-sm text-muted">{ROLE_LABELS[user.role]}</p></div>
-              </div>
-            </div>
           </aside>
 
           <main id="mainContent" tabIndex={-1} className="flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none">
