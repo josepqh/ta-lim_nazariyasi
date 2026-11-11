@@ -78,6 +78,7 @@ async function createHarness({ dataDir } = {}) {
     mail.sendTeacherRequest = async (to, name, email) => { outbox.push({ to, teacherRequest: email }); };
     mail.sendTeacherDecision = async (to, approved) => { outbox.push({ to, approved }); };
     mail.sendContactMessage = async (to, contact) => { outbox.push({ to, contact }); };
+    mail.sendAccountDeleted = async (to) => { outbox.push({ to, accountDeleted: true }); };
   }
   const registered = new Set();
   await runSetup(handlers);

@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Check, RefreshCw, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Check, RefreshCw, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ListSkeleton, PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
@@ -125,6 +125,57 @@ export function UsersPage() {
   );
 }
 
+// Two steps on purpose: the first click only explains what will be lost.
+function DeleteAccount({ profile }: { profile: Profile }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const name = profile.name || profile.login;
+  const isTeacher = profile.role === 'teacher';
+  const modules = profile.modules_created.length;
+
+  async function remove() {
+    setBusy(true);
+    try {
+      const result = await api<{ modules_kept: number }>('/users', 'POST', { action: 'delete', id: profile.id });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      await queryClient.invalidateQueries({ queryKey: ['progress'] });
+      showToast(result.modules_kept
+        ? `${name} hisobi o‘chirildi. Uning ${result.modules_kept} ta moduli saqlandi.`
+        : `${name} hisobi o‘chirildi.`, 'success');
+      navigate('users');
+    } catch (error) {
+      showToast((error as Error).message, 'error');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section id="dangerZone" className="card border-danger/40" aria-labelledby="dangerTitle">
+      <h3 id="dangerTitle" className="card-title text-danger">Xavfli amallar</h3>
+      {!asking ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-xl text-[15px] text-muted">Hisobni butunlay o‘chirish. Foydalanuvchi platformaga kira olmaydi, keyin xohlasa shu Gmail bilan qaytadan ro‘yxatdan o‘tishi mumkin.</p>
+          <button type="button" className="btn-danger" onClick={() => setAsking(true)}><Trash2/> Hisobni o‘chirish</button>
+        </div>
+      ) : (
+        <div role="alertdialog" aria-labelledby="dangerQuestion" aria-describedby="dangerDetail" className="rounded-xl bg-danger/10 p-4 sm:p-5">
+          <p id="dangerQuestion" className="flex items-center gap-2 font-semibold text-ink"><TriangleAlert className="size-5 text-danger"/> {name} hisobi o‘chirilsinmi?</p>
+          <p id="dangerDetail" className="mt-2 text-[15px] text-ink">
+            {isTeacher
+              ? <>Hisob va kirish ma’lumotlari o‘chiriladi. {modules ? <>U yaratgan <strong>{modules} ta modul</strong> talabalar uchun saqlanib qoladi va ularni administrator boshqaradi.</> : 'Uning yaratgan modullari yo‘q.'}</>
+              : <>Hisob bilan birga uning <strong>barcha natijalari, ballari, yozma javoblari va yuklagan fayllari</strong> butunlay o‘chiriladi.</>}
+            {' '}Bu amalni bekor qilib bo‘lmaydi. Foydalanuvchiga xabar xati yuboriladi.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" className="btn btn-solid bg-danger hover:bg-danger/90" disabled={busy} onClick={remove}><Trash2/> {busy ? 'O‘chirilmoqda…' : 'Ha, butunlay o‘chirish'}</button>
+            <button type="button" className="btn-outline" disabled={busy} onClick={() => setAsking(false)}><X/> Bekor qilish</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function UserProfile({ profileId }: { profileId: number | null }) {
   const modules = useModules();
   const profile = useQuery({
@@ -172,6 +223,7 @@ export function UserProfile({ profileId }: { profileId: number | null }) {
             : <p className="muted-text">Hozircha modul yaratmagan.</p>}
         </div>
       )}
+      {(data.role === 'student' || data.role === 'teacher') && <DeleteAccount key={data.id} profile={data}/>}
     </>
   );
 }

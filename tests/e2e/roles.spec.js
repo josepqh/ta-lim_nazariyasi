@@ -762,3 +762,28 @@ test('a question from the contact form is sent to the platform inbox', async ({ 
   const { message } = await (await page.request.get(`/__test/mail?to=${encodeURIComponent(`contact:${email}`)}`)).json();
   expect(message).toMatchObject({ to: 'uzforedu@gmail.com', email, message: 'Sertifikat beriladimi?' });
 });
+
+test('the administrator deletes a student’s account from the profile page', async ({ browser }) => {
+  const name = unique('Ochiriladigan');
+  const login = unique('leaver');
+  const student = await (await browser.newContext()).newPage();
+  await register(student, { name, login, role: 'student' });
+
+  const admin = await (await browser.newContext()).newPage();
+  await signIn(admin, { ...TEST_ADMIN, role: 'admin' });
+  await openMenu(admin, 'Foydalanuvchilar');
+  await admin.getByRole('button', { name }).click();
+  await admin.getByRole('button', { name: 'Hisobni o‘chirish' }).click();
+  await expect(admin.locator('#dangerZone [role="alertdialog"]')).toContainText('barcha natijalari');
+  await admin.getByRole('button', { name: 'Bekor qilish' }).click();
+  await expect(admin.locator('#dangerZone [role="alertdialog"]')).toHaveCount(0);
+
+  await admin.getByRole('button', { name: 'Hisobni o‘chirish' }).click();
+  await admin.getByRole('button', { name: 'Ha, butunlay o‘chirish' }).click();
+  await expect(admin.locator('#toast')).toContainText('hisobi o‘chirildi');
+  await expect(admin.locator('#pageTitle')).toHaveText('Foydalanuvchilar');
+  await expect(admin.getByRole('button', { name })).toHaveCount(0);
+
+  await signIn(student, { login: `${login}@gmail.com`, password: PASSWORD, role: 'student' });
+  await expect(student.locator('#loginError')).toHaveText('Gmail yoki parol noto‘g‘ri.');
+});

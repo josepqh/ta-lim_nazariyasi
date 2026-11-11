@@ -102,6 +102,7 @@ function captureTestMail() {
   mail.sendExistingAccountNotice = async () => {};
   mail.sendTeacherRequest = async () => {};
   mail.sendTeacherDecision = async () => {};
+  mail.sendAccountDeleted = async () => {};
   mail.sendContactMessage = async (to, contact) => { testMailbox.set(`contact:${contact.email}`, { to, ...contact }); };
 }
 

@@ -2,6 +2,7 @@ const sql = require('./_db');
 const { reportServerError } = require('./_errors');
 const { requireUser } = require('./_auth');
 const mail = require('./_mail');
+const storage = require('./_storage');
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -95,6 +96,44 @@ async function decideTeacher(res, body) {
   return res.json({ ...rows[0], decision: approve ? 'approved' : 'rejected' });
 }
 
+// Removes a student's or teacher's account for good. Their answers, scores, sessions and uploaded
+// answer files go with it; modules a teacher wrote stay for students and pass to the administrator.
+async function deleteAccount(res, admin, body) {
+  const id = Number(body.id);
+  if (!Number.isSafeInteger(id) || id < 1) return res.status(400).json({ error: 'Foydalanuvchi raqami noto‘g‘ri.' });
+  if (id === admin.id) return res.status(400).json({ error: 'O‘z hisobingizni bu yerdan o‘chirib bo‘lmaydi.' });
+
+  const rows = await sql`
+    SELECT id, name, login, role FROM np_users
+    WHERE id=${id} AND role IN ('student', 'teacher') AND deleted_at IS NULL LIMIT 1`;
+  const account = rows[0];
+  if (!account) return res.status(404).json({ error: 'Foydalanuvchi topilmadi.' });
+
+  // One statement, so it runs as a single unit: either everything below happens or nothing does.
+  // Foreign keys are checked when the statement ends, after the module links are cleared.
+  const [result] = await sql`
+    WITH files AS (
+      DELETE FROM np_files WHERE owner_id=${id} AND purpose IN ('submission', 'quiz_source') RETURNING storage_path
+    ), kept AS (
+      UPDATE np_modules SET created_by=NULL WHERE created_by=${id} RETURNING id
+    ), edits AS (
+      UPDATE np_module_content SET updated_by=NULL WHERE updated_by=${id} RETURNING id
+    ), codes AS (
+      DELETE FROM np_email_codes WHERE email=${account.login} RETURNING email
+    ), removed AS (
+      DELETE FROM np_users WHERE id=${id} RETURNING id
+    )
+    SELECT COALESCE((SELECT json_agg(storage_path) FROM files), '[]'::json) AS paths,
+           (SELECT COUNT(*) FROM kept)::int AS modules_kept,
+           (SELECT COUNT(*) FROM edits)::int AS edits,
+           (SELECT COUNT(*) FROM codes)::int AS codes,
+           (SELECT COUNT(*) FROM removed)::int AS removed`;
+  if (!result.removed) return res.status(404).json({ error: 'Foydalanuvchi topilmadi.' });
+  await storage.remove(Array.isArray(result.paths) ? result.paths : JSON.parse(result.paths || '[]'));
+  if (account.login.includes('@')) await mail.sendAccountDeleted(account.login);
+  return res.json({ id, role: account.role, deleted: true, modules_kept: result.modules_kept });
+}
+
 module.exports = async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
@@ -104,6 +143,7 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       const body = req.body && typeof req.body === 'object' ? req.body : {};
       if (['approve', 'reject'].includes(body.action)) return await decideTeacher(res, body);
+      if (body.action === 'delete') return await deleteAccount(res, admin, body);
       return res.status(400).json({ error: 'Noto‘g‘ri so‘rov.' });
     }
     if (req.query.id !== undefined) return await getProfile(res, Number(req.query.id));

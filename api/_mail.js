@@ -96,4 +96,12 @@ function sendContactMessage(to, { name, email, message }) {
   );
 }
 
-module.exports = { MailNotConfiguredError, sendCode, sendContactMessage, sendExistingAccountNotice, sendTeacherDecision, sendTeacherRequest };
+function sendAccountDeleted(to) {
+  return notify(
+    to,
+    `${APP_NAME}: hisobingiz o‘chirildi`,
+    'Salom!\n\nAdministrator platformadagi hisobingizni va unga tegishli ma’lumotlarni o‘chirdi. Xohlasangiz, shu Gmail bilan qaytadan ro‘yxatdan o‘tishingiz mumkin.\nSavollar bo‘lsa, saytdagi “Aloqa” bo‘limi orqali yozing.'
+  );
+}
+
+module.exports = { MailNotConfiguredError, sendAccountDeleted, sendCode, sendContactMessage, sendExistingAccountNotice, sendTeacherDecision, sendTeacherRequest };

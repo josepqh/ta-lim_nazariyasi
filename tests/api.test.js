@@ -999,3 +999,55 @@ describe('contact form', () => {
     assert.match(sentBody.text, /Savol matni[\s\S]*ali@example\.com/);
   });
 });
+
+describe('deleting accounts', () => {
+  test('the administrator deletes a student with their answers and files, and the mailbox can register again', async () => {
+    const name = unique('leaver');
+    const pupil = harness.client();
+    await pupil.register(name);
+    const id = await buildFullModule(teacher);
+    await finishUntilTask(pupil, id);
+    const upload = await pupil.upload({ moduleId: id, stepType: 'task', purpose: 'submission', filename: 'javob.pdf', bytes: PDF });
+    await pupil.post('progress', { module_id: id, step_type: 'task', response: 'Javob', file_id: upload.body.id });
+    const [row] = await harness.sql`SELECT id FROM np_users WHERE login=${`${name}@gmail.com`}`;
+
+    assert.equal((await teacher.post('users', { action: 'delete', id: row.id })).statusCode, 403);
+    const res = await admin.post('users', { action: 'delete', id: row.id });
+    assert.equal(res.statusCode, 200);
+    assert.equal(harness.outbox.at(-1).accountDeleted, true);
+    assert.equal((await harness.sql`SELECT 1 FROM np_users WHERE id=${row.id}`).length, 0);
+    assert.equal((await harness.sql`SELECT 1 FROM np_progress WHERE user_id=${row.id}`).length, 0);
+    assert.equal((await harness.sql`SELECT 1 FROM np_files WHERE id=${upload.body.id}::uuid`).length, 0);
+    assert.equal((await pupil.get('auth')).body.user, null);
+    assert.equal((await harness.client().login(name, 'a-valid-password')).statusCode, 401);
+    assert.equal((await harness.client().register(name)).statusCode, 201);
+    assert.equal((await admin.post('users', { action: 'delete', id: row.id })).statusCode, 404);
+  });
+
+  test('a deleted teacher’s modules stay for students and pass to the administrator', async () => {
+    const name = unique('leaving_teacher');
+    const author = harness.client();
+    await author.register(name, 'teacher');
+    const id = await buildFullModule(author);
+    const [row] = await harness.sql`SELECT id FROM np_users WHERE login=${`${name}@gmail.com`}`;
+
+    const res = await admin.post('users', { action: 'delete', id: row.id });
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.modules_kept, 1);
+    const [module] = await harness.sql`SELECT created_by, deleted_at FROM np_modules WHERE id=${id}`;
+    assert.equal(module.created_by, null);
+    assert.equal(module.deleted_at, null);
+    assert.ok((await student.get('content', { module_id: id })).body.length >= 6);
+    assert.equal((await teacher.post('modules', { id, order_num: 999500, title: 'Mine now' })).statusCode, 403);
+    assert.equal((await admin.post('modules', { id, order_num: 999501, title: 'Admin keeps it' })).statusCode, 200);
+  });
+
+  test('administrators and the administrator’s own account cannot be deleted here', async () => {
+    const [self] = await harness.sql`SELECT id FROM np_users WHERE login=${TEST_ADMIN.login}`;
+    assert.equal((await admin.post('users', { action: 'delete', id: self.id })).statusCode, 400);
+    const [other] = await harness.sql`
+      INSERT INTO np_users(name, login, password, role) VALUES('Second Admin', 'second_admin', 'x', 'admin') RETURNING id`;
+    assert.equal((await admin.post('users', { action: 'delete', id: other.id })).statusCode, 404);
+    await harness.sql`DELETE FROM np_users WHERE id=${other.id}`;
+  });
+});
