@@ -7,6 +7,7 @@ import { ListSkeleton, PageSkeleton } from '../../components/Skeleton';
 import { api } from '../../lib/api';
 import { queryClient, useModules } from '../../lib/queries';
 import { STEP_TYPES, canManage } from '../../lib/steps';
+import { formatGrade } from '../../lib/grades';
 import { navigate, setTitle, showToast, useApp } from '../../store';
 import type { Module, Progress, Review, StepResponses } from '../../types';
 
@@ -44,13 +45,25 @@ export function QuizResult({ responses }: { responses?: StepResponses }) {
 }
 
 export function ReviewNote({ review }: { review?: Review | null }) {
-  if (!review?.feedback) return null;
+  const scored = typeof review?.score === 'number';
+  if (!review?.feedback && !scored) return null;
   return (
     <div className="teacher-review-box">
-      <h5><MessageSquare/> O‘qituvchi xulosasi ({review.teacher_name || 'Ustoz'}):</h5>
-      <p>{review.feedback}</p>
+      <h5><MessageSquare/> O‘qituvchi xulosasi ({review!.teacher_name || 'Ustoz'}):</h5>
+      {scored && <p><strong>Ball: {review!.score}/100</strong></p>}
+      {review!.feedback && <p>{review!.feedback}</p>}
     </div>
   );
+}
+
+// The module's final grade, or what it still waits for.
+export function ResultBadge({ row }: { row: Progress }) {
+  const result = row.result;
+  if (!result) return null;
+  const grade = formatGrade(result.grade, result.percent);
+  if (grade) return <span className={`badge ${result.passed ? 'badge-success' : 'badge-muted'}`}>Baho: {grade}</span>;
+  if (result.waiting.length) return <span className="badge badge-muted">Baholash kutilmoqda</span>;
+  return null;
 }
 
 // Every module, with what one student did in each step.
@@ -73,7 +86,10 @@ export function StudentWork({ rows, modules }: { rows: Progress[]; modules: Modu
           <section key={module.id} className="card work-module">
             <div className="work-module-head">
               {heading}
-              <span className={`badge ${row.completed_steps.length >= 6 ? 'badge-success' : 'badge-primary'}`}>{row.completed_steps.length}/6 qadam &middot; {Number(row.total_score) || 0} ball</span>
+              <span className="work-step-badges">
+                <span className={`badge ${row.completed_steps.length >= 6 ? 'badge-success' : 'badge-primary'}`}>{row.completed_steps.length}/6 qadam</span>
+                <ResultBadge row={row}/>
+              </span>
             </div>
             <ul className="work-steps">
               {STEP_TYPES.map((step) => {
@@ -105,15 +121,19 @@ export function StudentWork({ rows, modules }: { rows: Progress[]; modules: Modu
   );
 }
 
-function ReviewForm({ row, step, existing }: { row: Progress; step: 'task' | 'refl'; existing: string }) {
-  const [feedback, setFeedback] = useState(existing);
+function ReviewForm({ row, step, existing }: { row: Progress; step: 'task' | 'refl'; existing?: Review }) {
+  const [feedback, setFeedback] = useState(existing?.feedback ?? '');
+  const [score, setScore] = useState(typeof existing?.score === 'number' ? String(existing.score) : '');
   const [busy, setBusy] = useState(false);
+  const scoreId = `review_score_${row.id}_${step}`;
   async function save() {
-    if (!feedback.trim()) return showToast('Iltimos, fikr-mulohazani kiriting.', 'warning');
+    const value = score.trim() === '' ? null : Number(score);
+    if (value === null) return showToast('Ball qo‘ying (0–100): u yakuniy bahoga kiradi.', 'warning');
+    if (!Number.isInteger(value) || value < 0 || value > 100) return showToast('Ball 0 dan 100 gacha butun son bo‘lsin.', 'warning');
     setBusy(true);
     try {
-      await api('/progress', 'POST', { action: 'review', progress_id: row.id, step, feedback: feedback.trim() });
-      showToast('Fikr-mulohaza saqlandi!', 'success');
+      const saved = await api<Progress>('/progress', 'POST', { action: 'review', progress_id: row.id, step, score: value, feedback: feedback.trim() });
+      showToast(saved.certificate ? 'Baho saqlandi. Talabaga sertifikat berildi.' : 'Baho saqlandi.', 'success');
       await queryClient.invalidateQueries({ queryKey: ['progress', `module:${row.module_id}`] });
     } catch (error) {
       showToast((error as Error).message, 'error');
@@ -122,8 +142,10 @@ function ReviewForm({ row, step, existing }: { row: Progress; step: 'task' | 're
     }
   }
   return (
-    <div className="mt-2 flex gap-2.5">
-      <input type="text" id={`review_input_${row.id}_${step}`} aria-label="Fikr-mulohaza" placeholder="Fikr-mulohaza yoki baho yozing..." className="review-input" value={feedback} onChange={(e) => setFeedback(e.target.value)}/>
+    <div className="mt-2 flex flex-wrap items-center gap-2.5">
+      <label htmlFor={scoreId} className="text-sm font-medium text-ink">Ball</label>
+      <input type="number" inputMode="numeric" id={scoreId} min={0} max={100} step={1} placeholder="0–100" className="review-input w-24 flex-none" value={score} onChange={(e) => setScore(e.target.value)}/>
+      <input type="text" id={`review_input_${row.id}_${step}`} aria-label="Fikr-mulohaza" placeholder="Fikr-mulohaza (ixtiyoriy)" className="review-input min-w-48 flex-1" value={feedback} onChange={(e) => setFeedback(e.target.value)}/>
       <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={save}><Check/> Baholash</button>
     </div>
   );
@@ -190,7 +212,7 @@ export function Submissions() {
           </article>
         ))}
         {submissions.map(({ row, step, response, file }) => {
-          const existing = row.step_responses?.reviews?.[step]?.feedback || '';
+          const existing = row.step_responses?.reviews?.[step];
           return (
             <article key={`${row.id}-${step}`} className="card submission-card mb-5">
               <div className="submission-heading">
@@ -206,8 +228,9 @@ export function Submissions() {
                 <FileCard file={file}/>
               </div>
               <div className="teacher-review-box">
-                <h5><MessageSquare/> O‘qituvchi fikri va bahosi</h5>
-                {existing && <p><strong>Tekshirildi:</strong> {existing}</p>}
+                <h5><MessageSquare/> O‘qituvchi fikri va bahosi <ResultBadge row={row}/></h5>
+                {typeof existing?.score === 'number' && <p><strong>Ball:</strong> {existing.score}/100</p>}
+                {existing?.feedback && <p><strong>Tekshirildi:</strong> {existing.feedback}</p>}
                 {mayReview && <ReviewForm row={row} step={step} existing={existing}/>}
               </div>
             </article>

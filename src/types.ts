@@ -50,8 +50,21 @@ export interface ContentRow {
 
 export interface Review {
   feedback: string;
+  // The teacher's score (0–100); it counts towards the module's grade.
+  score?: number | null;
   teacher_name?: string;
   reviewed_at?: string;
+}
+
+// The module's final result over all six steps, worked out on the server.
+export interface ModuleResult {
+  parts: Partial<Record<StepId, number | null>>;
+  // Written steps that still wait for the teacher's score.
+  waiting: StepId[];
+  percent: number | null;
+  grade: 2 | 3 | 4 | 5 | null;
+  label: string | null;
+  passed: boolean;
 }
 
 export interface QuizDetail {
@@ -88,6 +101,7 @@ export interface Progress {
   student_login?: string;
   module_title?: string;
   module_order?: number;
+  result?: ModuleResult;
   certificate?: Certificate;
 }
 
@@ -160,7 +174,10 @@ export interface Certificate {
   module_id: number;
   student_name: string;
   module_title: string;
-  score: number;
+  score?: number;
+  // Empty on certificates issued before grading existed, until the teacher scores the work.
+  percent: number | null;
+  grade: 2 | 3 | 4 | 5 | null;
   issued_at: string;
 }
 

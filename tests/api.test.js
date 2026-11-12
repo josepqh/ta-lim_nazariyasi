@@ -1192,25 +1192,93 @@ describe('quiz retakes, answers and certificates', () => {
     assert.ok(retake.body.step_responses.diag_last);
   });
 
-  test('finishing every step issues one certificate that anyone can check', async () => {
+  const scoreWork = async (pupilLogin, task, refl) => {
+    const [row] = await harness.sql`SELECT p.id FROM np_progress p JOIN np_users u ON u.id = p.user_id WHERE u.login=${`${pupilLogin}@gmail.com`} AND p.module_id=${moduleId}`;
+    await teacher.post('progress', { action: 'review', progress_id: row.id, step: 'task', score: task, feedback: '' });
+    return teacher.post('progress', { action: 'review', progress_id: row.id, step: 'refl', score: refl, feedback: 'Yaxshi fikrlar' });
+  };
+  const finishModule = async (pupil) => {
+    await finishUntilTask(pupil, moduleId);
+    await pupil.post('progress', { module_id: moduleId, step_type: 'task', response: 'Rejam' });
+    return pupil.post('progress', { module_id: moduleId, step_type: 'refl', response: 'O‘rgandim' });
+  };
+
+  test('a finished module waits for the teacher’s scores, then issues a graded certificate anyone can check', async () => {
     const pupil = harness.client();
     const name = unique('graduate');
     await pupil.register(name);
-    await finishUntilTask(pupil, moduleId);
-    await pupil.post('progress', { module_id: moduleId, step_type: 'task', response: 'Rejam' });
-    const last = await pupil.post('progress', { module_id: moduleId, step_type: 'refl', response: 'O‘rgandim' });
+    const last = await finishModule(pupil);
     assert.equal(last.statusCode, 200);
-    assert.match(last.body.certificate.code, /^[A-HJ-NP-Z2-9]{10}$/);
-    assert.equal(last.body.certificate.student_name, `Name ${name}`);
+    assert.equal(last.body.certificate, undefined);
+    assert.deepEqual(last.body.result.waiting, ['task', 'refl']);
+    assert.equal(last.body.result.percent, null);
+    assert.deepEqual(await pupil.get('certificates').then((res) => res.body), []);
+
+    // A wrong test answer (0%), the three materials (30%), the task at 90 and the reflection at 80:
+    // 0·30 + 30 + 0.9·25 + 0.8·15 = 64.5 → 65%, a 3 (qoniqarli).
+    const graded = await scoreWork(name, 90, 80);
+    assert.equal(graded.statusCode, 200);
+    assert.equal(graded.body.result.percent, 65);
+    assert.equal(graded.body.result.grade, 3);
+    assert.match(graded.body.certificate.code, /^[A-HJ-NP-Z2-9]{10}$/);
+    assert.equal(graded.body.certificate.student_name, `Name ${name}`);
+    assert.equal(graded.body.certificate.percent, 65);
 
     const mine = await pupil.get('certificates');
     assert.equal(mine.body.length, 1);
-    assert.equal(mine.body[0].code, last.body.certificate.code);
-    const check = await harness.client().get('certificates', { code: last.body.certificate.code.toLowerCase() });
+    assert.equal(mine.body[0].code, graded.body.certificate.code);
+    const check = await harness.client().get('certificates', { code: graded.body.certificate.code.toLowerCase() });
     assert.equal(check.body.valid, true);
     assert.equal(check.body.module_title, 'Module');
+    assert.equal(check.body.grade, 3);
+    assert.equal(check.body.percent, 65);
+
+    // A changed score changes the grade on the same certificate.
+    const raised = await scoreWork(name, 100, 100);
+    assert.equal(raised.body.certificate.code, graded.body.certificate.code);
+    assert.equal(raised.body.certificate.percent, 70);
     assert.deepEqual((await harness.client().get('certificates', { code: 'NOTREAL234' })).body, { valid: false });
     assert.equal((await teacher.get('certificates')).statusCode, 403);
+  });
+
+  test('a result under 55% earns no certificate until it improves', async () => {
+    const pupil = harness.client();
+    const name = unique('struggling');
+    await pupil.register(name);
+    await finishModule(pupil);
+    const low = await scoreWork(name, 20, 10);
+    assert.equal(low.body.result.percent, 37);
+    assert.equal(low.body.result.grade, 2);
+    assert.equal(low.body.result.passed, false);
+    assert.equal(low.body.certificate, undefined);
+    assert.deepEqual(await pupil.get('certificates').then((res) => res.body), []);
+    const better = await scoreWork(name, 100, 100);
+    assert.equal(better.body.result.passed, true);
+    assert.ok(better.body.certificate);
+  });
+
+  test('a score must be a whole number from 0 to 100, for a step the student has done', async () => {
+    const pupil = harness.client();
+    const name = unique('unscored');
+    await pupil.register(name);
+    await finishUntilTask(pupil, moduleId);
+    await pupil.post('progress', { module_id: moduleId, step_type: 'task', response: 'Rejam' });
+    const [row] = await harness.sql`SELECT p.id FROM np_progress p JOIN np_users u ON u.id = p.user_id WHERE u.login=${`${name}@gmail.com`} AND p.module_id=${moduleId}`;
+    const review = (body) => teacher.post('progress', { action: 'review', progress_id: row.id, ...body });
+    assert.equal((await review({ step: 'task', score: 101 })).statusCode, 400);
+    assert.equal((await review({ step: 'task', score: 7.5 })).statusCode, 400);
+    assert.equal((await review({ step: 'task' })).statusCode, 400);
+    assert.equal((await review({ step: 'refl', score: 50 })).statusCode, 409);
+    const scored = await review({ step: 'task', score: 75 });
+    assert.equal(scored.body.step_responses.reviews.task.score, 75);
+    // Editing only the comment keeps the score.
+    const commented = await review({ step: 'task', feedback: 'Batafsilroq yozing' });
+    assert.equal(commented.body.step_responses.reviews.task.score, 75);
+  });
+
+  test('the grade scale follows the five-point system', () => {
+    const { gradeFor } = require('../api/_grading');
+    assert.deepEqual([100, 86, 85, 71, 70, 55, 54, 0].map((p) => gradeFor(p).grade), [5, 5, 4, 4, 3, 3, 2, 2]);
   });
 });
 

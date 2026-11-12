@@ -1,6 +1,6 @@
 const sql = require('../_db');
 const { requireUser } = require('../_auth');
-const { CODE_LENGTH, ensureCertificate } = require('../_certificates');
+const { CODE_LENGTH, syncCertificate } = require('../_certificates');
 const { normalizeCode } = require('../_codes');
 const { reportServerError } = require('../_errors');
 const { isWithinLimit } = require('../_rateLimit');
@@ -19,21 +19,21 @@ module.exports = async (req, res) => {
       }
       const code = normalizeCode(req.query.code);
       const rows = code.length === CODE_LENGTH
-        ? await sql`SELECT code, student_name, module_title, score, issued_at FROM np_certificates WHERE code=${code} LIMIT 1`
+        ? await sql`SELECT code, student_name, module_title, percent, grade, issued_at FROM np_certificates WHERE code=${code} LIMIT 1`
         : [];
       return res.json(rows.length ? { valid: true, ...rows[0] } : { valid: false });
     }
 
     const user = await requireUser(req, res, ['student']);
     if (!user) return;
-    // Modules finished before certificates existed get theirs here, the first time the student looks.
+    // Modules finished before certificates existed, or graded since, are brought up to date here.
     const finished = await sql`
       SELECT module_id FROM np_progress
       WHERE user_id=${user.id} AND jsonb_array_length(completed_steps) >= 6
         AND module_id IN (SELECT id FROM np_modules WHERE deleted_at IS NULL)`;
     const certificates = [];
     for (const row of finished) {
-      const certificate = await ensureCertificate(user.id, row.module_id);
+      const { certificate } = await syncCertificate(user.id, row.module_id);
       if (certificate) certificates.push(certificate);
     }
     return res.json(certificates);

@@ -1,5 +1,6 @@
 import type { Certificate } from '../types';
 import { deliver, type DownloadResult } from './files';
+import { formatGrade } from './grades';
 import { uzDate } from './learning';
 
 const W = 2480;
@@ -80,7 +81,8 @@ export async function drawCertificate(certificate: Certificate): Promise<HTMLCan
   ctx.textAlign = 'left';
   ctx.fillStyle = INK;
   ctx.font = '700 46px "Onest Variable", sans-serif';
-  ctx.fillText(`To‘plangan ball: ${certificate.score}`, 260, 1430);
+  const grade = formatGrade(certificate.grade, certificate.percent);
+  ctx.fillText(grade ? `Baho: ${grade}` : `To‘plangan ball: ${certificate.score ?? 0}`, 260, 1430);
   ctx.fillText(`Berilgan sana: ${uzDate(certificate.issued_at)}`, 260, 1500);
   ctx.font = '400 40px "Onest Variable", sans-serif';
   ctx.fillStyle = '#655D54';

@@ -5,7 +5,8 @@ const { findAttachable, isUuid } = require('../_files');
 const { gradeAnswers, quizVersion } = require('../_quiz');
 const { canManage } = require('../_modules');
 const { audit } = require('../_audit');
-const { ensureCertificate } = require('../_certificates');
+const { syncCertificate } = require('../_certificates');
+const { moduleResult, validScore } = require('../_grading');
 
 const STEP_TYPES = ['diag', 'video', 'pres', 'doc', 'task', 'refl'];
 const REVIEWABLE_STEPS = ['task', 'refl'];
@@ -26,9 +27,11 @@ function normalizeAnswer(value) {
 // The per-question breakdown holds answers other students could still be asked,
 // so a student sees it only where the teacher chose to show answers after the test.
 function forStudent(row, showAnswers = false) {
-  if (!row?.step_responses?.diag_detail || showAnswers) return row;
+  if (!row) return row;
+  const withResult = { ...row, result: moduleResult(row) };
+  if (!row.step_responses?.diag_detail || showAnswers) return withResult;
   const { diag_detail: _hidden, ...stepResponses } = row.step_responses;
-  return { ...row, step_responses: stepResponses };
+  return { ...withResult, step_responses: stepResponses };
 }
 
 async function quizSettings(moduleId) {
@@ -68,7 +71,7 @@ async function readProgress(req, res, user) {
     return res.json(rows.map((row) => forStudent(row, showing.has(Number(row.module_id)))));
   }
 
-  return res.json(await sql`
+  const rows = await sql`
     SELECT p.*, u.name AS student_name, u.login AS student_login, m.title AS module_title, m.order_num AS module_order
     FROM np_progress p
     JOIN np_users u ON u.id = p.user_id
@@ -77,22 +80,28 @@ async function readProgress(req, res, user) {
       AND (${moduleId}::int IS NULL OR p.module_id=${moduleId}::int)
       AND (${studentId}::int IS NULL OR p.user_id=${studentId}::int)
       AND (${groupId}::int IS NULL OR p.user_id IN (SELECT user_id FROM np_group_members WHERE group_id=${groupId}::int))
-    ORDER BY p.updated_at DESC`);
+    ORDER BY p.updated_at DESC`;
+  return res.json(rows.map((row) => ({ ...row, result: moduleResult(row) })));
 }
 
 async function saveReview(res, teacher, body) {
   const progressId = Number(body.progress_id);
   const feedback = typeof body.feedback === 'string' ? body.feedback.trim() : '';
   const step = body.step;
+  // The score (0–100) counts towards the module's grade; without one, an earlier score is kept.
+  const score = body.score === undefined || body.score === null || body.score === '' ? null : Number(body.score);
   if (!Number.isSafeInteger(progressId) || progressId < 1) return res.status(400).json({ error: 'Topshiriq raqami noto‘g‘ri.' });
   if (!REVIEWABLE_STEPS.includes(step)) return res.status(400).json({ error: 'Qadam turi noto‘g‘ri.' });
-  if (!feedback || feedback.length > 5000) return res.status(400).json({ error: 'Fikr 1–5000 belgidan iborat bo‘lsin.' });
+  if (score !== null && !validScore(score)) return res.status(400).json({ error: 'Ball 0 dan 100 gacha butun son bo‘lsin.' });
+  if (feedback.length > 5000) return res.status(400).json({ error: 'Fikr 5000 belgidan oshmasin.' });
+  if (!feedback && score === null) return res.status(400).json({ error: 'Ball qo‘ying yoki fikr yozing.' });
 
   const owners = await sql`
-    SELECT m.created_by FROM np_progress p JOIN np_modules m ON m.id = p.module_id
+    SELECT m.created_by, p.user_id, p.module_id, p.completed_steps FROM np_progress p JOIN np_modules m ON m.id = p.module_id
     WHERE p.id=${progressId} LIMIT 1`;
   if (!owners.length) return res.status(404).json({ error: 'Topshiriq topilmadi.' });
   if (!canManage(teacher, owners[0])) return res.status(403).json({ error: 'Bu modul ishlarini faqat uning muallifi yoki administrator baholaydi.' });
+  if (!owners[0].completed_steps.includes(step)) return res.status(409).json({ error: 'Talaba bu qadamni hali topshirmagan.' });
 
   // jsonb_set only creates the last path element, so "reviews" must exist first.
   const rows = await sql`
@@ -100,15 +109,22 @@ async function saveReview(res, teacher, body) {
     SET step_responses = jsonb_set(
           jsonb_set(step_responses, '{reviews}', COALESCE(step_responses->'reviews', '{}'::jsonb), true),
           ARRAY['reviews', ${step}::text],
-          jsonb_build_object('feedback', ${feedback}::text, 'teacher_name', ${teacher.name || teacher.login}::text, 'reviewed_at', NOW()::text),
+          jsonb_build_object(
+            'feedback', ${feedback}::text,
+            'score', COALESCE(${score}::int, (step_responses->'reviews'->${step}::text->>'score')::int),
+            'teacher_name', ${teacher.name || teacher.login}::text,
+            'reviewed_at', NOW()::text
+          ),
           true
         ),
         updated_at = NOW()
     WHERE id=${progressId}
     RETURNING *`;
   if (!rows.length) return res.status(404).json({ error: 'Topshiriq topilmadi.' });
-  await audit(teacher, 'work.review', `Talaba ishi #${progressId}: ${step}`, { progress_id: progressId, step });
-  return res.json(rows[0]);
+  await audit(teacher, 'work.review', `Talaba ishi #${progressId}: ${step}`, { progress_id: progressId, step, score });
+  // Scoring the last written step is what issues the certificate.
+  const { certificate } = await syncCertificate(owners[0].user_id, owners[0].module_id);
+  return res.json({ ...rows[0], result: moduleResult(rows[0]), ...(certificate ? { certificate } : {}) });
 }
 
 // A new attempt at the test, when the teacher allows it. The best result counts; the order of
@@ -141,7 +157,9 @@ async function retakeQuiz(res, user, body, progress) {
       AND COALESCE((step_responses->>'diag_attempts')::int, 1) = ${attempt}
     RETURNING *`;
   const saved = rows[0] || (await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`)[0];
-  return res.json(forStudent(saved, settings.showAnswers));
+  // A better test result raises the grade on a certificate already given, or earns one.
+  const { certificate } = await syncCertificate(user.id, moduleId);
+  return res.json({ ...forStudent(saved, settings.showAnswers), ...(certificate ? { certificate } : {}) });
 }
 
 async function hasMaterial(moduleId, stepType) {
@@ -236,8 +254,8 @@ async function completeStep(res, user, body) {
       WHERE NOT (np_progress.completed_steps ? ${stepType}::text)
     RETURNING *`;
   const saved = rows.length ? rows[0] : (await sql`SELECT * FROM np_progress WHERE user_id=${user.id} AND module_id=${moduleId}`)[0];
-  // The sixth step earns the module's certificate.
-  const certificate = saved && saved.completed_steps.length >= STEP_TYPES.length ? await ensureCertificate(user.id, moduleId) : null;
+  // The sixth step can earn the certificate (once the teacher's scores are in and the result passes).
+  const { certificate } = saved && saved.completed_steps.length >= STEP_TYPES.length ? await syncCertificate(user.id, moduleId) : { certificate: null };
   const showing = await modulesShowingAnswers();
   return res.json({ ...forStudent(saved, showing.has(moduleId)), ...(certificate ? { certificate } : {}) });
 }

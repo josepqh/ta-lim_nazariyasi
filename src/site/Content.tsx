@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, BadgeCheck, CalendarDays, SearchCheck, ShieldAle
 import { useEffect, useState, type FormEvent } from 'react';
 import { Markdown } from '../components/Markdown';
 import { api } from '../lib/api';
+import { formatGrade } from '../lib/grades';
 import { imageUrl, useArticles, useStats, uzDate } from '../lib/learning';
 import { showSection, useApp } from '../store';
 import type { Article } from '../types';
@@ -95,7 +96,8 @@ interface CheckResult {
   valid: boolean;
   student_name?: string;
   module_title?: string;
-  score?: number;
+  percent?: number | null;
+  grade?: number | null;
   issued_at?: string;
 }
 
@@ -148,7 +150,8 @@ export function VerifyPage() {
           <div>
             <p className="text-lg font-semibold text-ink">Sertifikat haqiqiy</p>
             <p className="mt-1 text-ink"><strong>{result.student_name}</strong> «{result.module_title}» modulini tamomlagan.</p>
-            <p className="mt-1 text-sm text-muted">Berilgan sana: {uzDate(result.issued_at!)} · {result.score} ball</p>
+            {formatGrade(result.grade, result.percent) && <p id="verifyGrade" className="mt-1 text-ink">Baho: <strong>{formatGrade(result.grade, result.percent)}</strong></p>}
+            <p className="mt-1 text-sm text-muted">Berilgan sana: {uzDate(result.issued_at!)}</p>
           </div>
         </div>
       ) : (

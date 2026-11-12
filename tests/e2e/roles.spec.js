@@ -871,8 +871,26 @@ test('a student joins a group, continues where they stopped and earns a checkabl
   await expect(student.locator('#stepBody strong', { hasText: 'Muhim:' })).toBeVisible();
   await doStep(student, 4, (p) => p.locator('#stepResponse').fill('Reja tayyor'));
   await doStep(student, 5, (p) => p.locator('#stepResponse').fill('Ko‘p narsa o‘rgandim'));
-  await expect(student.locator('#toast')).toContainText('sertifikat berildi');
+  // The grade counts every step, so the certificate waits for the teacher's scores.
+  await expect(student.locator('#toast')).toContainText('O‘qituvchi baholagach');
+  await expect(student.locator('#gradeWaiting')).toContainText('amaliy topshiriq va refleksiya');
+  await expect(student.locator('#certificateButton')).toHaveCount(0);
 
+  await openMenu(teacher, 'Talaba javoblari');
+  const moduleOption = await teacher.locator('#submissionModule option', { hasText: title }).getAttribute('value');
+  await teacher.locator('#submissionModule').selectOption(moduleOption);
+  for (const step of ['task', 'refl']) {
+    const card = teacher.locator('.submission-card', { hasText: step === 'task' ? 'Amaliy topshiriq' : 'Refleksiya' }).filter({ hasText: studentName });
+    await card.getByLabel('Ball').fill('90');
+    await card.getByRole('button', { name: 'Baholash' }).click();
+    await expect(teacher.locator('#toast')).toContainText('Baho saqlandi');
+  }
+  await expect(teacher.locator('#toast')).toContainText('sertifikat berildi');
+
+  // The lesson, the certificate list and the public check all state the same grade.
+  await student.reload({ waitUntil: 'domcontentloaded' });
+  await expect(student.locator('#moduleGrade')).toHaveText(/Yakuniy baho: [345] \(.+\) — \d{2,3}%/);
+  const grade = (await student.locator('#moduleGrade strong').innerText()).trim();
   const downloading = student.waitForEvent('download');
   await student.locator('#certificateButton').click();
   const pdf = await downloading;
@@ -881,11 +899,13 @@ test('a student joins a group, continues where they stopped and earns a checkabl
 
   await openMenu(student, 'Boshqaruv paneli');
   await expect(student.locator('#certificatesCard')).toContainText(title);
+  await expect(student.locator('#certificatesCard')).toContainText(`Baho: ${grade}`);
 
   const visitor = await (await browser.newContext()).newPage();
   await visitor.goto(`/#verify/${certificateCode}`, { waitUntil: 'domcontentloaded' });
   await expect(visitor.locator('#verifyResult')).toContainText('Sertifikat haqiqiy');
   await expect(visitor.locator('#verifyResult')).toContainText(studentName);
+  await expect(visitor.locator('#verifyGrade')).toContainText(grade);
   await visitor.locator('#verifyCode').fill('NOTREAL234');
   await visitor.getByRole('button', { name: 'Tekshirish' }).click();
   await expect(visitor.locator('#verifyResult')).toContainText('topilmadi');

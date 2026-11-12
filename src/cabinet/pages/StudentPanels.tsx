@@ -3,6 +3,7 @@ import { ArrowRight, Award, Copy, Download, LogOut, PlayCircle, Users } from 'lu
 import { useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
 import { downloadCertificate, verifyUrl } from '../../lib/certificate';
+import { formatGrade } from '../../lib/grades';
 import { imageUrl, useCertificates, useGroups, uzDate } from '../../lib/learning';
 import { useModules, useMyProgress } from '../../lib/queries';
 import { STEP_TYPES } from '../../lib/steps';
@@ -75,7 +76,7 @@ function CertificateRow({ certificate }: { certificate: Certificate }) {
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><Award/></span>
       <div className="min-w-0 flex-1">
         <p className="font-semibold wrap-anywhere text-ink">{certificate.module_title}</p>
-        <p className="text-sm text-muted">{uzDate(certificate.issued_at)} · {certificate.score} ball · № {certificate.code}</p>
+        <p className="text-sm text-muted">{uzDate(certificate.issued_at)}{formatGrade(certificate.grade, certificate.percent) ? ` · Baho: ${formatGrade(certificate.grade, certificate.percent)}` : ''} · № {certificate.code}</p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         <button type="button" className="btn-outline btn-sm" onClick={copy}><Copy/> Havola</button>

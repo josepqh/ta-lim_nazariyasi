@@ -8,6 +8,7 @@ import { FilePicker } from '../../components/FilePicker';
 import { UploadProgress } from '../../components/UploadProgress';
 import { api } from '../../lib/api';
 import { downloadCertificate } from '../../lib/certificate';
+import { PASS_PERCENT, WAITING_LABELS, formatGrade } from '../../lib/grades';
 import { DOCUMENT_ACCEPT, uploadFile } from '../../lib/files';
 import { imageUrl, useCertificates } from '../../lib/learning';
 import { cx, youTubeEmbedUrl } from '../../lib/format';
@@ -19,11 +20,13 @@ import type { Progress, QuizDetail, Review, StepContent, StudentPaper } from '..
 const LETTERS = 'ABCDEFGH';
 
 function ReviewBox({ review }: { review?: Review | null }) {
-  if (!review?.feedback) return null;
+  const scored = typeof review?.score === 'number';
+  if (!review?.feedback && !scored) return null;
   return (
     <div className="teacher-review-box">
-      <h5><MessageSquare/> O‘qituvchi xulosasi ({review.teacher_name || 'Ustoz'}):</h5>
-      <p>{review.feedback}</p>
+      <h5><MessageSquare/> O‘qituvchi xulosasi ({review!.teacher_name || 'Ustoz'}):</h5>
+      {scored && <p><strong>Ball: {review!.score}/100</strong></p>}
+      {review!.feedback && <p>{review!.feedback}</p>}
     </div>
   );
 }
@@ -189,12 +192,16 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
         const last = saved.step_responses?.diag_last;
         setRetaking(false);
         setQuizAnswers([]);
+        // A better result can raise the certificate's grade or earn one.
+        if (saved.certificate) await queryClient.invalidateQueries({ queryKey: ['certificates'] });
         showToast(last ? `Yangi urinish: ${last.correct}/${last.total}. Eng yaxshi natija hisobga olinadi.` : 'Test qayta topshirildi.', 'success');
         return;
       }
       if (saved.certificate) {
         await queryClient.invalidateQueries({ queryKey: ['certificates'] });
         showToast('Tabriklaymiz! Modul tamomlandi va sertifikat berildi.', 'success');
+      } else if (saved.result?.waiting.length) {
+        showToast('Modul tamomlandi. O‘qituvchi baholagach, yakuniy baho va sertifikat beriladi.', 'success');
       } else if (step.id === 'diag' && result) showToast(`Natija: ${result.correct}/${result.total} (+${result.score} ball)`, 'success');
       else if (step.id === 'diag') showToast(saved.step_responses?.diag_correct ? 'To‘g‘ri javob! +15 ball' : 'Javobingiz qabul qilindi (0 ball).', saved.step_responses?.diag_correct ? 'success' : 'info');
       else showToast('Qadam muvaffaqiyatli bajarildi!', 'success');
@@ -393,11 +400,28 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
                 <p className="text-sm text-muted">Barcha 6 ta didaktik qadam to‘liq yakunlandi va tizimda qayd etildi.</p>
                 {(() => {
                   const certificate = certificates.data?.find((item) => Number(item.module_id) === Number(module.id));
-                  return certificate ? (
-                    <button type="button" id="certificateButton" className="btn-primary mt-4" onClick={() => downloadCertificate(certificate).catch((error: Error) => showToast(error.message, 'error'))}>
-                      <Download/> Sertifikatni yuklab olish (PDF)
-                    </button>
-                  ) : null;
+                  const result = progress?.result;
+                  const grade = formatGrade(result?.grade ?? certificate?.grade, result?.percent ?? certificate?.percent);
+                  if (result?.waiting.length) {
+                    return (
+                      <p id="gradeWaiting" className="mt-3 text-sm text-ink">
+                        Yakuniy baho va sertifikat o‘qituvchi {result.waiting.map((item) => WAITING_LABELS[item]).join(' va ')}ni baholagandan keyin beriladi.
+                      </p>
+                    );
+                  }
+                  return (
+                    <>
+                      {grade && <p id="moduleGrade" className="mt-3 text-lg text-ink">Yakuniy baho: <strong>{grade}</strong></p>}
+                      {result && result.percent !== null && !result.passed && !certificate && (
+                        <p id="gradeFailed" className="mt-2 text-sm text-muted">Sertifikat uchun kamida {PASS_PERCENT}% kerak. Testni qayta topshirish mumkin bo‘lsa, natijangizni oshiring yoki o‘qituvchingizga murojaat qiling.</p>
+                      )}
+                      {certificate && (
+                        <button type="button" id="certificateButton" className="btn-primary mt-4" onClick={() => downloadCertificate(certificate).catch((error: Error) => showToast(error.message, 'error'))}>
+                          <Download/> Sertifikatni yuklab olish (PDF)
+                        </button>
+                      )}
+                    </>
+                  );
                 })()}
               </div>
             )}
