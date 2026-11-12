@@ -2,7 +2,10 @@ const { createHash, randomBytes } = require('node:crypto');
 const sql = require('./_db');
 
 const COOKIE_NAME = 'np_session';
+// A session ends after 12 hours without use; every request in that time moves the end forward.
 const SESSION_TTL_SECONDS = 60 * 60 * 12;
+// Renewing at most once an hour keeps busy pages from writing to the database on every call.
+const RENEW_AFTER_SECONDS = 60 * 60;
 
 function hashToken(token) {
   return createHash('sha256').update(token).digest('hex');
@@ -33,24 +36,35 @@ async function destroySession(req, res) {
 }
 
 // Every request re-reads the account, so role changes and blocks apply immediately.
-async function getSessionUser(req) {
+// Given `res`, a session in use is extended, so active people are not signed out mid-lesson.
+async function getSessionUser(req, res) {
   const token = readToken(req);
   if (!token) return null;
+  const tokenHash = hashToken(token);
   const rows = await sql`
-    SELECT u.id, u.name, u.login, u.role
+    SELECT u.id, u.name, u.login, u.role,
+           s.expires_at < NOW() + (${SESSION_TTL_SECONDS - RENEW_AFTER_SECONDS}::int * INTERVAL '1 second') AS stale
     FROM np_sessions s
     JOIN np_users u ON u.id = s.user_id
-    WHERE s.token_hash = ${hashToken(token)}
+    WHERE s.token_hash = ${tokenHash}
       AND s.is_valid
       AND s.expires_at > NOW()
       AND u.deleted_at IS NULL
       AND COALESCE(u.status, 'active') = 'active'
     LIMIT 1`;
-  return rows[0] || null;
+  if (!rows.length) return null;
+  const { stale, ...user } = rows[0];
+  if (stale && res) {
+    await sql`
+      UPDATE np_sessions SET expires_at = NOW() + (${SESSION_TTL_SECONDS}::int * INTERVAL '1 second')
+      WHERE token_hash=${tokenHash}`;
+    res.setHeader('Set-Cookie', `${COOKIE_NAME}=${token}; ${cookieFlags(req)}; Max-Age=${SESSION_TTL_SECONDS}`);
+  }
+  return user;
 }
 
 async function requireUser(req, res, roles) {
-  const user = await getSessionUser(req);
+  const user = await getSessionUser(req, res);
   if (!user) {
     res.status(401).json({ error: 'Tizimga qayta kiring.' });
     return null;

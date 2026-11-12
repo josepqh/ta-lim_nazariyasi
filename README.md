@@ -38,6 +38,12 @@ npm start            # yig‘ilgan saytni lokal API bilan ishga tushiradi
 - O‘qituvchi Gmail’ni tasdiqlagach **administrator tasdig‘ini kutadi**: admin “Foydalanuvchilar → Tasdiq kutayotganlar” bo‘limida tasdiqlaydi yoki rad etadi, ikkala holatda ham xat boradi.
 - O‘qituvchi faqat **o‘zi yaratgan modullarni** tahrirlaydi, o‘chiradi, materiallarini o‘zgartiradi va ularning javoblarini baholaydi; administrator hammasini boshqaradi. Bu qoida serverda (`api/_modules.js`) tekshiriladi.
 
+## Kirish va sessiya
+
+- Sessiya 12 soat ishlatilmasa tugaydi; foydalanilgan sari muddati uzayadi (soatiga ko‘pi bilan bir marta). Tugagan sessiyada sayt kirish oynasini ochadi va qayta kirgach o‘sha sahifaga qaytaradi.
+- Noto‘g‘ri parol: bitta hisobga bitta manzildan 15 daqiqada 5 ta urinish (hisob faqat o‘sha manzil uchun qulflanadi), bitta manzildan istalgan hisoblarga 15 daqiqada 20 ta, bitta hisobga barcha manzillardan soatiga 50 ta. Parolni tiklash qulfni darhol ochadi.
+- Eski `np_rate_limits`, `np_email_codes` va `np_sessions` yozuvlari so‘rovlar orasida vaqti-vaqti bilan o‘chiriladi (`api/_cleanup.js`).
+
 ## O‘quv imkoniyatlari
 
 - **Guruhlar.** O‘qituvchi “Guruhlar” bo‘limida guruh yaratadi va 6 belgili taklif kodini talabalarga beradi; talaba kabinetdagi “Guruhlarim” orqali qo‘shiladi. Tahlil va javoblar sahifalarida natijalarni guruh bo‘yicha saralash mumkin. Kod oshkor bo‘lsa, “Yangi kod” eskisini bekor qiladi.

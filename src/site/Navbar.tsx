@@ -2,7 +2,8 @@ import { House, Layers, LogIn, Mail, Menu, Moon, Newspaper, Sun, UserPlus, X } f
 import { useState, type ReactNode } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
 import { Logo } from '../components/Logo';
-import { openAuth, showSection, toggleTheme, useApp, type PublicSection } from '../store';
+import { openSection, sectionHref } from '../lib/links';
+import { openAuth, toggleTheme, useApp, type PublicSection } from '../store';
 
 // Plain text links: no pill behind them; the current section is told by colour alone.
 const LINK = 'flex h-12 items-center gap-3 px-3 text-base font-medium text-ink transition-colors hover:text-primary aria-[current=page]:text-primary xl:h-10 xl:gap-2 xl:px-2.5 xl:text-[15px]';
@@ -13,13 +14,10 @@ export function Navbar() {
   const current = useApp((state) => state.section);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  function go(section: PublicSection) {
-    setMenuOpen(false);
-    showSection(section);
-  }
+  const go = (section: PublicSection) => openSection(section, () => setMenuOpen(false));
 
   const link = (section: PublicSection, icon: ReactNode, label: string) => (
-    <li><a href="#" className={LINK} aria-current={current === section || (section === 'public-news' && current === 'public-article') ? 'page' : undefined} onClick={(event) => { event.preventDefault(); go(section); }}>{icon} {label}</a></li>
+    <li><a href={sectionHref(section)} className={LINK} aria-current={current === section || (section === 'public-news' && current === 'public-article') ? 'page' : undefined} onClick={go(section)}>{icon} {label}</a></li>
   );
   const themeIcon = theme === 'dark' ? <Sun/> : <Moon/>;
   const themeLabel = theme === 'dark' ? 'Kunduzgi rejim' : 'Tungi rejim';
@@ -27,7 +25,7 @@ export function Navbar() {
   return (
     <nav id="navbar" className="fixed inset-x-0 top-0 z-[900] flex h-16 items-center border-b border-line bg-overlay backdrop-blur xl:h-[76px]">
       <div className="mx-auto flex w-full max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 xl:gap-6 xl:px-8">
-        <a href="#" id="navBrand" className="mr-auto inline-flex min-w-0 items-center gap-2.5 xl:mr-0 xl:flex-1" onClick={(event) => { event.preventDefault(); go('home'); }}>
+        <a href="/" id="navBrand" className="mr-auto inline-flex min-w-0 items-center gap-2.5 xl:mr-0 xl:flex-1" onClick={go('home')}>
           <Logo size={40} wordmarkClass={user ? undefined : 'max-[459px]:sr-only'}/>
         </a>
         <button id="mobileMenuBtn" className="icon-btn order-3 border-transparent xl:hidden" type="button" aria-label={menuOpen ? 'Menyuni yopish' : 'Menyuni ochish'}

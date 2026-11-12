@@ -6,6 +6,12 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
+// Set by the session module: what to do when the server says the session is over.
+let onSessionExpired: (() => void) | null = null;
+export function handleSessionExpiry(handler: () => void) {
+  onSessionExpired = handler;
+}
+
 // Every server answer is JSON; errors carry an Uzbek message the page can show as it is.
 export async function api<T = unknown>(endpoint: string, method: Method = 'GET', body?: unknown): Promise<T> {
   const options: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
@@ -22,6 +28,8 @@ export async function api<T = unknown>(endpoint: string, method: Method = 'GET',
   } catch {
     // An HTML error page from a proxy; the status says enough.
   }
+  // /auth answers 401 for a wrong password, which is not an expired session.
+  if (res.status === 401 && endpoint !== '/auth') onSessionExpired?.();
   if (!res.ok) throw new ApiError(typeof data?.error === 'string' ? data.error : `Server xatosi: ${res.status}`, res.status, data);
   return data as T;
 }

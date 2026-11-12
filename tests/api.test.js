@@ -77,6 +77,54 @@ describe('registration and login', () => {
     assert.equal((await visitor.login(login, 'a-valid-password')).statusCode, 429);
   });
 
+  const loginFrom = (ip, login, password) => harness.client().call('auth', {
+    method: 'POST',
+    headers: { 'x-forwarded-for': ip },
+    body: { action: 'login', login: login.includes('@') ? login : `${login}@gmail.com`, password }
+  });
+
+  test('a lock applies only to the address that guessed wrong', async () => {
+    const login = unique('targeted');
+    await harness.client().register(login);
+    for (let i = 0; i < 5; i++) assert.equal((await loginFrom('198.51.100.20', login, 'wrong-password')).statusCode, 401);
+    assert.equal((await loginFrom('198.51.100.20', login, 'a-valid-password')).statusCode, 429);
+    // The owner, on another network, still gets in.
+    assert.equal((await loginFrom('198.51.100.21', login, 'a-valid-password')).statusCode, 200);
+  });
+
+  test('one address guessing many accounts is stopped', async () => {
+    const ip = '198.51.100.30';
+    for (let i = 0; i < 20; i++) assert.equal((await loginFrom(ip, `${unique('nobody')}@gmail.com`, 'wrong-password')).statusCode, 401);
+    const login = unique('innocent');
+    await harness.client().register(login);
+    assert.equal((await loginFrom(ip, login, 'a-valid-password')).statusCode, 429);
+    assert.equal((await loginFrom('198.51.100.31', login, 'a-valid-password')).statusCode, 200);
+  });
+
+  test('a session in use is extended, an idle one is not', async () => {
+    const login = unique('active');
+    const person = harness.client();
+    await person.register(login);
+    const [account] = await harness.sql`SELECT id FROM np_users WHERE login=${`${login}@gmail.com`}`;
+    await harness.sql`UPDATE np_sessions SET expires_at = NOW() + INTERVAL '30 minutes' WHERE user_id=${account.id}`;
+    const res = await person.get('auth');
+    assert.ok(res.body.user);
+    assert.match(res.headers['set-cookie'], /Max-Age=43200/);
+    const [session] = await harness.sql`SELECT expires_at > NOW() + INTERVAL '11 hours' AS renewed FROM np_sessions WHERE user_id=${account.id}`;
+    assert.equal(session.renewed, true);
+    // Within the first hour nothing is written again.
+    assert.equal((await person.get('auth')).headers['set-cookie'], undefined);
+  });
+
+  test('old rate-limit, code and session rows are swept away', async () => {
+    const { sweepExpiredRows } = require('../api/_cleanup');
+    await harness.sql`INSERT INTO np_rate_limits(bucket, window_start, hits) VALUES('old-bucket', NOW() - INTERVAL '2 days', 3)`;
+    await harness.sql`INSERT INTO np_rate_limits(bucket, window_start, hits) VALUES('fresh-bucket', NOW(), 1)`;
+    await sweepExpiredRows({ force: true });
+    const buckets = (await harness.sql`SELECT bucket FROM np_rate_limits WHERE bucket IN ('old-bucket', 'fresh-bucket')`).map((row) => row.bucket);
+    assert.deepEqual(buckets, ['fresh-bucket']);
+  });
+
   test('blocking an account ends its existing session at once', async () => {
     const login = unique('blocked');
     const person = harness.client();

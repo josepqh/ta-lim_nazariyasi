@@ -1,11 +1,13 @@
 import { ArrowRight, BarChart2, Camera, Check, CircleArrowRight, CircleCheck, GraduationCap, LayoutDashboard, Library, Mail, MapPin, MonitorPlay, Phone, PlayCircle, Send, Sparkles, Users } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
 import { imageUrl } from '../lib/learning';
 import { Lesson } from '../cabinet/pages/Lesson';
 import { cx } from '../lib/format';
 import { useModules, useMyProgress } from '../lib/queries';
+import { isPlainClick, openSection } from '../lib/links';
 import { navigate, openAuth, openModule, showSection, useApp, type PublicSection } from '../store';
 import { Navbar } from './Navbar';
 import { ArticleList, ArticlePage, StatsBar, VerifyPage } from './Content';
@@ -16,7 +18,7 @@ function Section({ id, children }: { id: PublicSection; children: ReactNode }) {
   const active = useApp((state) => state.section === id);
   return (
     <section id={id} className={cx('public-section hidden animate-fade-in pt-16 xl:pt-[76px] [&.active]:block', active && 'active')}>
-      {active ? children : null}
+      {active ? <ErrorBoundary>{children}</ErrorBoundary> : null}
     </section>
   );
 }
@@ -38,7 +40,7 @@ function Home() {
   const features = [
     { icon: <GraduationCap className="size-6"/>, title: 'O‘qituvchilar uchun', text: 'Modullarni boshqaring, video va matnli materiallar qo‘shing, talabalar topshiriqlarini tekshiring.' },
     { icon: <Users className="size-6"/>, title: 'Talabalar uchun', text: 'Modullarni ketma-ket o‘rganing, savollarga javob bering va o‘zlashtirish jarayonini kuzating.' },
-    { icon: <MonitorPlay className="size-6"/>, title: 'Online kurslar', text: 'O‘qituvchi kiritgan video darslar, taqdimotlar va amaliy topshiriqlar majmuasi.' },
+    { icon: <MonitorPlay className="size-6"/>, title: 'Onlayn kurslar', text: 'O‘qituvchi kiritgan video darslar, taqdimotlar va amaliy topshiriqlar majmuasi.' },
     { icon: <BarChart2 className="size-6"/>, title: 'Grafik tahlillar', text: 'Test natijalari, bajarilgan qadamlar va reytinglar interaktiv grafiklarda aks etadi.' }
   ];
   return (
@@ -157,6 +159,13 @@ function PublicModules() {
 
 const CONTACT_EMAIL = 'uzforedu@gmail.com';
 
+// The footer shows a social network only once its address is filled in here.
+const SOCIAL_LINKS: { label: string; href: string; icon: ReactNode }[] = [
+  { label: 'Telegram', href: '', icon: <Send/> },
+  { label: 'YouTube', href: '', icon: <PlayCircle/> },
+  { label: 'Instagram', href: '', icon: <Camera/> }
+];
+
 function Contact() {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -216,20 +225,15 @@ function Contact() {
 
 function Footer() {
   const user = useApp((state) => state.user);
-  const go = (section: PublicSection) => (event: { preventDefault(): void }) => { event.preventDefault(); showSection(section); };
-  const toFeatures = (event: { preventDefault(): void }) => {
-    event.preventDefault();
-    showSection('home');
-    requestAnimationFrame(() => document.getElementById('features')?.scrollIntoView());
-  };
-  // Social accounts are not open yet; the links stay inert until their addresses exist.
-  const soon = (event: { preventDefault(): void }) => event.preventDefault();
+  const go = (section: PublicSection) => openSection(section);
+  const toFeatures = openSection('home', () => requestAnimationFrame(() => document.getElementById('features')?.scrollIntoView()));
+  const social = SOCIAL_LINKS.filter((item) => item.href);
   return (
     <footer className="site-footer bg-[#1F1A15] text-[#D9CFC2]">
       <div className="mx-auto max-w-7xl px-4 pt-14 pb-8 sm:px-6 lg:px-8">
         <div className="grid gap-10 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="max-w-sm">
-            <a href="#" className="inline-flex items-center gap-3" onClick={go('home')}><Logo size={40} tone="onDark"/></a>
+            <a href="/" className="inline-flex items-center gap-3" onClick={go('home')}><Logo size={40} tone="onDark"/></a>
             <p className="mt-5 text-[15px] leading-relaxed text-[#B8AC9C]">Pedagogika va ta'lim nazariyasini olti qadamli modullar orqali o‘rganish, materiallar bilan ishlash va bilimni amalda sinash uchun platforma.</p>
           </div>
           <nav aria-labelledby="footerPlatform">
@@ -237,8 +241,8 @@ function Footer() {
             <ul className="footer-links">
               <li><a href="#public-modules" onClick={go('public-modules')}>Modullar</a></li>
               <li><a href="#public-news" onClick={go('public-news')}>Maqolalar</a></li>
-              <li><a href="#" onClick={toFeatures}>O‘qituvchilar uchun</a></li>
-              <li><a href="#" onClick={user ? (event) => { event.preventDefault(); navigate('home'); } : (event) => { event.preventDefault(); openAuth('register'); }}>Talabalar uchun</a></li>
+              <li><a href="/" onClick={toFeatures}>O‘qituvchilar uchun</a></li>
+              <li><a href={user ? '#/home' : '/'} onClick={(event) => { if (isPlainClick(event)) { if (user) navigate('home'); else openAuth('register'); } }}>Talabalar uchun</a></li>
             </ul>
           </nav>
           <nav aria-labelledby="footerHelp">
@@ -249,14 +253,16 @@ function Footer() {
               <li><a href="#public-contact" onClick={go('public-contact')}>Aloqa</a></li>
             </ul>
           </nav>
-          <nav aria-labelledby="footerSocial">
-            <h2 id="footerSocial" className="footer-heading">Ijtimoiy tarmoqlar</h2>
-            <ul className="footer-links">
-              <li><a href="#" onClick={soon}><Send/> Telegram</a></li>
-              <li><a href="#" onClick={soon}><PlayCircle/> YouTube</a></li>
-              <li><a href="#" onClick={soon}><Camera/> Instagram</a></li>
-            </ul>
-          </nav>
+          {social.length > 0 && (
+            <nav aria-labelledby="footerSocial">
+              <h2 id="footerSocial" className="footer-heading">Ijtimoiy tarmoqlar</h2>
+              <ul className="footer-links">
+                {social.map((item) => (
+                  <li key={item.label}><a href={item.href} target="_blank" rel="noopener noreferrer">{item.icon} {item.label}</a></li>
+                ))}
+              </ul>
+            </nav>
+          )}
         </div>
         <div className="mt-12 flex flex-col gap-4 border-t border-white/10 pt-6 text-sm text-[#A39886] sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Ta'lim Nazariyasi. Barcha huquqlar himoyalangan.</p>

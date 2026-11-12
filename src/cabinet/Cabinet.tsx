@@ -1,6 +1,7 @@
 import { ArrowLeft, BarChart3, BookOpen, ChevronRight, ClipboardCheck, LayoutDashboard, Menu, Newspaper, ScrollText, UsersRound, Users, type LucideIcon } from 'lucide-react';
 import { Suspense, lazy, useEffect, useRef } from 'react';
 import { AccountMenu } from '../components/AccountMenu';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Logo } from '../components/Logo';
 import { PageSkeleton } from '../components/Skeleton';
 import { prefetchPage } from '../lib/prefetch';
@@ -141,7 +142,7 @@ export function Cabinet() {
               </div>
             </div>
             <div ref={container} id="pageContainer" className={cx('min-h-0 flex-1 overflow-y-auto p-4 pb-24 sm:p-6 sm:pb-24 lg:pb-6', inLesson && 'lesson-mode')}>
-              <Page key={navKey}/>
+              <ErrorBoundary key={navKey}><Page/></ErrorBoundary>
             </div>
             <nav id="mobileBottomNav" className="fixed inset-x-0 bottom-0 z-[800] flex h-[calc(4rem+env(safe-area-inset-bottom))] items-center justify-around border-t border-line bg-surface px-1.5 pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Mobil pastki menyu">
               {/* Four places fit a thumb's reach; the rest live in the side menu behind "Yana". */}

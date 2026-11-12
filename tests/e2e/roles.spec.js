@@ -348,8 +348,48 @@ test('the public site has a footer', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const footer = page.locator('.site-footer');
   await expect(footer).toContainText('Barcha huquqlar himoyalangan');
-  await footer.getByRole('link', { name: 'Telegram' }).click();
-  expect(new URL(page.url()).hash).toBe('');
+  // Social networks without an address are not offered as dead links.
+  await expect(footer.getByRole('link', { name: 'Telegram' })).toHaveCount(0);
+  await expect(footer.getByRole('link', { name: 'Modullar' })).toHaveAttribute('href', '#public-modules');
+});
+
+test('the back button walks back through the pages instead of leaving the site', async ({ page }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  const nav = page.locator('#mainNav');
+  await expect(nav.getByRole('link', { name: 'Modullar' })).toHaveAttribute('href', '#public-modules');
+  await nav.getByRole('link', { name: 'Modullar' }).click();
+  await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
+  await nav.getByRole('link', { name: 'Maqolalar' }).click();
+  await expect(page.locator('#public-news')).toHaveClass(ACTIVE);
+
+  await page.goBack();
+  await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
+  await page.goBack();
+  await expect(page.locator('#home')).toHaveClass(ACTIVE);
+  await page.goForward();
+  await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
+});
+
+test('an expired session asks to sign in again and returns to the same page', async ({ page }) => {
+  const login = unique('expired');
+  await register(page, { name: 'Vaqti Tugagan', login, role: 'student' });
+  await openMenu(page, 'Modullar');
+  await expect(page.locator('#pageTitle')).toHaveText('Modullar');
+  // The browser goes back to the cabinet page after the cabinet's other pages.
+  await openMenu(page, 'Boshqaruv paneli');
+  await page.goBack();
+  await expect(page.locator('#pageTitle')).toHaveText('Modullar');
+
+  await page.context().clearCookies();
+  await openMenu(page, 'Boshqaruv paneli');
+  await expect(page.locator('#authModal')).toHaveClass(ACTIVE);
+  await expect(page.locator('#toast')).toContainText('Sessiya tugadi');
+  await page.locator('#loginForm .role-tab[data-role="student"]').click();
+  await page.locator('#loginUser').fill(`${login}@gmail.com`);
+  await page.locator('#loginPass').fill(PASSWORD);
+  await page.locator('#loginForm button[type="submit"]').click();
+  await expect(page.locator('#screen-app')).toHaveClass(ACTIVE);
+  await expect(page.locator('#pageTitle')).toHaveText('Boshqaruv paneli');
 });
 
 test('a signed-in visitor stays on the public site after a refresh and is never asked to sign up', async ({ page }) => {

@@ -5,9 +5,13 @@ const { createSession, destroySession, getSessionUser } = require('../_auth');
 const { normalizeGmail } = require('../_email');
 const mail = require('../_mail');
 const { hashPassword, verifyPassword } = require('../_password');
-const { consumeLimit, isWithinLimit } = require('../_rateLimit');
+const { addressKey, consumeLimit, hitsIn, isWithinLimit, resetLimit } = require('../_rateLimit');
 
 const MAX_FAILED_LOGINS = 5;
+const MAX_FAILED_LOGINS_PER_ADDRESS = 20;
+const MAX_FAILED_LOGINS_PER_ACCOUNT = 50;
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const TOO_MANY_LOGINS = 'Juda ko‘p urinish. 15 daqiqadan keyin qayta urinib ko‘ring yoki parolni tiklang.';
 const MAX_CODE_REQUESTS_PER_HOUR = 10;
 const MAX_CODES_PER_MAILBOX_PER_HOUR = 5;
 const MAX_CODE_ATTEMPTS = 5;
@@ -82,29 +86,39 @@ async function handleLogin(req, res, body) {
   if (password.length > 200) return res.status(401).json({ error: BAD_CREDENTIALS });
   const login = normalizeGmail(raw) || raw;
 
+  // Failures are counted three ways. An account locks only for the address that guessed wrong,
+  // so nobody can lock someone else out from their own computer; one address trying many
+  // accounts is stopped; and many addresses guessing one account are stopped too.
+  const address = addressKey(req);
+  // Without a known address every visitor would share one counter, so that limit is skipped.
+  const addressBucket = address === 'unknown' ? null : `login-fail:address:${address}`;
+  if (addressBucket && await hitsIn(addressBucket, LOGIN_WINDOW_SECONDS) >= MAX_FAILED_LOGINS_PER_ADDRESS) {
+    return res.status(429).json({ error: TOO_MANY_LOGINS });
+  }
+  const countAddressFailure = () => addressBucket && consumeLimit(addressBucket, MAX_FAILED_LOGINS_PER_ADDRESS, LOGIN_WINDOW_SECONDS);
+
   const rows = await sql`
-    SELECT id, name, login, role, password, status, deleted_at,
-           COALESCE(lockout_until > NOW(), false) AS locked
+    SELECT id, name, login, role, password, status, deleted_at
     FROM np_users WHERE login=${login} LIMIT 1`;
   const account = rows[0];
 
   if (!account) {
     // Spend the same work as a real check so response time does not reveal which accounts exist.
     await hashPassword(password);
+    await countAddressFailure();
     return res.status(401).json({ error: BAD_CREDENTIALS });
   }
-  if (account.locked) {
-    return res.status(429).json({ error: 'Juda ko‘p urinish. 15 daqiqadan keyin qayta urinib ko‘ring.' });
+  const pairBucket = `login-fail:${account.id}:${address}`;
+  const accountBucket = `login-fail:${account.id}`;
+  if (await hitsIn(pairBucket, LOGIN_WINDOW_SECONDS) >= MAX_FAILED_LOGINS
+    || await hitsIn(accountBucket, 3600) >= MAX_FAILED_LOGINS_PER_ACCOUNT) {
+    return res.status(429).json({ error: TOO_MANY_LOGINS });
   }
 
   if (!(await verifyPassword(password, account.password))) {
-    await sql`
-      UPDATE np_users SET
-        failed_login_count = CASE WHEN COALESCE(failed_login_count, 0) + 1 >= ${MAX_FAILED_LOGINS}::int THEN 0
-                                  ELSE COALESCE(failed_login_count, 0) + 1 END,
-        lockout_until = CASE WHEN COALESCE(failed_login_count, 0) + 1 >= ${MAX_FAILED_LOGINS}::int
-                             THEN NOW() + INTERVAL '15 minutes' ELSE lockout_until END
-      WHERE id=${account.id}`;
+    await consumeLimit(pairBucket, MAX_FAILED_LOGINS, LOGIN_WINDOW_SECONDS);
+    await countAddressFailure();
+    await consumeLimit(accountBucket, MAX_FAILED_LOGINS_PER_ACCOUNT, 3600);
     return res.status(401).json({ error: BAD_CREDENTIALS });
   }
 
@@ -118,7 +132,8 @@ async function handleLogin(req, res, body) {
     return res.status(403).json({ error: 'Hisob roli sozlanmagan.' });
   }
 
-  await sql`UPDATE np_users SET failed_login_count=0, lockout_until=NULL, last_login_at=NOW() WHERE id=${account.id}`;
+  await sql`UPDATE np_users SET last_login_at=NOW() WHERE id=${account.id}`;
+  await resetLimit(pairBucket);
   await createSession(req, res, account);
   return res.json(publicUser(account));
 }
@@ -187,7 +202,9 @@ async function finishReset(req, res, body) {
   if (!payload) return res.status(400).json({ error: BAD_CODE });
 
   const passwordHash = await hashPassword(body.password);
-  await sql`UPDATE np_users SET password=${passwordHash}, failed_login_count=0, lockout_until=NULL WHERE id=${payload.user_id}`;
+  await sql`UPDATE np_users SET password=${passwordHash} WHERE id=${payload.user_id}`;
+  // Whoever proved they own the mailbox may sign in at once, from any address.
+  await sql`DELETE FROM np_rate_limits WHERE bucket LIKE ${`login-fail:${Number(payload.user_id)}:%`} OR bucket=${`login-fail:${Number(payload.user_id)}`}`;
   // A changed password must end every device's session.
   await sql`DELETE FROM np_sessions WHERE user_id=${payload.user_id}`;
   return res.json({ ok: true });
@@ -204,7 +221,7 @@ const ACTIONS = {
 module.exports = async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store');
-    if (req.method === 'GET') return res.json({ user: await getSessionUser(req) });
+    if (req.method === 'GET') return res.json({ user: await getSessionUser(req, res) });
     if (req.method !== 'POST') return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
 
     const body = req.body && typeof req.body === 'object' ? req.body : {};

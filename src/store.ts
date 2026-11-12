@@ -87,8 +87,14 @@ export const useApp = create<AppState>(() => ({
 const set = useApp.setState;
 const get = useApp.getState;
 
-function writeHash(hash: string) {
-  history.replaceState(null, '', `${location.pathname}${location.search}${hash}`);
+// 'push' adds a step the browser's back button returns to; 'replace' is for restoring an address
+// that is already there (a refresh, or the back button itself), so no step is added twice.
+type HistoryMode = 'push' | 'replace';
+
+function writeHash(hash: string, mode: HistoryMode = 'push') {
+  const url = `${location.pathname}${location.search}${hash}`;
+  if (mode === 'push' && url !== `${location.pathname}${location.search}${location.hash}`) history.pushState(null, '', url);
+  else history.replaceState(null, '', url);
 }
 
 export function showToast(message: string, type: ToastType = 'success') {
@@ -131,7 +137,7 @@ export function returnToWebsite() {
 }
 
 // ===== Cabinet =====
-export function navigate(page: PageId, routeId: number | null = null) {
+export function navigate(page: PageId, routeId: number | null = null, mode: HistoryMode = 'push') {
   const role = get().user?.role;
   const allowed = PAGE_ROLES[page];
   if (allowed && (!role || !allowed.includes(role))) {
@@ -139,7 +145,8 @@ export function navigate(page: PageId, routeId: number | null = null) {
     routeId = null;
   }
   set({ view: 'cabinet', page, routeId, titleOverride: null, sidebarOpen: false, contentModal: null, navKey: get().navKey + 1 });
-  writeHash(`#/${page}${ID_PAGES.includes(page) && routeId ? `/${routeId}` : ''}`);
+  writeHash(`#/${page}${ID_PAGES.includes(page) && routeId ? `/${routeId}` : ''}`, mode);
+  window.scrollTo(0, 0);
 }
 
 export function openModule(id: number) {
@@ -160,8 +167,22 @@ export function restoreRoute(): boolean {
   if (!KNOWN_PAGES.includes(page)) return false;
   const id = match[2] ? Number(match[2]) : null;
   if (ID_PAGES.includes(page) && !id) return false;
-  navigate(page, id);
+  navigate(page, id, 'replace');
   return true;
+}
+
+// The back and forward buttons, or an address typed into an open page.
+export function followAddress() {
+  if (location.hash.startsWith('#/')) {
+    if (get().user && restoreRoute()) return;
+    // A cabinet address without a session: show the site and ask for sign-in.
+    set({ view: 'site', section: 'home', sectionParam: null });
+    if (!get().user) openAuth('login');
+    return;
+  }
+  if (!restorePublicSection()) set({ section: 'home', sectionParam: null });
+  set({ view: 'site', sidebarOpen: false, contentModal: null });
+  window.scrollTo(0, 0);
 }
 
 export function setTitle(title: string | null) {

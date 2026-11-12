@@ -8,7 +8,7 @@ import { api } from './lib/api';
 import { keys, queryClient } from './lib/queries';
 import { startSession } from './session';
 import { PublicSite } from './site/PublicSite';
-import { closeAuth, restorePublicSection, restoreRoute, useApp } from './store';
+import { closeAuth, followAddress, restorePublicSection, useApp } from './store';
 import type { Module, User } from './types';
 
 async function boot() {
@@ -40,22 +40,15 @@ export function App() {
     function onScheme() {
       if (!document.documentElement.dataset.theme) useApp.setState({ theme: scheme.matches ? 'dark' : 'light' });
     }
-    // Typing or pasting an address (#verify/CODE, #/modules) on an open page goes there too.
-    // The app itself rewrites the address with replaceState, which does not fire this event.
-    function onHash() {
-      if (location.hash.startsWith('#/') && useApp.getState().user) restoreRoute();
-      else if (!location.hash.startsWith('#/')) {
-        if (!restorePublicSection()) useApp.setState({ section: 'home', sectionParam: null });
-        useApp.setState({ view: 'site' });
-      }
-    }
+    // Back and forward, and an address typed or pasted into an open page (#verify/CODE, #/modules),
+    // all arrive as popstate. The app's own pushState calls do not fire it.
     document.addEventListener('keydown', onKey);
     scheme.addEventListener('change', onScheme);
-    window.addEventListener('hashchange', onHash);
+    window.addEventListener('popstate', followAddress);
     return () => {
       document.removeEventListener('keydown', onKey);
       scheme.removeEventListener('change', onScheme);
-      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('popstate', followAddress);
     };
   }, []);
 
