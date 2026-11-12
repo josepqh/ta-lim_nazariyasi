@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Ta'lim Nazariyasi</title>
+  <rect width="512" height="512" rx="116" fill="#2B2621"/>
+  <path d="M176 140h56l180 232h-56z" fill="#F3EADB"/>
+  <path d="M356 140h56v232h-56z" fill="#F3EADB"/>
+  <path d="M100 140h208v56h-76v176h-56V196h-76z" fill="#CFAE7E" stroke="#2B2621" stroke-width="18" paint-order="stroke"/>
+</svg>

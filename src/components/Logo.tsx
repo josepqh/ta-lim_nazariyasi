@@ -6,10 +6,22 @@ interface Props {
   wordmarkClass?: string;
 }
 
+// The TN monogram: the T's stem doubles as the N's first stroke. Same shapes as public/images/logo.svg.
+export function LogoMark({ size = 40 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 512 512" width={size} height={size} className="shrink-0" aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="116" fill="#2B2621"/>
+      <path d="M176 140h56l180 232h-56z" fill="#F3EADB"/>
+      <path d="M356 140h56v232h-56z" fill="#F3EADB"/>
+      <path d="M100 140h208v56h-76v176h-56V196h-76z" fill="#CFAE7E" stroke="#2B2621" strokeWidth="18" paintOrder="stroke"/>
+    </svg>
+  );
+}
+
 export function Logo({ size = 40, tone = 'default', wordmarkClass }: Props) {
   return (
     <>
-      <img src="/images/logo-96.png" alt="" width={size} height={size} className="shrink-0" style={{ width: size, height: size }}/>
+      <LogoMark size={size}/>
       <span className={cx('flex flex-col whitespace-nowrap', wordmarkClass)}>
         <span className={cx('text-[17px] leading-none font-bold tracking-tight', tone === 'onDark' ? 'text-white' : 'text-ink')}>Ta'lim</span>
         <span className={cx('mt-0.5 text-[17px] leading-none font-bold tracking-tight', tone === 'onDark' ? 'text-white' : 'text-ink')}>Nazariyasi</span>
