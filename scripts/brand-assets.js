@@ -15,8 +15,31 @@ const svgUri = (svg) => dataUri(Buffer.from(svg), 'image/svg+xml');
 const ICONS = [
   { file: 'images/logo.png', size: 512, svg: logo },
   { file: 'images/logo-maskable.png', size: 512, svg: squareLogo },
-  { file: 'images/apple-touch-icon.png', size: 180, svg: squareLogo }
+  { file: 'images/apple-touch-icon.png', size: 180, svg: squareLogo },
+  // Safari and some crawlers ask for these fixed root addresses whatever the page declares.
+  { file: 'apple-touch-icon.png', size: 180, svg: squareLogo }
 ];
+const FAVICON_SIZES = [16, 32, 48];
+
+// An .ico file is a small directory followed by the images; modern readers accept PNG images inside.
+function packIco(pngs) {
+  const header = Buffer.alloc(6 + 16 * pngs.length);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(pngs.length, 4);
+  let offset = header.length;
+  pngs.forEach(({ size, data }, index) => {
+    const entry = 6 + index * 16;
+    header.writeUInt8(size >= 256 ? 0 : size, entry);
+    header.writeUInt8(size >= 256 ? 0 : size, entry + 1);
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(data.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += data.length;
+  });
+  return Buffer.concat([header, ...pngs.map((png) => png.data)]);
+}
 
 function shareCard() {
   const font = fs.readFileSync(path.join(root, 'node_modules/@fontsource-variable/onest/files/onest-latin-wght-normal.woff2'));
@@ -54,6 +77,14 @@ function shareCard() {
       await page.screenshot({ path: path.join(publicDir, icon.file), omitBackground: true });
       console.log(`wrote public/${icon.file}`);
     }
+    const pngs = [];
+    for (const size of FAVICON_SIZES) {
+      await page.setViewportSize({ width: size, height: size });
+      await page.setContent(`<style>*{margin:0}</style><img src="${svgUri(logo)}" width="${size}" height="${size}" style="display:block"/>`);
+      pngs.push({ size, data: await page.screenshot({ omitBackground: true }) });
+    }
+    fs.writeFileSync(path.join(publicDir, 'favicon.ico'), packIco(pngs));
+    console.log('wrote public/favicon.ico');
     await page.setViewportSize({ width: 1200, height: 630 });
     await page.setContent(shareCard(), { waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
