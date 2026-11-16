@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://ta-limnazariyasi-fyty.vercel.app/sitemap.xml
+Sitemap: https://www.tnedu.uz/sitemap.xml

@@ -49,6 +49,19 @@
   "regions": [
     "bom1"
   ],
+  "redirects": [
+    {
+      "source": "/:path((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "ta-limnazariyasi-fyty.vercel.app"
+        }
+      ],
+      "destination": "https://www.tnedu.uz/:path",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:route((?!router$)[a-z-]+)",
