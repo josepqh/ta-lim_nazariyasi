@@ -1,12 +1,13 @@
-import { ArrowRight, BarChart2, Camera, Check, CircleArrowRight, CircleCheck, GraduationCap, LayoutDashboard, Library, Mail, MapPin, MonitorPlay, Phone, PlayCircle, Send, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BarChart2, Camera, Check, CircleArrowRight, CircleCheck, GraduationCap, LayoutDashboard, Library, Mail, MapPin, MonitorPlay, Phone, PlayCircle, Send, Sparkles, Users } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { Logo } from '../components/Logo';
 import { api } from '../lib/api';
 import { imageUrl } from '../lib/learning';
 import { Lesson } from '../cabinet/pages/Lesson';
+import { subjectInitials } from '../cabinet/pages/Modules';
 import { cx } from '../lib/format';
-import { useModules, useMyProgress } from '../lib/queries';
+import { useModules, useMyProgress, useSubjects } from '../lib/queries';
 import { isPlainClick, openSection } from '../lib/links';
 import { navigate, openAuth, openModule, showSection, useApp, type PublicSection } from '../store';
 import { Navbar } from './Navbar';
@@ -56,7 +57,7 @@ function Home() {
               {user ? <><LayoutDashboard className="size-5"/> Boshqaruv paneliga o‘tish</> : <><CircleArrowRight className="size-5"/> Platformaga qo‘shilish</>}
             </button>
             <button type="button" id="heroModules" className="btn btn-on-photo min-h-13 w-full" onClick={() => showSection('public-modules')}>
-              <Library className="size-5"/> Modullar bilan tanishish
+              <Library className="size-5"/> Fanlar bilan tanishish
             </button>
           </div>
         </div>
@@ -104,11 +105,15 @@ function Home() {
   );
 }
 
+// Two levels at one address: #public-modules lists the subjects, #public-modules/<id> one subject's modules.
 function PublicModules() {
   const user = useApp((state) => state.user);
+  const param = useApp((state) => (state.section === 'public-modules' ? state.sectionParam : null));
+  const subjects = useSubjects();
   const modules = useModules();
   const progress = useMyProgress();
   const isStudent = user?.role === 'student';
+  const subject = param ? subjects.data?.find((item) => item.id === Number(param)) : undefined;
 
   function open(id: number) {
     if (user) openModule(id);
@@ -118,41 +123,75 @@ function PublicModules() {
     }
   }
 
-  const list = modules.data ?? [];
+  const joinTile = !user && (
+    <button type="button" className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/5 p-6 text-center sm:p-7" onClick={() => openAuth('register')}>
+      <GraduationCap className="size-9 text-primary"/>
+      <span className="mt-3 text-xl font-semibold text-ink">Barcha modullarga kirish</span>
+      <span className="mt-1 text-base text-muted">Bepul ro‘yxatdan o‘tib, darslarni o‘zlashtirishni boshlang</span>
+      <span className="btn btn-solid mt-4"><Sparkles/> Ro‘yxatdan o‘tish</span>
+    </button>
+  );
+
+  if (!param) {
+    const list = subjects.data ?? [];
+    return (
+      <div className="page-container page-section">
+        <Heading eyebrow="O‘quv dasturi" title="Fanlar" text="Fanni tanlang: har bir fan bosqichma-bosqich o‘rganiladigan modullardan iborat."/>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" id="publicSubjectList">
+          {subjects.isLoading && <div className="spinner col-span-full"/>}
+          {subjects.isSuccess && !list.length && <p className="col-span-full text-center text-base text-muted">Hozircha fanlar qo‘shilmagan.</p>}
+          {list.map((item) => (
+            <a key={item.id} href={`#public-modules/${item.id}`} data-subject={item.id} className="info-tile flex flex-col overflow-hidden"
+              onClick={(event) => { if (isPlainClick(event)) { event.preventDefault(); showSection('public-modules', String(item.id)); } }}>
+              {item.cover_image_id
+                ? <img src={imageUrl(item.cover_image_id)!} alt="" loading="lazy" className="-mx-6 -mt-6 mb-5 aspect-[16/9] w-[calc(100%+3rem)] max-w-none object-cover sm:-mx-7 sm:-mt-7 sm:w-[calc(100%+3.5rem)]"/>
+                : <span aria-hidden="true" className="subject-mark -mx-6 -mt-6 mb-5 w-[calc(100%+3rem)] max-w-none sm:-mx-7 sm:-mt-7 sm:w-[calc(100%+3.5rem)]">{subjectInitials(item.title)}</span>}
+              <span className="section-eyebrow">{item.module_count} ta modul</span>
+              <h3 className="mt-2 text-xl font-semibold text-ink">{item.title}</h3>
+              <p className="mt-2 flex-1 text-base leading-relaxed text-muted">{item.description}</p>
+              <span className="btn btn-line mt-5 self-start">Fanni ochish <ArrowRight/></span>
+            </a>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const list = (modules.data ?? []).filter((module) => module.subject_id === Number(param));
+  const loading = subjects.isLoading || modules.isLoading;
   return (
     <div className="page-container page-section">
-      <Heading eyebrow="O‘quv dasturi" title="Ta'lim Nazariyasi modullari" text="Har bir modul nazariy va amaliy qismlarni o‘z ichiga oladi. O‘quv jarayoni bosqichma-bosqich tashkil etilgan."/>
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" id="publicModulesList">
-        {modules.isLoading && <div className="spinner col-span-full"/>}
-        {modules.isSuccess && !list.length && <p className="col-span-full text-center text-base text-muted">Hozircha modullar qo‘shilmagan.</p>}
-        {list.map((module) => {
-          const steps = progress.data?.[module.id]?.completed_steps.length ?? 0;
-          const pct = Math.round((steps / 6) * 100);
-          return (
-            <div key={module.id} className="info-tile flex flex-col overflow-hidden">
-              {module.cover_image_id && <img src={imageUrl(module.cover_image_id)!} alt="" loading="lazy" className="-mx-6 -mt-6 mb-5 aspect-[16/9] w-[calc(100%+3rem)] max-w-none object-cover sm:-mx-7 sm:-mt-7 sm:w-[calc(100%+3.5rem)]"/>}
-              <span className="section-eyebrow">Modul {Number(module.order_num)}</span>
-              <h3 className="mt-2 text-xl font-semibold text-ink">{module.title}</h3>
-              <p className="mt-2 flex-1 text-base leading-relaxed text-muted">{module.description || "Ta'lim nazariyasi moduli"}</p>
-              {isStudent && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-sm font-medium text-ink"><span>{steps >= 6 ? 'Tamomlandi' : `${steps}/6 qadam`}</span><span>{pct}%</span></div>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line"><div className={`h-full rounded-full ${steps >= 6 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }}/></div>
+      <a href="#public-modules" className="back-btn" onClick={(event) => { if (isPlainClick(event)) { event.preventDefault(); showSection('public-modules'); } }}><ArrowLeft/> Barcha fanlar</a>
+      {loading && <div className="spinner"/>}
+      {!loading && !subject && <p className="text-base text-muted">Bu fan topilmadi.</p>}
+      {subject && (
+        <>
+          <Heading eyebrow="Fan" title={subject.title} text={subject.description || undefined}/>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" id="publicModulesList">
+            {!list.length && <p className="col-span-full text-center text-base text-muted">Bu fanga hozircha modullar qo‘shilmagan.</p>}
+            {list.map((module) => {
+              const steps = progress.data?.[module.id]?.completed_steps.length ?? 0;
+              const pct = Math.round((steps / 6) * 100);
+              return (
+                <div key={module.id} className="info-tile flex flex-col overflow-hidden">
+                  {module.cover_image_id && <img src={imageUrl(module.cover_image_id)!} alt="" loading="lazy" className="-mx-6 -mt-6 mb-5 aspect-[16/9] w-[calc(100%+3rem)] max-w-none object-cover sm:-mx-7 sm:-mt-7 sm:w-[calc(100%+3.5rem)]"/>}
+                  <span className="section-eyebrow">Modul {Number(module.order_num)}</span>
+                  <h3 className="mt-2 text-xl font-semibold text-ink">{module.title}</h3>
+                  <p className="mt-2 flex-1 text-base leading-relaxed text-muted">{module.description || subject.title}</p>
+                  {isStudent && (
+                    <div className="mt-4">
+                      <div className="flex justify-between text-sm font-medium text-ink"><span>{steps >= 6 ? 'Tamomlandi' : `${steps}/6 qadam`}</span><span>{pct}%</span></div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line"><div className={`h-full rounded-full ${steps >= 6 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${pct}%` }}/></div>
+                    </div>
+                  )}
+                  <button type="button" className="btn btn-line mt-5 self-start" onClick={() => open(module.id)}>Modulni o‘rganish <ArrowRight/></button>
                 </div>
-              )}
-              <button type="button" className="btn btn-line mt-5 self-start" onClick={() => open(module.id)}>Modulni o‘rganish <ArrowRight/></button>
-            </div>
-          );
-        })}
-        {modules.isSuccess && !user && (
-          <button type="button" className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-primary/5 p-6 text-center sm:p-7" onClick={() => openAuth('register')}>
-            <GraduationCap className="size-9 text-primary"/>
-            <span className="mt-3 text-xl font-semibold text-ink">Barcha modullarga kirish</span>
-            <span className="mt-1 text-base text-muted">Bepul ro‘yxatdan o‘tib, darslarni o‘zlashtirishni boshlang</span>
-            <span className="btn btn-solid mt-4"><Sparkles/> Ro‘yxatdan o‘tish</span>
-          </button>
-        )}
-      </div>
+              );
+            })}
+            {list.length > 0 && joinTile}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -239,7 +278,7 @@ function Footer() {
           <nav aria-labelledby="footerPlatform">
             <h2 id="footerPlatform" className="footer-heading">Platforma</h2>
             <ul className="footer-links">
-              <li><a href="#public-modules" onClick={go('public-modules')}>Modullar</a></li>
+              <li><a href="#public-modules" onClick={go('public-modules')}>Fanlar</a></li>
               <li><a href="#public-news" onClick={go('public-news')}>Maqolalar</a></li>
               <li><a href="/" onClick={toFeatures}>O‘qituvchilar uchun</a></li>
               <li><a href={user ? '#/home' : '/'} onClick={(event) => { if (isPlainClick(event)) { if (user) navigate('home'); else openAuth('register'); } }}>Talabalar uchun</a></li>

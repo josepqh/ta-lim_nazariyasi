@@ -228,6 +228,11 @@
   .stat-info p { @apply text-sm text-muted; }
 
   .modules-grid { @apply grid gap-4; }
+  .subjects-grid { @apply grid gap-4 sm:grid-cols-2 xl:grid-cols-3; }
+  .subject-card { @apply flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-line bg-surface text-left transition duration-200 hover:border-primary hover:shadow-lg; }
+  .subject-cover { @apply aspect-[16/9] w-full object-cover; }
+  .subject-mark { @apply grid aspect-[3/1] w-full sm:aspect-[16/9] place-items-center bg-primary/10 text-5xl font-bold tracking-tight text-primary; }
+  .subject-add { @apply flex min-h-56 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary/60 bg-primary/5 p-6 text-center transition-colors duration-200 hover:border-primary hover:bg-primary/10; }
   .module-card { @apply flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-line bg-surface p-5 transition-colors duration-200 hover:border-primary; }
   .mod-info h4 { @apply mb-1 text-lg font-semibold text-ink; }
   .mod-info p { @apply text-sm text-muted; }

@@ -3,7 +3,7 @@ import type { Role, User } from './types';
 
 export type PublicSection = 'home' | 'public-modules' | 'public-module-view' | 'public-news' | 'public-article' | 'public-contact' | 'privacy' | 'terms' | 'verify';
 export type PageId =
-  | 'home' | 'modules' | 'module-view' | 'manage-modules' | 'analytics' | 'submissions'
+  | 'home' | 'modules' | 'subject' | 'module-view' | 'manage-modules' | 'analytics' | 'submissions'
   | 'student-detail' | 'users' | 'user-profile' | 'profile' | 'errors' | 'groups' | 'articles';
 export type AuthView = 'login' | 'register' | 'registerCode' | 'forgot' | 'forgotCode' | 'pending';
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -23,8 +23,8 @@ export const PAGE_ROLES: Partial<Record<PageId, Role[]>> = {
   errors: ['admin'],
   articles: ['admin']
 };
-const ID_PAGES: PageId[] = ['module-view', 'student-detail', 'user-profile'];
-const KNOWN_PAGES: PageId[] = ['home', 'modules', 'module-view', 'manage-modules', 'analytics', 'submissions', 'student-detail', 'users', 'user-profile', 'profile', 'errors', 'groups', 'articles'];
+const ID_PAGES: PageId[] = ['subject', 'module-view', 'student-detail', 'user-profile'];
+const KNOWN_PAGES: PageId[] = ['home', 'modules', 'subject', 'module-view', 'manage-modules', 'analytics', 'submissions', 'student-detail', 'users', 'user-profile', 'profile', 'errors', 'groups', 'articles'];
 
 interface Toast {
   message: string;
@@ -49,6 +49,8 @@ interface AppState {
   lessonPreview: boolean;
   lessonFocus: number | null;
   editModuleId: number | null;
+  // The subject a new module goes into when the teacher starts it from that subject's page.
+  draftSubjectId: number | null;
   usersTab: UsersTab;
   usersQuery: string;
   usersPage: number;
@@ -74,6 +76,7 @@ export const useApp = create<AppState>(() => ({
   lessonPreview: false,
   lessonFocus: null,
   editModuleId: null,
+  draftSubjectId: null,
   usersTab: 'student',
   usersQuery: '',
   usersPage: 1,
@@ -152,6 +155,16 @@ export function navigate(page: PageId, routeId: number | null = null, mode: Hist
 export function openModule(id: number) {
   set({ lessonPreview: false, lessonFocus: null });
   navigate('module-view', id);
+}
+
+export function openSubject(id: number) {
+  navigate('subject', id);
+}
+
+// The module form, with the subject already chosen when the teacher came from one.
+export function startModule(subjectId: number | null) {
+  set({ editModuleId: null, draftSubjectId: subjectId });
+  navigate('manage-modules');
 }
 
 export function openUsers(tab: UsersTab) {

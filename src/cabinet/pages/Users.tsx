@@ -237,6 +237,9 @@ interface ErrorPage {
 }
 
 const ACTION_LABELS: Record<string, string> = {
+  'subject.create': 'Fan qo‘shildi',
+  'subject.update': 'Fan tahrirlandi',
+  'subject.delete': 'Fan o‘chirildi',
   'module.create': 'Modul yaratildi',
   'module.update': 'Modul tahrirlandi',
   'module.delete': 'Modul o‘chirildi',
@@ -256,7 +259,7 @@ const ACTION_LABELS: Record<string, string> = {
   'article.delete': 'Maqola o‘chirildi',
   'work.review': 'Ish baholandi'
 };
-const DANGER_ACTIONS = new Set(['module.delete', 'content.delete', 'teacher.reject', 'account.delete', 'group.delete', 'article.delete']);
+const DANGER_ACTIONS = new Set(['subject.delete', 'module.delete', 'content.delete', 'teacher.reject', 'account.delete', 'group.delete', 'article.delete']);
 
 // Who approved, deleted or changed what, newest first.
 function AuditLog() {

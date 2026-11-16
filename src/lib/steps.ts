@@ -23,10 +23,10 @@ export const STEP_TYPES: StepType[] = [
 export const STAFF_ROLES = ['teacher', 'admin'] as const;
 export const isStaff = (user: User | null | undefined) => user?.role === 'teacher' || user?.role === 'admin';
 
-// Mirrors the server rule: a teacher manages the modules they created, the administrator all of them.
-export function canManage(user: User | null | undefined, module: Module | null | undefined): boolean {
-  if (!user || !module) return false;
-  return user.role === 'admin' || (user.role === 'teacher' && Number(module.created_by) === Number(user.id));
+// Mirrors the server rule: a teacher manages the modules and subjects they created, the administrator all of them.
+export function canManage(user: User | null | undefined, item: Pick<Module, 'created_by'> | null | undefined): boolean {
+  if (!user || !item) return false;
+  return user.role === 'admin' || (user.role === 'teacher' && Number(item.created_by) === Number(user.id));
 }
 
 export function stepHasMaterial(content: StepContent | undefined | null): boolean {

@@ -6,13 +6,13 @@ import { Logo } from '../components/Logo';
 import { PageSkeleton } from '../components/Skeleton';
 import { prefetchPage } from '../lib/prefetch';
 import { cx } from '../lib/format';
-import { useModules } from '../lib/queries';
+import { useModules, useSubjects } from '../lib/queries';
 import { navigate, returnToWebsite, useApp, type PageId } from '../store';
 import type { Role } from '../types';
 import { Dashboard } from './pages/Dashboard';
 import { Lesson } from './pages/Lesson';
 import { ManageModules } from './pages/ManageModules';
-import { Modules } from './pages/Modules';
+import { Modules, SubjectModules } from './pages/Modules';
 import { MyProfile } from './pages/MyProfile';
 import { StudentDetail, Submissions } from './pages/Submissions';
 import { ArticlesAdmin } from './pages/Articles';
@@ -31,7 +31,7 @@ interface MenuItem {
 
 const STAFF_MENU: MenuItem[] = [
   { id: 'home', title: 'Boshqaruv paneli', short: 'Panel', icon: LayoutDashboard },
-  { id: 'modules', title: 'Modullar', icon: BookOpen },
+  { id: 'modules', title: 'Fanlar', icon: BookOpen },
   { id: 'groups', title: 'Guruhlar', icon: UsersRound },
   { id: 'analytics', title: 'Tahlil va grafika', icon: BarChart3 },
   { id: 'submissions', title: 'Talaba javoblari', short: 'Javoblar', icon: ClipboardCheck }
@@ -39,7 +39,7 @@ const STAFF_MENU: MenuItem[] = [
 export const NAV_MENU: Record<Role, MenuItem[]> = {
   student: [
     { id: 'home', title: 'Boshqaruv paneli', short: 'Panel', icon: LayoutDashboard },
-    { id: 'modules', title: 'Modullar', icon: BookOpen }
+    { id: 'modules', title: 'Fanlar', icon: BookOpen }
   ],
   teacher: STAFF_MENU,
   admin: [
@@ -51,14 +51,14 @@ export const NAV_MENU: Record<Role, MenuItem[]> = {
 };
 
 const FIXED_TITLES: Partial<Record<PageId, string>> = {
-  'manage-modules': 'Modullar',
+  'manage-modules': 'Fanlar va modullar',
   'student-detail': 'Talaba ishlari',
   'user-profile': 'Profil',
   profile: 'Profilim'
 };
 
 function activeMenuId(page: PageId): PageId {
-  if (page === 'module-view' || page === 'manage-modules') return 'modules';
+  if (page === 'subject' || page === 'module-view' || page === 'manage-modules') return 'modules';
   if (page === 'student-detail') return 'analytics';
   if (page === 'user-profile') return 'users';
   return page;
@@ -70,6 +70,7 @@ function Page() {
   switch (page) {
     case 'home': return <Dashboard/>;
     case 'modules': return <Modules/>;
+    case 'subject': return <SubjectModules key={routeId} subjectId={routeId}/>;
     case 'module-view': return <Lesson key={routeId} moduleId={routeId}/>;
     case 'manage-modules': return <ManageModules/>;
     case 'analytics': return <Suspense fallback={<PageSkeleton/>}><Analytics/></Suspense>;
@@ -94,6 +95,7 @@ export function Cabinet() {
   const sidebarOpen = useApp((state) => state.sidebarOpen);
   const navKey = useApp((state) => state.navKey);
   const modules = useModules();
+  const subjects = useSubjects();
   const container = useRef<HTMLDivElement>(null);
   const active = view === 'cabinet' && Boolean(user);
   const inLesson = page === 'module-view';
@@ -103,9 +105,13 @@ export function Cabinet() {
   }, [page, routeId]);
 
   const menu = user ? NAV_MENU[user.role] : [];
-  const lessonTitle = modules.data?.find((module) => Number(module.id) === Number(routeId))?.title;
+  const lessonModule = inLesson ? modules.data?.find((module) => Number(module.id) === Number(routeId)) : undefined;
+  // A lesson leads back to its own subject; the subject page to the list of subjects.
+  const lessonSubject = subjects.data?.find((subject) => subject.id === lessonModule?.subject_id);
+  const subjectTitle = page === 'subject' ? subjects.data?.find((subject) => subject.id === Number(routeId))?.title : undefined;
   const title = titleOverride
-    ?? (inLesson ? lessonTitle ?? 'Modul' : FIXED_TITLES[page] ?? menu.find((item) => item.id === page)?.title ?? 'Boshqaruv paneli');
+    ?? (inLesson ? lessonModule?.title ?? 'Modul' : subjectTitle ?? FIXED_TITLES[page] ?? menu.find((item) => item.id === page)?.title ?? 'Boshqaruv paneli');
+  const leaveLesson = () => (lessonSubject ? navigate('subject', lessonSubject.id) : navigate('modules'));
   const menuId = activeMenuId(page);
   const toggleSidebar = () => useApp.setState({ sidebarOpen: !sidebarOpen });
 
@@ -132,8 +138,8 @@ export function Cabinet() {
             <div className={cx('topbar flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-line bg-surface px-4 py-2 sm:px-6 lg:py-0', inLesson && 'in-lesson')}>
               <div className="flex min-w-0 items-center gap-2">
                 <button type="button" className="icon-btn border-0 lg:hidden in-[.in-lesson]:hidden" onClick={toggleSidebar} aria-label="Menyu"><Menu className="size-5"/></button>
-                <button type="button" className="icon-btn hidden border-0 in-[.in-lesson]:inline-flex lg:in-[.in-lesson]:hidden" onClick={() => navigate('modules')} aria-label="Modullarga qaytish"><ArrowLeft className="size-5"/></button>
-                <button type="button" className="hidden items-center gap-2 text-[15px] font-medium text-muted transition-colors hover:text-primary lg:in-[.in-lesson]:inline-flex" onClick={() => navigate('modules')}>Modullar <ChevronRight/></button>
+                <button type="button" className="icon-btn hidden border-0 in-[.in-lesson]:inline-flex lg:in-[.in-lesson]:hidden" onClick={leaveLesson} aria-label={lessonSubject ? `${lessonSubject.title} faniga qaytish` : 'Fanlarga qaytish'}><ArrowLeft className="size-5"/></button>
+                <button type="button" className="hidden items-center gap-2 text-[15px] font-medium text-muted transition-colors hover:text-primary lg:in-[.in-lesson]:inline-flex" onClick={leaveLesson}>{lessonSubject?.title ?? 'Fanlar'} <ChevronRight/></button>
                 <h1 id="pageTitle" className="min-w-0 text-base leading-tight font-semibold tracking-tight wrap-anywhere text-ink sm:text-xl">{title}</h1>
               </div>
               <div className="flex shrink-0 items-center gap-2">

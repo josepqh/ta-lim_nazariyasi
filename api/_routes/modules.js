@@ -5,6 +5,18 @@ const { loadManagedModule } = require('../_modules');
 const { audit } = require('../_audit');
 const { isUuid } = require('../_files');
 
+// A module always sits in a subject that still exists.
+async function activeSubject(res, rawId) {
+  const id = Number(rawId);
+  if (!Number.isSafeInteger(id) || id < 1) {
+    res.status(400).json({ error: 'Modul qaysi fanga tegishli ekanini tanlang.' });
+    return null;
+  }
+  const [subject] = await sql`SELECT id FROM np_subjects WHERE id=${id} AND deleted_at IS NULL`;
+  if (!subject) res.status(404).json({ error: 'Fan topilmadi.' });
+  return subject ?? null;
+}
+
 module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
@@ -13,7 +25,7 @@ module.exports = async (req, res) => {
         if (!staff) return;
         // Teachers see and restore only their own deleted modules.
         return res.json(await sql`
-          SELECT id, order_num, title, created_by, deleted_at FROM np_modules
+          SELECT id, order_num, title, subject_id, created_by, deleted_at FROM np_modules
           WHERE deleted_at IS NOT NULL AND (${staff.role === 'admin'}::boolean OR created_by=${staff.id})
           ORDER BY deleted_at DESC`);
       }
@@ -29,6 +41,8 @@ module.exports = async (req, res) => {
       if (body.action === 'restore') {
         const restoreId = Number(body.id);
         if (!(await loadManagedModule(res, user, restoreId, { deleted: true }))) return;
+        const [home] = await sql`SELECT s.title FROM np_modules m JOIN np_subjects s ON s.id = m.subject_id WHERE m.id=${restoreId} AND s.deleted_at IS NOT NULL`;
+        if (home) return res.status(409).json({ error: `Modulning “${home.title}” fani o‘chirilgan. Uni tiklab bo‘lmaydi.` });
         const restored = await sql`UPDATE np_modules SET deleted_at=NULL, updated_at=NOW() WHERE id=${restoreId} AND deleted_at IS NOT NULL RETURNING *`;
         if (!restored.length) return res.status(404).json({ error: 'Modul topilmadi.' });
         await audit(user, 'module.restore', `Modul: ${restored[0].title}`, { module_id: restoreId });
@@ -60,17 +74,24 @@ module.exports = async (req, res) => {
       let rows;
       if (id) {
         if (!(await loadManagedModule(res, user, id))) return;
+        // Leaving subject_id out keeps the module where it is.
+        const moving = body.subject_id !== undefined && body.subject_id !== null && body.subject_id !== '';
+        const subject = moving ? await activeSubject(res, body.subject_id) : null;
+        if (moving && !subject) return;
         rows = await sql`
-          UPDATE np_modules 
-          SET order_num=${orderNum}, title=${title}, description=${description}, updated_at=NOW()
+          UPDATE np_modules
+          SET order_num=${orderNum}, title=${title}, description=${description},
+              subject_id=COALESCE(${subject?.id ?? null}::int, subject_id), updated_at=NOW()
           WHERE id=${id} AND deleted_at IS NULL RETURNING *`;
         if (!rows.length) return res.status(404).json({ error: 'Modul topilmadi.' });
         await audit(user, 'module.update', `Modul: ${title}`, { module_id: id });
       } else {
+        const subject = await activeSubject(res, body.subject_id);
+        if (!subject) return;
         const cover = isUuid(body.cover_image_id) ? body.cover_image_id : null;
         rows = await sql`
-          INSERT INTO np_modules(order_num, title, description, created_by, cover_image_id)
-          VALUES(${orderNum}, ${title}, ${description}, ${user.id}, ${cover})
+          INSERT INTO np_modules(order_num, title, description, created_by, cover_image_id, subject_id)
+          VALUES(${orderNum}, ${title}, ${description}, ${user.id}, ${cover}, ${subject.id})
           RETURNING *`;
         await audit(user, 'module.create', `Modul: ${title}`, { module_id: rows[0].id });
       }
@@ -93,7 +114,7 @@ module.exports = async (req, res) => {
 
     return res.status(405).json({ error: 'Ruxsat etilmagan so‘rov.' });
   } catch (error) {
-    if (error.code === '23505') return res.status(409).json({ error: 'Bu tartib raqamli modul allaqachon bor.' });
+    if (error.code === '23505') return res.status(409).json({ error: 'Bu fanda shu tartib raqamli modul allaqachon bor.' });
     if (error.code === '23503') return res.status(400).json({ error: 'Muqova rasmi topilmadi.' });
     await reportServerError(error, req);
     return res.status(500).json({ error: 'Serverda ichki xato yuz berdi.' });

@@ -17,5 +17,6 @@ module.exports = {
   quiz: require('./quiz'),
   setup: require('./setup'),
   stats: require('./stats'),
+  subjects: require('./subjects'),
   users: require('./users')
 };

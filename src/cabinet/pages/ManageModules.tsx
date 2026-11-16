@@ -8,7 +8,7 @@ import { RichTextEditor } from '../../components/RichTextEditor';
 import { api } from '../../lib/api';
 import { DOCUMENT_ACCEPT, uploadFile } from '../../lib/files';
 import { youTubeEmbedUrl } from '../../lib/format';
-import { keys, queryClient, refreshModules, useModules } from '../../lib/queries';
+import { keys, queryClient, refreshModules, useModules, useSubjects } from '../../lib/queries';
 import { canManage } from '../../lib/steps';
 import { showToast, useApp } from '../../store';
 import type { Module, QuizQuestion, StepId } from '../../types';
@@ -32,10 +32,14 @@ function fail(message: string, id: string): false {
 export function ManageModules() {
   const user = useApp((state) => state.user)!;
   const editId = useApp((state) => state.editModuleId);
+  const draftSubjectId = useApp((state) => state.draftSubjectId);
   const modules = useModules();
+  const subjects = useSubjects();
   const list = modules.data ?? [];
+  const subjectList = subjects.data ?? [];
   const editing = editId ? list.find((module) => module.id === editId) ?? null : null;
 
+  const [subjectId, setSubjectId] = useState('');
   const [order, setOrder] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -53,17 +57,26 @@ export function ManageModules() {
   const [busy, setBusy] = useState(false);
   const [formKey, setFormKey] = useState(0);
 
-  // The form follows the module being edited; a new module gets the next free position.
+  // The form follows the module being edited; a new module goes to the subject the teacher came
+  // from (else the first one) and gets the next free position in it.
+  const nextPosition = (id: number) => Math.max(0, ...list.filter((module) => module.subject_id === id).map((module) => module.order_num)) + 1;
   useEffect(() => {
-    setOrder(String(editing ? editing.order_num : list.length + 1));
+    const home = editing?.subject_id ?? (subjectList.some((subject) => subject.id === draftSubjectId) ? draftSubjectId : subjectList[0]?.id);
+    setSubjectId(home ? String(home) : '');
+    setOrder(String(editing ? editing.order_num : home ? nextPosition(home) : 1));
     setTitle(editing?.title ?? '');
     setDescription(editing?.description ?? '');
-  }, [editId, list.length]);
+  }, [editId, list.length, subjectList.length, draftSubjectId]);
+
+  function chooseSubject(value: string) {
+    setSubjectId(value);
+    if (!editing && value) setOrder(String(nextPosition(Number(value))));
+  }
 
   const deleted = useQuery({ queryKey: keys.deletedModules, queryFn: () => api<Module[]>('/modules?deleted=1') });
 
   function resetForm() {
-    useApp.setState({ editModuleId: null });
+    useApp.setState({ editModuleId: null, draftSubjectId: null });
     setQuestions([]);
     setQuizSettings({ allowRetake: false, showAnswers: false });
     setVideo('');
@@ -111,13 +124,14 @@ export function ManageModules() {
   }
 
   async function save() {
+    if (!subjectId) return fail('Modul qaysi fanga tegishli ekanini tanlang.', 'newModSubject');
     if (!order) return fail('Iltimos, tartib raqamini kiriting.', 'newModOrder');
     if (!title.trim()) return fail('Iltimos, modul nomini kiriting.', 'newModTitle');
     const creating = !editing;
     if (creating && !validateSteps()) return;
     setBusy(true);
     try {
-      const payload: Record<string, unknown> = { order_num: Number(order), title: title.trim(), description: description.trim(), ...(editing ? {} : { cover_image_id: cover }) };
+      const payload: Record<string, unknown> = { subject_id: Number(subjectId), order_num: Number(order), title: title.trim(), description: description.trim(), ...(editing ? {} : { cover_image_id: cover }) };
       if (editing) payload.id = editing.id;
       const saved = await api<Module>('/modules', 'POST', payload);
       const failed = creating ? await saveSteps(saved.id) : [];
@@ -161,6 +175,13 @@ export function ManageModules() {
       <StaffModuleTabs active="manage-modules"/>
       <div className="card">
         <h3 className="card-title"><PencilLine/> {editing ? 'Modulni tahrirlash' : 'Yangi modul qo‘shish'}</h3>
+        <div className="form-group">
+          <label htmlFor="newModSubject">Fan</label>
+          <select id="newModSubject" value={subjectId} onChange={(e) => chooseSubject(e.target.value)}>
+            {!subjectList.length && <option value="">Avval fan qo‘shing</option>}
+            {subjectList.map((subject) => <option key={subject.id} value={subject.id}>{subject.title}</option>)}
+          </select>
+        </div>
         <div className="module-basics">
           <div className="form-group">
             <label htmlFor="newModOrder">Tartib №</label>
@@ -250,6 +271,7 @@ export function ManageModules() {
             <div key={module.id} className="mb-4 rounded-xl border border-line bg-surface p-5">
               <div className="flex flex-wrap items-start justify-between gap-2.5">
                 <div>
+                  <span className="mb-1.5 block text-sm font-medium text-primary">{subjectList.find((subject) => subject.id === module.subject_id)?.title}</span>
                   <span className="badge badge-primary">№ {module.order_num}</span>
                   <strong className="ml-2 text-base">{module.title}</strong>
                   <p className="mt-1 text-sm text-muted">{module.description || ''}</p>

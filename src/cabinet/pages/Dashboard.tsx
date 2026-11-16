@@ -69,7 +69,7 @@ export function Dashboard() {
         <p className="leading-[1.8] text-muted">
           Platformada zamonaviy ta'lim nazariyalari, 6 qadamli didaktik modullar hamda talabalar monitoringi va interaktiv vizualizatsiyasi jamlangan.{' '}
           {user.role === 'student'
-            ? "Chap menyudan 'Modullar' bo‘limiga o‘tib bilimlaringizni oshiring."
+            ? "Chap menyudan 'Fanlar' bo‘limiga o‘tib bilimlaringizni oshiring."
             : "Siz o‘z modullaringizni boshqarishingiz, materiallar kiritishingiz, 'Tahlil va grafika' bo‘limida o‘quvchilar natijalarini tahlil qilishingiz mumkin."}
         </p>
       </div>

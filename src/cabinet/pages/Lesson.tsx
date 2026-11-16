@@ -349,7 +349,7 @@ export function Lesson({ moduleId, isPublic = false }: { moduleId: number | null
   return (
     <>
       {isPublic && (
-        <button type="button" className="back-btn" onClick={() => showSection('public-modules')}><ArrowLeft/> Modullar ro‘yxatiga qaytish</button>
+        <button type="button" className="back-btn" onClick={() => showSection('public-modules', String(module.subject_id))}><ArrowLeft/> Fan modullariga qaytish</button>
       )}
       <div className={cx('lesson', isPublic && 'lesson-public')}>
         <aside className="lesson-rail">

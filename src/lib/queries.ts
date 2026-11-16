@@ -1,6 +1,6 @@
 import { QueryClient, useQuery } from '@tanstack/react-query';
 import { useApp } from '../store';
-import type { ContentRow, Module, Progress, StepContent, StepId } from '../types';
+import type { ContentRow, Module, Progress, StepContent, StepId, Subject } from '../types';
 import { api } from './api';
 
 export const queryClient = new QueryClient({
@@ -11,12 +11,17 @@ export const queryClient = new QueryClient({
 });
 
 export const keys = {
+  subjects: ['subjects'] as const,
   modules: ['modules'] as const,
   deletedModules: ['modules', 'deleted'] as const,
   myProgress: ['progress', 'mine'] as const,
   content: (moduleId: number) => ['content', moduleId] as const,
   progress: (query: string) => ['progress', query] as const
 };
+
+export function useSubjects() {
+  return useQuery({ queryKey: keys.subjects, queryFn: () => api<Subject[]>('/subjects') });
+}
 
 export function useModules() {
   return useQuery({ queryKey: keys.modules, queryFn: () => api<Module[]>('/modules') });
@@ -46,6 +51,10 @@ export function useContent(moduleId: number | null) {
   });
 }
 
+// A module's subject shows how many modules it holds, so both lists refresh together.
 export function refreshModules() {
-  return queryClient.invalidateQueries({ queryKey: keys.modules });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: keys.modules }),
+    queryClient.invalidateQueries({ queryKey: keys.subjects })
+  ]);
 }

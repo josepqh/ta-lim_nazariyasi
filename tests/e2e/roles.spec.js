@@ -11,7 +11,7 @@ let counter = 0;
 const unique = (prefix) => `${prefix}_${Date.now()}_${++counter}`;
 
 const openManage = async (page) => {
-  await openMenu(page, 'Modullar');
+  await openMenu(page, 'Fanlar');
   await page.locator('#tabManage').click();
 };
 
@@ -67,6 +67,17 @@ async function signIn(page, { login, password, role }) {
 }
 
 const openMenu = (page, title) => page.locator('#sidebarNav .nav-item', { hasText: title }).click();
+// New modules go to the first subject unless the form says otherwise.
+const FIRST_SUBJECT = 'Ta’lim nazariyasi';
+async function openSubjectPage(page, subject = FIRST_SUBJECT) {
+  await openMenu(page, 'Fanlar');
+  await page.locator('.subject-card', { hasText: subject }).click();
+  await expect(page.locator('#subjectHeading')).toHaveText(subject);
+}
+async function openModuleCard(page, title, subject = FIRST_SUBJECT) {
+  await openSubjectPage(page, subject);
+  await page.locator('.module-card', { hasText: title }).click();
+}
 
 async function quizPdf(browser) {
   const page = await browser.newPage();
@@ -156,8 +167,7 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
     await expect(studentPage.locator('#sidebarNav .nav-item', { hasText: 'Mening natijalarim' })).toHaveCount(0);
     await expect(studentPage.locator('#sidebarNav .nav-item', { hasText: 'Tahlil' })).toHaveCount(0);
 
-    await openMenu(studentPage, 'Modullar');
-    await studentPage.locator('.module-card', { hasText: moduleTitle }).click();
+    await openModuleCard(studentPage, moduleTitle);
     await expect(studentPage.locator('.step-item')).toHaveCount(6);
 
     await doStep(studentPage, 0, answerQuizCorrectly);
@@ -175,7 +185,7 @@ test('teacher publishes, student submits a file, teacher and admin see the work'
   });
 
   await test.step('the teacher opens the student from the leaderboard', async () => {
-    await openMenu(teacherPage, 'Modullar');
+    await openSubjectPage(teacherPage);
     await expect(teacherPage.locator('.module-card', { hasText: moduleTitle }).locator('.mod-status.done')).toHaveCount(0);
     await teacherPage.locator('.module-card', { hasText: moduleTitle }).click();
     await expect(teacherPage.locator('.step-item')).toHaveCount(6);
@@ -350,14 +360,14 @@ test('the public site has a footer', async ({ page }) => {
   await expect(footer).toContainText('Barcha huquqlar himoyalangan');
   // Social networks without an address are not offered as dead links.
   await expect(footer.getByRole('link', { name: 'Telegram' })).toHaveCount(0);
-  await expect(footer.getByRole('link', { name: 'Modullar' })).toHaveAttribute('href', '#public-modules');
+  await expect(footer.getByRole('link', { name: 'Fanlar' })).toHaveAttribute('href', '#public-modules');
 });
 
 test('the back button walks back through the pages instead of leaving the site', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   const nav = page.locator('#mainNav');
-  await expect(nav.getByRole('link', { name: 'Modullar' })).toHaveAttribute('href', '#public-modules');
-  await nav.getByRole('link', { name: 'Modullar' }).click();
+  await expect(nav.getByRole('link', { name: 'Fanlar' })).toHaveAttribute('href', '#public-modules');
+  await nav.getByRole('link', { name: 'Fanlar' }).click();
   await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
   await nav.getByRole('link', { name: 'Maqolalar' }).click();
   await expect(page.locator('#public-news')).toHaveClass(ACTIVE);
@@ -373,12 +383,12 @@ test('the back button walks back through the pages instead of leaving the site',
 test('an expired session asks to sign in again and returns to the same page', async ({ page }) => {
   const login = unique('expired');
   await register(page, { name: 'Vaqti Tugagan', login, role: 'student' });
-  await openMenu(page, 'Modullar');
-  await expect(page.locator('#pageTitle')).toHaveText('Modullar');
+  await openMenu(page, 'Fanlar');
+  await expect(page.locator('#pageTitle')).toHaveText('Fanlar');
   // The browser goes back to the cabinet page after the cabinet's other pages.
   await openMenu(page, 'Boshqaruv paneli');
   await page.goBack();
-  await expect(page.locator('#pageTitle')).toHaveText('Modullar');
+  await expect(page.locator('#pageTitle')).toHaveText('Fanlar');
 
   await page.context().clearCookies();
   await openMenu(page, 'Boshqaruv paneli');
@@ -400,7 +410,7 @@ test('a signed-in visitor stays on the public site after a refresh and is never 
   await expect(page.locator('#screen-app')).not.toHaveClass(ACTIVE);
   await expect(page.locator('#home')).toHaveClass(ACTIVE);
 
-  await page.locator('#mainNav').getByText('Modullar').click();
+  await page.locator('#mainNav').getByText('Fanlar').click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('#public-modules')).toHaveClass(ACTIVE);
   await expect(page.locator('#navUserName')).toBeVisible();
@@ -582,8 +592,7 @@ test('staff see step readiness and can preview a module as a student', async ({ 
   const title = unique('Dars');
   await register(page, { name: 'Lesson Teacher', login: unique('lesson'), role: 'teacher' });
   await publishFullModule(page, browser, title, 400000 + Math.floor(Math.random() * 100000));
-  await openMenu(page, 'Modullar');
-  await page.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(page, title);
 
   await expect(page.locator('.step-item.ready')).toHaveCount(6);
   await page.locator('.step-item').nth(1).click();
@@ -600,8 +609,7 @@ test('a step without material offers to add it in place', async ({ page, browser
   await register(page, { name: 'Empty Teacher', login: unique('empty'), role: 'teacher' });
   await publishFullModule(page, browser, title, 500000 + Math.floor(Math.random() * 100000));
   await page.route('**/api/content?module_id=*', (route) => route.fulfill({ json: [] }));
-  await openMenu(page, 'Modullar');
-  await page.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(page, title);
 
   await expect(page.locator('.step-item.missing')).toHaveCount(6);
   await page.locator('#stepBody').getByRole('button', { name: 'Test qo‘shish' }).click();
@@ -638,8 +646,7 @@ test('a phone saves a lesson file through the share sheet and stays on the page'
   const title = unique('Fayl moduli');
   await register(page, { name: 'Share Teacher', login: unique('share'), role: 'teacher' });
   await publishFullModule(page, browser, title, 700000 + Math.floor(Math.random() * 100000));
-  await openMenu(page, 'Modullar');
-  await page.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(page, title);
   const url = page.url();
 
   await page.evaluate(() => {
@@ -673,8 +680,7 @@ test('content that does not fit on a phone wraps instead of running sideways', a
   const title = unique('Juda uzun nomli modul sarlavhasi');
   await register(page, { name: 'Wrap Teacher', login: unique('wrap'), role: 'teacher' });
   await publishFullModule(page, browser, title, 600000 + Math.floor(Math.random() * 100000));
-  await openMenu(page, 'Modullar');
-  await page.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(page, title);
   await page.setViewportSize({ width: 320, height: 700 });
   await expect(page.locator('.step-chip')).toHaveCount(6);
   await expect(page.locator('.step-chip').first()).toHaveAttribute('aria-label', /^1-qadam: Diagnostika testi/);
@@ -740,8 +746,7 @@ test('a teacher sees another teacher’s module but cannot change it', async ({ 
   await expect(row.getByRole('button', { name: 'O‘chirish' })).toHaveCount(0);
   await expect(row.getByRole('button', { name: 'Tahrirlash' })).toHaveCount(0);
 
-  await openMenu(other, 'Modullar');
-  await other.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(other, title);
   await expect(other.locator('#stepBody')).toBeVisible();
   await expect(other.locator('#lessonPreviewBtn')).toHaveCount(0);
   await expect(other.locator('.lesson-content')).toContainText('boshqa o‘qituvchi yaratgan');
@@ -857,8 +862,7 @@ test('a student joins a group, continues where they stopped and earns a checkabl
   await expect(student.locator('#studentGroups')).toContainText('Sertifikat guruhi');
 
   await expect(student.locator('#continueCard')).toBeVisible();
-  await openMenu(student, 'Modullar');
-  await student.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(student, title);
   await doStep(student, 0, answerQuizCorrectly);
   await doStep(student, 1);
   await openMenu(student, 'Boshqaruv paneli');
@@ -929,8 +933,7 @@ test('a teacher allows retakes and shows answers with explanations', async ({ br
 
   const student = await (await browser.newContext()).newPage();
   await register(student, { name: 'Retake Student', login: unique('rstudent'), role: 'student' });
-  await openMenu(student, 'Modullar');
-  await student.locator('.module-card', { hasText: title }).click();
+  await openModuleCard(student, title);
   await doStep(student, 0, answerQuizCorrectly);
   await student.locator('.step-item').nth(0).click();
   await expect(student.locator('.answer-review')).toContainText('To‘g‘ri javob');
@@ -982,6 +985,64 @@ test('a teacher gives a module a cover that students see on its card', async ({ 
   const row = page.locator('#pageContainer > .card > div', { hasText: title });
   await row.locator('.cover-picker input[type=file]').setInputFiles({ name: 'muqova.png', mimeType: 'image/png', buffer: TINY_PNG });
   await expect(page.locator('#toast')).toContainText('Muqova saqlandi');
-  await openMenu(page, 'Modullar');
+  await openSubjectPage(page);
   await expect(page.locator('.module-card', { hasText: title }).locator('img.module-cover')).toBeVisible();
+});
+
+test('a teacher opens a new subject, fills it with a module, and visitors find it by subject', async ({ page, browser }) => {
+  const subject = unique('Neyropedagogika amaliyoti');
+  const title = unique('Miya va xotira');
+  await register(page, { name: 'Subject Teacher', login: unique('subject'), role: 'teacher' });
+  await openMenu(page, 'Fanlar');
+  await expect(page.locator('.subject-card', { hasText: FIRST_SUBJECT })).toBeVisible();
+  await page.locator('#addSubjectBtn').click();
+  await page.locator('#subjectTitle').fill(subject);
+  await page.locator('#subjectDesc').fill('Xotira va diqqat qanday ishlaydi');
+  await page.locator('#saveSubjectBtn').click();
+  await expect(page.locator('#toast')).toContainText('Fan qo‘shildi');
+  await expect(page.locator('#subjectHeading')).toHaveText(subject);
+  await expect(page.locator('#pageTitle')).toHaveText(subject);
+  await expect(page.locator('#subjectModules .module-card')).toHaveCount(0);
+
+  // “Modul qo‘shish” on the subject page opens the form with that subject already chosen.
+  await page.locator('#addModuleToSubject').click();
+  await expect(page.locator('#newModSubject option:checked')).toHaveText(subject);
+  await expect(page.locator('#newModOrder')).toHaveValue('1');
+  await page.locator('#newModTitle').fill(title);
+  await page.locator('#newQuizFile').setInputFiles(file('test.pdf', await quizPdf(browser)));
+  await page.locator('#newQuizPrepare').click();
+  await expect(page.locator('#newQuizPreview .quiz-summary')).toContainText('3 ta savol');
+  await page.locator('#newVideo').fill('https://www.youtube.com/watch?v=aaaaaaaaaaa');
+  await page.locator('#newPresFile').setInputFiles(file('dars.pptx', PPTX));
+  await page.locator('#newDocFile').setInputFiles(file('qollanma.pdf', PDF));
+  await page.locator('#newTask').fill('Dars rejasini tuzing');
+  await page.locator('#newRefl').fill('Nimani o‘rgandingiz?');
+  await page.getByRole('button', { name: 'Modulni yaratish' }).click();
+  await expect(page.locator('#toast')).toContainText('barcha materiallari');
+
+  await openSubjectPage(page, subject);
+  await expect(page.locator('#subjectModules .module-card', { hasText: title })).toBeVisible();
+  await openSubjectPage(page);
+  await expect(page.locator('.module-card', { hasText: title })).toHaveCount(0);
+
+  // The lesson leads back to its own subject.
+  await openModuleCard(page, title, subject);
+  await page.locator('.topbar').getByRole('button', { name: subject }).click();
+  await expect(page.locator('#subjectHeading')).toHaveText(subject);
+
+  // A subject that still holds modules is not removed.
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.locator('#deleteSubjectBtn').click();
+  await expect(page.locator('#toast')).toContainText('1 ta modul');
+
+  const visitor = await (await browser.newContext()).newPage();
+  await visitor.goto('/#public-modules', { waitUntil: 'domcontentloaded' });
+  await visitor.locator('#publicSubjectList [data-subject]', { hasText: subject }).click();
+  await expect(visitor).toHaveURL(/#public-modules\/\d+$/);
+  await expect(visitor.locator('#publicModulesList')).toContainText(title);
+  await visitor.reload({ waitUntil: 'domcontentloaded' });
+  await expect(visitor.locator('#publicModulesList')).toContainText(title);
+  await visitor.getByRole('link', { name: 'Barcha fanlar' }).click();
+  await expect(visitor.locator('#publicSubjectList')).toContainText(FIRST_SUBJECT);
+  await visitor.context().close();
 });

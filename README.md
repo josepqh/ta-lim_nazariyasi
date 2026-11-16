@@ -36,7 +36,7 @@ npm start            # yig‘ilgan saytni lokal API bilan ishga tushiradi
 
 - Talaba ro‘yxatdan o‘tgach darhol kiradi.
 - O‘qituvchi Gmail’ni tasdiqlagach **administrator tasdig‘ini kutadi**: admin “Foydalanuvchilar → Tasdiq kutayotganlar” bo‘limida tasdiqlaydi yoki rad etadi, ikkala holatda ham xat boradi.
-- O‘qituvchi faqat **o‘zi yaratgan modullarni** tahrirlaydi, o‘chiradi, materiallarini o‘zgartiradi va ularning javoblarini baholaydi; administrator hammasini boshqaradi. Bu qoida serverda (`api/_modules.js`) tekshiriladi.
+- O‘qituvchi faqat **o‘zi yaratgan modullar va fanlarni** tahrirlaydi, o‘chiradi, materiallarini o‘zgartiradi va ularning javoblarini baholaydi; administrator hammasini boshqaradi. Bu qoida serverda (`api/_modules.js`, `api/_routes/subjects.js`) tekshiriladi.
 
 ## Kirish va sessiya
 
@@ -46,6 +46,7 @@ npm start            # yig‘ilgan saytni lokal API bilan ishga tushiradi
 
 ## O‘quv imkoniyatlari
 
+- **Fanlar.** Modullar fanlar ichida turadi (masalan, “Ta’lim nazariyasi”, “Neyropedagogika”): talaba avval fanni, keyin modulni ochadi. Har qanday o‘qituvchi yangi fan qo‘sha oladi; fanni uning muallifi yoki administrator tahrirlaydi va o‘chiradi. Ichida modul bor fan o‘chirilmaydi. Modulning tartib raqami o‘z fani ichida takrorlanmaydi.
 - **Guruhlar.** O‘qituvchi “Guruhlar” bo‘limida guruh yaratadi va 6 belgili taklif kodini talabalarga beradi; talaba kabinetdagi “Guruhlarim” orqali qo‘shiladi. Tahlil va javoblar sahifalarida natijalarni guruh bo‘yicha saralash mumkin. Kod oshkor bo‘lsa, “Yangi kod” eskisini bekor qiladi.
 - **Yakuniy baho.** Modulning oltala qismi hisobga olinadi (`api/_grading.js`): test — to‘g‘ri javoblar foizi (30%), video, taqdimot va hujjat — bajarilgani uchun (har biri 10%), amaliy topshiriq (25%) va refleksiya (15%) — o‘qituvchi “Talaba javoblari” sahifasida qo‘ygan 0–100 ball. Shkala: 86–100% — 5 (a’lo), 71–85% — 4 (yaxshi), 55–70% — 3 (qoniqarli), 55% dan past — 2 (qoniqarsiz).
 - **Sertifikatlar.** Talaba oltita qadamni tugatib, o‘qituvchi ikkala yozma ishga ball qo‘ygach va natija kamida 55% bo‘lsa, sertifikat avtomatik beriladi. Keyin ball o‘zgarsa yoki test qayta topshirilib natija yaxshilansa, sertifikatdagi baho yangilanadi, raqami o‘zgarmaydi. PDF brauzerda chiziladi (ism, modul, baho, sana, raqam, QR kod). Istalgan kishi uni saytdagi “Sertifikatni tekshirish” sahifasida (`#verify/RAQAM`) tekshira oladi.

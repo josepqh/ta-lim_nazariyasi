@@ -34,7 +34,7 @@ export function Navbar() {
         </button>
         <ul id="mainNav" className={`hidden flex-col gap-1 [&.open]:flex max-xl:absolute max-xl:inset-x-0 max-xl:top-full max-xl:border-b max-xl:border-line max-xl:bg-surface max-xl:px-4 max-xl:py-3 max-xl:shadow-lg sm:max-xl:px-6 xl:flex xl:flex-row xl:items-center xl:gap-1${menuOpen ? ' open' : ''}`}>
           {link('home', <House className="size-[18px]"/>, 'Bosh sahifa')}
-          {link('public-modules', <Layers className="size-[18px]"/>, 'Modullar')}
+          {link('public-modules', <Layers className="size-[18px]"/>, 'Fanlar')}
           {link('public-news', <Newspaper className="size-[18px]"/>, 'Maqolalar')}
           {link('public-contact', <Mail className="size-[18px]"/>, 'Aloqa')}
           {!user && (

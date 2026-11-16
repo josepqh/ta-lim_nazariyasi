@@ -8,8 +8,19 @@ export interface User {
   role: Role;
 }
 
+export interface Subject {
+  id: number;
+  order_num: number;
+  title: string;
+  description: string;
+  cover_image_id: string | null;
+  created_by: number | null;
+  module_count: number;
+}
+
 export interface Module {
   id: number;
+  subject_id: number;
   order_num: number;
   title: string;
   description: string | null;

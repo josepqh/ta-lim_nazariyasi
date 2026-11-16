@@ -7,11 +7,12 @@ const PDF = Buffer.concat([Buffer.from('%PDF-1.7'), Buffer.alloc(100, 1)]);
 
 let harness, admin, teacher, student, other;
 let moduleId;
+let subjectId;
 let sequence = 0;
 const unique = (prefix) => `${prefix}_${++sequence}`;
 
 async function addModule(by) {
-  const res = await by.post('modules', { order_num: 100 + (++sequence), title: 'Module', description: 'About' });
+  const res = await by.post('modules', { order_num: 100 + (++sequence), title: 'Module', description: 'About', subject_id: subjectId });
   assert.equal(res.statusCode, 200);
   return res.body.id;
 }
@@ -46,6 +47,7 @@ const finishUntilTask = async (by, id) => {
 before(async () => {
   harness = await createHarness();
   harness.stubMail();
+  subjectId = (await harness.client().get('subjects')).body[0].id;
   admin = harness.client();
   assert.equal((await admin.login(TEST_ADMIN.login, TEST_ADMIN.password)).statusCode, 200);
   teacher = harness.client();
@@ -461,9 +463,9 @@ describe('module deletion', () => {
   });
 
   test('a position freed by deletion can be reused, and restoring into it conflicts', async () => {
-    const first = await teacher.post('modules', { order_num: 777, title: 'First' });
+    const first = await teacher.post('modules', { order_num: 777, title: 'First', subject_id: subjectId });
     await teacher.call('modules', { method: 'DELETE', query: { id: String(first.body.id) } });
-    const second = await teacher.post('modules', { order_num: 777, title: 'Second' });
+    const second = await teacher.post('modules', { order_num: 777, title: 'Second', subject_id: subjectId });
     assert.equal(second.statusCode, 200);
     assert.equal((await teacher.post('modules', { action: 'restore', id: first.body.id })).statusCode, 409);
   });
@@ -1346,5 +1348,70 @@ describe('action log', () => {
     const entry = log.body.items[0];
     assert.ok(entry.actor_name && entry.action && entry.created_at);
     assert.equal((await admin.get('audit', { page: '2' })).body.page, 2);
+  });
+});
+
+describe('subjects', () => {
+  test('the first subjects exist and every existing module sits in one of them', async () => {
+    const list = (await harness.client().get('subjects')).body;
+    assert.deepEqual(list.slice(0, 2).map((s) => s.title), ['Ta’lim nazariyasi', 'Neyropedagogika']);
+    assert.ok(list[0].module_count >= 1);
+    const [{ n }] = await harness.sql`SELECT COUNT(*)::int AS n FROM np_modules WHERE subject_id IS NULL`;
+    assert.equal(n, 0);
+  });
+
+  test('teachers add subjects; only the author or the administrator changes or removes one', async () => {
+    assert.equal((await student.post('subjects', { title: 'Psixologiya' })).statusCode, 403);
+    assert.equal((await harness.client().post('subjects', { title: 'Psixologiya' })).statusCode, 401);
+    assert.equal((await teacher.post('subjects', { title: 'X' })).statusCode, 400);
+    const created = await teacher.post('subjects', { title: '  Pedagogik   psixologiya ', description: 'O‘quvchi xulq-atvori' });
+    assert.equal(created.statusCode, 201);
+    assert.equal(created.body.title, 'Pedagogik psixologiya');
+    assert.equal((await teacher.post('subjects', { title: 'pedagogik psixologiya' })).statusCode, 409);
+
+    const rival = harness.client();
+    await rival.register(unique('subject_rival'), 'teacher');
+    assert.equal((await rival.post('subjects', { id: created.body.id, title: 'Mine now' })).statusCode, 403);
+    assert.equal((await rival.call('subjects', { method: 'DELETE', query: { id: String(created.body.id) } })).statusCode, 403);
+    assert.equal((await admin.post('subjects', { id: created.body.id, title: 'Pedagogik psixologiya asoslari' })).statusCode, 200);
+
+    assert.equal((await teacher.call('subjects', { method: 'DELETE', query: { id: String(created.body.id) } })).statusCode, 200);
+    assert.ok(!(await harness.client().get('subjects')).body.some((s) => s.id === created.body.id));
+    const actions = new Set((await harness.sql`SELECT action FROM np_audit_log WHERE action LIKE 'subject.%'`).map((r) => r.action));
+    for (const action of ['subject.create', 'subject.update', 'subject.delete']) assert.ok(actions.has(action), `missing ${action}`);
+  });
+
+  test('a module needs a live subject, positions repeat across subjects, and a module can move', async () => {
+    const other = (await teacher.post('subjects', { title: unique('Fan') })).body;
+    assert.equal((await teacher.post('modules', { order_num: 5, title: 'No home' })).statusCode, 400);
+    assert.equal((await teacher.post('modules', { order_num: 5, title: 'Lost', subject_id: 999999 })).statusCode, 404);
+
+    const here = await teacher.post('modules', { order_num: 4242, title: 'Here', subject_id: subjectId });
+    const there = await teacher.post('modules', { order_num: 4242, title: 'There', subject_id: other.id });
+    assert.equal(here.statusCode, 200);
+    assert.equal(there.statusCode, 200, 'the same position in another subject is free');
+    assert.equal((await teacher.post('modules', { order_num: 4243, title: 'Second there', subject_id: other.id })).statusCode, 200);
+
+    const moved = await teacher.post('modules', { id: there.body.id, order_num: 4244, title: 'There', subject_id: subjectId });
+    assert.equal(moved.body.subject_id, subjectId);
+    const kept = await teacher.post('modules', { id: there.body.id, order_num: 4244, title: 'Still there' });
+    assert.equal(kept.body.subject_id, subjectId, 'leaving the subject out keeps it');
+    assert.equal((await teacher.post('modules', { id: there.body.id, order_num: 4242, title: 'Clash' })).statusCode, 409);
+
+    const counts = (await harness.client().get('subjects')).body.find((s) => s.id === other.id);
+    assert.equal(counts.module_count, 1);
+  });
+
+  test('a subject with modules stays until they leave, and a module of a removed subject is not restored', async () => {
+    const subject = (await teacher.post('subjects', { title: unique('Vaqtinchalik fan') })).body;
+    const mod = (await teacher.post('modules', { order_num: 1, title: 'Only one', subject_id: subject.id })).body;
+    const blocked = await teacher.call('subjects', { method: 'DELETE', query: { id: String(subject.id) } });
+    assert.equal(blocked.statusCode, 409);
+    assert.match(blocked.body.error, /1 ta modul/);
+
+    await teacher.call('modules', { method: 'DELETE', query: { id: String(mod.id) } });
+    assert.equal((await teacher.call('subjects', { method: 'DELETE', query: { id: String(subject.id) } })).statusCode, 200);
+    assert.equal((await teacher.post('modules', { action: 'restore', id: mod.id })).statusCode, 409);
+    assert.equal((await teacher.post('modules', { order_num: 2, title: 'Late', subject_id: subject.id })).statusCode, 404);
   });
 });

@@ -3,11 +3,14 @@ import { keys, queryClient } from './lib/queries';
 import { navigate, openAuth, restoreRoute, showSection, showToast, useApp } from './store';
 import type { User } from './types';
 
+// Subjects and modules are public, so they stay cached when the session ends.
+const keepsPublicLists = (key: unknown) => key !== 'modules' && key !== 'subjects';
+
 // The session ended on the server (12 hours unused, a password change, a block). The cabinet
 // address stays in the bar, so signing in again returns to the same page.
 handleSessionExpiry(() => {
   if (!useApp.getState().user) return;
-  queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'modules' });
+  queryClient.removeQueries({ predicate: (query) => keepsPublicLists(query.queryKey[0]) });
   useApp.setState({ user: null, view: 'site', sidebarOpen: false, contentModal: null, lessonPreview: false });
   openAuth('login');
   showToast('Sessiya tugadi. Davom etish uchun qayta kiring.', 'warning');
@@ -27,7 +30,7 @@ export async function logout() {
   } catch {
     // The cookie expires on its own; the visitor is signed out here either way.
   }
-  queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'modules' });
+  queryClient.removeQueries({ predicate: (query) => keepsPublicLists(query.queryKey[0]) });
   useApp.setState({ user: null, view: 'site', sidebarOpen: false, contentModal: null, lessonPreview: false });
   showSection('home');
   showToast('Tizimdan muvaffaqiyatli chiqildi.', 'info');

@@ -9,6 +9,7 @@ export function prefetchPage(page: PageId) {
     queryClient.prefetchQuery({ queryKey, queryFn: () => api(endpoint), staleTime: 10_000 });
   const state = useApp.getState();
   void fetch(keys.modules, '/modules');
+  if (page === 'modules' || page === 'subject') void fetch(keys.subjects, '/subjects');
   if (page === 'analytics') void fetch(['progress', 'all'], '/progress');
   if (page === 'profile') void fetch(['profile'], '/profile');
   if (page === 'groups') void fetch(['groups'], '/groups');
